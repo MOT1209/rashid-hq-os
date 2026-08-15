@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { useTheme } from "next-themes";
 import {
   Activity,
   Boxes,
@@ -15,15 +14,14 @@ import {
   Sun,
 } from "lucide-react";
 import { useLocale } from "@/components/providers";
-import { setLocaleAction } from "@/app/actions";
+import { setLocaleAction, setThemeAction } from "@/app/actions";
 import { signOut } from "@/lib/auth-client";
 import { DEPARTMENTS } from "@/lib/agents";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { t, locale } = useLocale();
+  const { t, locale, theme } = useLocale();
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [pending, startTransition] = useTransition();
 
   const nav = [
@@ -76,11 +74,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mt-8 space-y-1 border-t border-border pt-4">
           <button
             type="button"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            disabled={pending}
+            onClick={() =>
+              startTransition(() => setThemeAction(theme === "dark" ? "light" : "dark"))
+            }
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-panel-2 hover:text-text"
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            {theme === "dark" ? "Light" : "Dark"}
+            {theme === "dark" ? t.themeLight : t.themeDark}
           </button>
           <button
             type="button"

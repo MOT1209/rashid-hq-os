@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/session";
 import { logActivity } from "@/lib/activity";
 import { issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
+import { isTheme, THEME_COOKIE } from "@/lib/theme";
 import { assertSafeEndpoint, UnsafeEndpointError } from "@/lib/net/safe-endpoint";
 import { safeMessage } from "@/lib/errors";
 import type { ProjectStatus } from "@/types/database";
@@ -30,6 +31,15 @@ async function assertOwnsProject(projectId: string, ownerId: string) {
 export async function setLocaleAction(locale: string) {
   if (!isLocale(locale)) return;
   (await cookies()).set(LOCALE_COOKIE, locale, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  revalidatePath("/", "layout");
+}
+
+export async function setThemeAction(theme: string) {
+  if (!isTheme(theme)) return;
+  (await cookies()).set(THEME_COOKIE, theme, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });

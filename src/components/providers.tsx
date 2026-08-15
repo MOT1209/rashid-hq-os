@@ -1,32 +1,38 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import { ThemeProvider } from "next-themes";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
+import { DEFAULT_THEME, type Theme } from "@/lib/theme";
 
-type LocaleValue = { locale: Locale; t: Dictionary };
+type AppValue = { locale: Locale; t: Dictionary; theme: Theme };
 
-const LocaleContext = createContext<LocaleValue>({
+const AppContext = createContext<AppValue>({
   locale: "ar",
   t: getDictionary("ar"),
+  theme: DEFAULT_THEME,
 });
 
 export function useLocale() {
-  return useContext(LocaleContext);
+  return useContext(AppContext);
 }
 
+/**
+ * Locale and theme both arrive already resolved from the server (cookies read
+ * in src/lib/locale-server.ts), so there is nothing to detect in the browser —
+ * no pre-paint script, and no first-render mismatch to hydrate through.
+ */
 export function Providers({
   locale,
+  theme,
   children,
 }: {
   locale: Locale;
+  theme: Theme;
   children: React.ReactNode;
 }) {
   return (
-    <LocaleContext.Provider value={{ locale, t: getDictionary(locale) }}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-        {children}
-      </ThemeProvider>
-    </LocaleContext.Provider>
+    <AppContext.Provider value={{ locale, t: getDictionary(locale), theme }}>
+      {children}
+    </AppContext.Provider>
   );
 }
