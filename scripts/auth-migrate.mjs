@@ -18,7 +18,7 @@ if (!connectionString) {
 const auth = betterAuth({
   database: new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } }),
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:7070",
   emailAndPassword: { enabled: true, autoSignIn: true },
   plugins: [bearer()],
 });

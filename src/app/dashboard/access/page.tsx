@@ -17,7 +17,7 @@ export default async function AccessPage() {
   ]);
 
   const origin =
-    process.env.BETTER_AUTH_URL ?? `https://${headerList.get("host") ?? "localhost:3000"}`;
+    process.env.BETTER_AUTH_URL ?? `https://${headerList.get("host") ?? "localhost:7070"}`;
   const names = Object.fromEntries(projects.map((p) => [p.id, p.name]));
 
   return (

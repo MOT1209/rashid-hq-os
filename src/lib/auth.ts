@@ -21,7 +21,7 @@ export const auth = betterAuth({
       : undefined,
   }),
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:7070",
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

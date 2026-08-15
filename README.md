@@ -22,8 +22,12 @@ written to Supabase and streams to the dashboard live.
 3. Create the Better Auth tables: `npx @better-auth/cli migrate`
 4. Apply the SQL in `supabase/migrations/` (run `0004` last — it closes anonymous
    database access and must run *after* Better Auth has created its tables).
-5. `npm run dev`, then create the owner account (password ≥ 12 chars):
+5. `npm run dev` — serves on **http://localhost:7070** — then create the owner
+   account (password ≥ 12 chars):
    `node scripts/seed-owner.mjs "you@example.com" "a-strong-password" "Rashid"`
+
+The port is set in the `dev` and `start` scripts. Changing it means changing
+`BETTER_AUTH_URL` to match, or sign-in breaks.
 
 ## Universal MCP endpoint
 
@@ -42,7 +46,7 @@ A token issued as **read only** is rejected on the `write` tools. A token pinned
 to a project can only see and act on that project.
 
 ```bash
-curl -X POST http://localhost:3000/api/mcp \
+curl -X POST http://localhost:7070/api/mcp \
   -H "Authorization: Bearer hq_…" -H "content-type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}'
 ```
