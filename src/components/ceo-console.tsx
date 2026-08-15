@@ -31,8 +31,12 @@ export function CeoConsole() {
         }}
         className="flex items-center gap-3"
       >
-        <Sparkles size={18} className="shrink-0 text-accent" />
+        <Sparkles size={18} aria-hidden className="shrink-0 text-accent" />
+        <label htmlFor="ceo-console-input" className="sr-only">
+          {t.consolePlaceholder}
+        </label>
         <input
+          id="ceo-console-input"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder={t.consolePlaceholder}
@@ -43,23 +47,26 @@ export function CeoConsole() {
           disabled={busy || !input.trim()}
           className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
         >
-          <Send size={14} />
+          <Send size={14} aria-hidden />
           {busy ? t.thinking : t.send}
         </button>
       </form>
 
       {error && (
-        <p className="mt-3 rounded-lg bg-err/10 px-3 py-2 text-xs text-err">
+        <p role="alert" className="mt-3 rounded-lg bg-err/10 px-3 py-2 text-xs text-err">
           {error.message}
         </p>
       )}
 
       {messages.length > 0 && (
-        <div className="mt-4 max-h-80 space-y-3 overflow-auto border-t border-border pt-4">
+        <div
+          aria-live="polite"
+          className="mt-4 max-h-80 space-y-3 overflow-auto border-t border-border pt-4"
+        >
           {messages.map((message) => (
             <div key={message.id} className="text-sm">
               <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted">
-                {message.role === "user" ? "CEO" : t.brand}
+                {message.role === "user" ? t.ceo : t.brand}
               </p>
               {message.parts.map((part, index) => {
                 if (part.type === "text") {

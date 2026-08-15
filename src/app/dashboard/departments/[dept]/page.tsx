@@ -3,10 +3,30 @@ import { ActivityStream } from "@/components/activity-stream";
 import { EmptyState, Panel, StatusBadge } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
 import { fetchLogs, fetchProjects, projectNameMap } from "@/lib/queries";
-import { departmentForCategory, getDepartment } from "@/lib/agents";
+import {
+  DEPARTMENTS,
+  categoryLabel,
+  departmentForCategory,
+  getDepartment,
+} from "@/lib/agents";
 import type { ProjectStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+
+/** The four departments are a fixed set, so their routes are known up front. */
+export function generateStaticParams() {
+  return DEPARTMENTS.map((d) => ({ dept: d.key }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ dept: string }>;
+}) {
+  const [{ dept }, t] = await Promise.all([params, getT()]);
+  const department = getDepartment(dept);
+  return { title: department ? `${t[department.key]} — ${t.brand}` : t.notFoundTitle };
+}
 
 export default async function DepartmentPage({
   params,
@@ -40,7 +60,7 @@ export default async function DepartmentPage({
           <span aria-hidden>{department.icon}</span>
           {t[department.key]}
         </h1>
-        <p className="text-sm text-muted">{department.agent}</p>
+        <p className="text-sm text-muted">{t[department.agentLabel]}</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -57,7 +77,7 @@ export default async function DepartmentPage({
                   <div className="min-w-0">
                     <p className="truncate font-medium">{project.name}</p>
                     <p className="truncate text-xs text-muted">
-                      {project.category ?? "—"}
+                      {categoryLabel(t, project.category) ?? "—"}
                     </p>
                   </div>
                   <StatusBadge

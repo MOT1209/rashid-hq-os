@@ -6,11 +6,15 @@ const LOG_LED: Record<LogStatus, string> = {
   pending: "bg-warn shadow-[0_0_8px_var(--warn)] led-pending",
 };
 
-/** Green / red / amber status light used across the activity views. */
+/**
+ * Green / red / amber status light used across the activity views. Purely
+ * decorative — every caller renders the status as text next to it, and an
+ * aria-label on a plain <span> is ignored by most screen readers anyway.
+ */
 export function StatusLed({ status }: { status: LogStatus }) {
   return (
     <span
-      aria-label={status}
+      aria-hidden
       className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${LOG_LED[status]}`}
     />
   );
@@ -73,6 +77,47 @@ export function StatCard({
       <p className="mt-2 text-3xl font-semibold text-accent">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
+  );
+}
+
+export const fieldClass =
+  "w-full rounded-xl border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent";
+
+/**
+ * Labelled form control. Placeholders alone are not labels — they vanish on
+ * input and are announced inconsistently — so every field gets a real <label>,
+ * visually hidden where the design calls for a bare input.
+ */
+export function Field({
+  id,
+  label,
+  hideLabel = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  hideLabel?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className={hideLabel ? "sr-only" : "mb-1 block text-xs text-muted"}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/** Form-level error, announced when it appears. */
+export function FormError({ id, children }: { id?: string; children: React.ReactNode }) {
+  return (
+    <p id={id} role="alert" className="text-xs text-err">
+      {children}
+    </p>
   );
 }
 

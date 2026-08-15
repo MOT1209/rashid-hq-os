@@ -51,11 +51,26 @@ curl -X POST http://localhost:3000/api/mcp \
 
 | Path | Purpose |
 | --- | --- |
-| `/dashboard` | KPIs, CEO console, recent activity |
-| `/dashboard/activity` | Full live stream with status LEDs |
-| `/dashboard/projects` | Project registry + custom MCP tools |
+| `/dashboard` | KPIs, CEO console, recent activity (each panel streams independently) |
+| `/dashboard/activity` | Full live stream, filterable by project and status, paginated |
+| `/dashboard/projects` | Project registry with inline editing + custom MCP tools |
 | `/dashboard/departments/[dev\|store\|media\|custom]` | Per-department views |
-| `/dashboard/access` | Issue / revoke agent tokens |
+| `/dashboard/access` | Issue / revoke agent tokens, with scopes |
+
+Fully bilingual (Arabic / English, RTL-aware) and usable on small screens — the
+sidebar becomes a drawer below `md`.
+
+## Development
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest — the SSRF guard, the owner allowlist, routing and dictionary parity |
+| `npm run build` | Production build |
+
+CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 
 ## Security notes
 

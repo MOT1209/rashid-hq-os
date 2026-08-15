@@ -11,8 +11,13 @@ type Props = {
   /** Restrict the feed to one project or one agent (department views). */
   projectId?: string;
   agentNames?: string[];
+  status?: LogStatus;
   limit?: number;
   compact?: boolean;
+  /** Show the "load more" button — the full activity page only. */
+  paginated?: boolean;
+  /** True when the first page came back full, i.e. older rows may exist. */
+  initialHasMore?: boolean;
 };
 
 /**
@@ -26,20 +31,36 @@ export function ActivityStream({
   projectNames,
   projectId,
   agentNames,
+  status,
   limit = 50,
   compact = false,
+  paginated = false,
+  initialHasMore = false,
 }: Props) {
   const { t, locale } = useLocale();
   const [logs, setLogs] = useState<AgentLog[]>(initialLogs);
   const [connected, setConnected] = useState(false);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const agentFilter = useMemo(() => agentNames?.join("|"), [agentNames]);
+
+  // A revalidation re-renders with fresh server rows; adopt them rather than
+  // keeping the stale client list. Adjusting state during render is React's
+  // documented pattern for this — an effect would cause a cascading render.
+  const [seenInitial, setSeenInitial] = useState(initialLogs);
+  if (seenInitial !== initialLogs) {
+    setSeenInitial(initialLogs);
+    setLogs(initialLogs);
+    setHasMore(initialHasMore);
+  }
 
   useEffect(() => {
     const allowedAgents = agentFilter ? agentFilter.split("|") : null;
 
     const matches = (log: AgentLog) => {
       if (projectId && log.project_id !== projectId) return false;
+      if (status && log.status !== status) return false;
       if (allowedAgents && !allowedAgents.includes(log.agent_name ?? "")) return false;
       return true;
     };
@@ -59,9 +80,9 @@ export function ActivityStream({
       setLogs((prev) => {
         const byId = new Map(prev.map((log) => [log.id, log]));
         for (const log of incoming) byId.set(log.id, log);
-        return [...byId.values()]
-          .sort((a, b) => b.created_at.localeCompare(a.created_at))
-          .slice(0, limit);
+        return [...byId.values()].sort((a, b) =>
+          b.created_at.localeCompare(a.created_at),
+        );
       });
     });
     source.onerror = () => setConnected(false);
@@ -70,7 +91,37 @@ export function ActivityStream({
       setConnected(false);
       source.close();
     };
-  }, [projectId, agentFilter, limit]);
+  }, [projectId, agentFilter, status, limit]);
+
+  const loadMore = async () => {
+    const oldest = logs[logs.length - 1];
+    if (!oldest || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ before: oldest.created_at });
+      if (projectId) params.set("projectId", projectId);
+      if (agentFilter) params.set("agents", agentFilter.split("|").join(","));
+      if (status) params.set("status", status);
+
+      const response = await fetch(`/api/activity/page?${params}`);
+      if (!response.ok) throw new Error(String(response.status));
+      const data = (await response.json()) as { logs: AgentLog[]; hasMore: boolean };
+
+      setLogs((prev) => {
+        const byId = new Map(prev.map((log) => [log.id, log]));
+        for (const log of data.logs) byId.set(log.id, log);
+        return [...byId.values()].sort((a, b) =>
+          b.created_at.localeCompare(a.created_at),
+        );
+      });
+      setHasMore(data.hasMore);
+    } catch (error) {
+      console.error("[activity] load more failed:", error);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const statusLabel: Record<LogStatus, string> = {
     success: t.success,
@@ -78,22 +129,26 @@ export function ActivityStream({
     pending: t.pending,
   };
 
+  // The dashboard panel is a fixed-height preview; the full page is unbounded.
+  const visible = paginated ? logs : logs.slice(0, limit);
+
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2 text-xs text-muted">
+      <p className="mb-3 flex items-center gap-2 text-xs text-muted" aria-live="polite">
         <span
+          aria-hidden
           className={`inline-block h-2 w-2 rounded-full ${
             connected ? "bg-ok" : "bg-warn led-pending"
           }`}
         />
         {connected ? t.live : t.connecting}
-      </div>
+      </p>
 
-      {logs.length === 0 ? (
+      {visible.length === 0 ? (
         <EmptyState>{t.noLogs}</EmptyState>
       ) : (
         <ul className="divide-y divide-border">
-          {logs.map((log) => (
+          {visible.map((log) => (
             <li key={log.id} className="flex items-start gap-3 py-3">
               <span className="mt-1.5">
                 <StatusLed status={log.status} />
@@ -101,7 +156,9 @@ export function ActivityStream({
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                   <span className="font-medium">{log.agent_name ?? "—"}</span>
-                  <span className="text-muted">→</span>
+                  <span className="text-muted" aria-hidden>
+                    {locale === "ar" ? "←" : "→"}
+                  </span>
                   <code className="rounded bg-panel-2 px-1.5 py-0.5 text-xs text-accent">
                     {log.tool_name ?? "—"}
                   </code>
@@ -119,15 +176,30 @@ export function ActivityStream({
               </div>
               <div className="shrink-0 text-end text-xs text-muted">
                 <div>{statusLabel[log.status]}</div>
-                <time dateTime={log.created_at}>
-                  {new Date(log.created_at).toLocaleTimeString(
-                    locale === "ar" ? "ar-EG" : "en-GB",
-                  )}
+                <time dateTime={log.created_at} suppressHydrationWarning>
+                  {new Date(log.created_at).toLocaleTimeString(locale)}
                 </time>
               </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {paginated && visible.length > 0 && (
+        <div className="mt-4 text-center">
+          {hasMore ? (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="rounded-xl border border-border px-4 py-2 text-sm text-muted hover:border-accent/50 hover:text-text disabled:opacity-40"
+            >
+              {loadingMore ? t.loading : t.loadMore}
+            </button>
+          ) : (
+            <p className="text-xs text-muted">{t.noMore}</p>
+          )}
+        </div>
       )}
     </div>
   );

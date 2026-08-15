@@ -91,6 +91,46 @@ export async function createProjectAction(form: FormData) {
   return { ok: true };
 }
 
+export async function updateProjectAction(form: FormData) {
+  const session = await requireSession();
+  const id = text(form, "id");
+  const name = text(form, "name");
+  if (!id) return { error: "Project is required." };
+  if (!name) return { error: "Name is required." };
+  if (!(await assertOwnsProject(id, session.user.id))) {
+    return { error: "Project not found." };
+  }
+
+  const mcpEndpoint = text(form, "mcp_endpoint");
+  if (mcpEndpoint) {
+    try {
+      await assertSafeEndpoint(mcpEndpoint);
+    } catch (error) {
+      if (error instanceof UnsafeEndpointError) return { error: error.message };
+      throw error;
+    }
+  }
+
+  const { error } = await getServiceSupabase()
+    .from("projects")
+    .update({
+      name,
+      category: text(form, "category"),
+      url: text(form, "url"),
+      repository_url: text(form, "repository_url"),
+      mcp_endpoint: mcpEndpoint,
+      status: (text(form, "status") ?? "active") as ProjectStatus,
+    })
+    .eq("id", id)
+    .eq("owner_id", session.user.id);
+
+  if (error) return { error: safeMessage("Updating the project", error) };
+
+  revalidatePath("/dashboard/projects");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 export async function deleteProjectAction(formData: FormData) {
   const session = await requireSession();
   const id = text(formData, "id");
