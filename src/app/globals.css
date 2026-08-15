@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f0f2f5;
+  --border: #dfe3e8;
+  --text: #10151c;
+  --muted: #5b6675;
+  --accent: #c9a227;
+  --accent-soft: rgba(201, 162, 39, 0.12);
+  --ok: #17924a;
+  --warn: #c98a10;
+  --err: #d13b3b;
+}
+
+.dark {
+  --bg: #070a0f;
+  --panel: #0e131b;
+  --panel-2: #131a24;
+  --border: #1f2937;
+  --text: #e8edf4;
+  --muted: #8b98a9;
+  --accent: #d4af37;
+  --accent-soft: rgba(212, 175, 55, 0.14);
+  --ok: #2fd07b;
+  --warn: #f0b429;
+  --err: #ff5c5c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+}
+
+[dir="rtl"] body {
+  font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+}
+
+@keyframes pulse-led {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.led-pending {
+  animation: pulse-led 1.2s ease-in-out infinite;
+}
