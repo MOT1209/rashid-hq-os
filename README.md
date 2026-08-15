@@ -99,6 +99,18 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 - Database errors are logged server-side and returned as generic messages, so
   schema details never reach a client.
 
+### Known limits
+
+- Rate-limit counters live in memory per instance and key on
+  `x-vercel-forwarded-for` / `x-real-ip` only — headers the platform sets.
+  Behind a different proxy they collapse to one bucket, so treat the throttle
+  as a brake and the auth checks as the real boundary.
+- `call_project_tool` resolves DNS, then `fetch` resolves again; a name that
+  flips between the two would slip past. Redirects are refused, which keeps the
+  window narrow, but a shared-store resolver cache would close it properly.
+- Token hashes are plain SHA-256. That is sound for the 256-bit random tokens
+  issued here; an HMAC with a server-side pepper would be stricter.
+
 ### Before deploying
 
 Set `BETTER_AUTH_URL` to the production origin (sessions break otherwise), set

@@ -28,10 +28,20 @@ const RULES: [prefix: string, rule: Rule][] = [
 
 const hits = new Map<string, number[]>();
 
+/**
+ * Only headers the platform itself sets are trusted. `x-forwarded-for` is
+ * client-supplied unless every hop rewrites it, so keying on its first entry
+ * lets an attacker rotate a header and walk straight past the password-guessing
+ * brake. Vercel sets `x-vercel-forwarded-for` and `x-real-ip` itself.
+ */
 function clientIp(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
+  const trusted =
+    request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-real-ip");
+  if (trusted) return trusted.split(",")[0].trim();
+
+  // Local development and any host that has not been vouched for: fall back to
+  // a single bucket rather than to a spoofable value.
+  return "unknown";
 }
 
 function overLimit(key: string, rule: Rule) {
@@ -85,6 +95,8 @@ function securityHeaders(nonce: string) {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nonce = crypto.randomUUID();
+  const headers = securityHeaders(nonce);
 
   const match = RULES.find(([prefix]) => pathname.startsWith(prefix));
   if (match) {
@@ -94,14 +106,15 @@ export function proxy(request: NextRequest) {
         { error: "rate_limited", error_description: "Too many requests." },
         {
           status: 429,
-          headers: { "retry-after": String(Math.ceil(rule.windowMs / 1000)) },
+          // Throttled responses get the same headers as every other one.
+          headers: {
+            ...headers,
+            "retry-after": String(Math.ceil(rule.windowMs / 1000)),
+          },
         },
       );
     }
   }
-
-  const nonce = crypto.randomUUID();
-  const headers = securityHeaders(nonce);
 
   // Next reads the nonce off the request headers and stamps it onto the
   // scripts it injects, which is what makes 'strict-dynamic' workable.

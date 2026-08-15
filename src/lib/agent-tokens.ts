@@ -10,6 +10,8 @@ export type AgentToken = {
   token_prefix: string;
   scopes: string[];
   project_id: string | null;
+  /** The owner who issued this token; inherited by anything it creates. */
+  created_by: string | null;
   last_used_at: string | null;
   revoked_at: string | null;
   expires_at: string | null;
@@ -58,7 +60,7 @@ export async function listAgentTokens(): Promise<AgentToken[]> {
   const { data, error } = await getServiceSupabase()
     .from("agent_tokens")
     .select(
-      "id, agent_name, token_prefix, scopes, project_id, last_used_at, revoked_at, expires_at, created_at",
+      "id, agent_name, token_prefix, scopes, project_id, created_by, last_used_at, revoked_at, expires_at, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -89,7 +91,7 @@ export async function verifyAgentToken(
   const { data, error } = await supabase
     .from("agent_tokens")
     .select(
-      "id, agent_name, token_prefix, scopes, project_id, last_used_at, revoked_at, expires_at, created_at",
+      "id, agent_name, token_prefix, scopes, project_id, created_by, last_used_at, revoked_at, expires_at, created_at",
     )
     .eq("token_hash", hash(token))
     .maybeSingle();

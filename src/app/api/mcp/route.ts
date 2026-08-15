@@ -54,7 +54,13 @@ export async function POST(request: Request) {
     return rpcError(null, -32700, "Parse error");
   }
 
-  const { id, method, params } = body;
+  const { id, params } = body;
+  const method = body?.method;
+  // A body without a string `method` used to reach method.startsWith() and
+  // throw, turning a malformed request into a 500 instead of a protocol error.
+  if (typeof method !== "string") {
+    return rpcError(id, -32600, "Invalid Request: missing method");
+  }
 
   if (method === "initialize") {
     return rpcResult(id, {
@@ -118,6 +124,8 @@ export async function POST(request: Request) {
         agentName: agent.agent_name,
         projectId: agent.project_id,
         scopes: agent.scopes,
+        // Anything this token creates belongs to the owner who issued it.
+        ownerId: agent.created_by,
       });
       await finish("success", result);
       return rpcResult(id, {

@@ -43,6 +43,17 @@ export async function fetchProjectTools(): Promise<ProjectTool[]> {
   return (data ?? []) as ProjectTool[];
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * project_id is a uuid column, so a junk filter value makes Postgres raise
+ * 22P02 and the page throws. Callers take filters straight from the URL, so
+ * validate before querying and treat anything else as "no such project".
+ */
+export function isUuid(value: string | undefined | null): value is string {
+  return typeof value === "string" && UUID.test(value);
+}
+
 export type LogFilters = {
   limit?: number;
   projectId?: string;
@@ -59,7 +70,12 @@ export async function fetchLogs(options: LogFilters = {}): Promise<AgentLog[]> {
     .order("created_at", { ascending: false })
     .limit(options.limit ?? 50);
 
-  if (options.projectId) query = query.eq("project_id", options.projectId);
+  // A caller that passes a non-uuid meant to filter to something that cannot
+  // exist; match nothing rather than letting Postgres raise.
+  if (options.projectId) {
+    if (!isUuid(options.projectId)) return [];
+    query = query.eq("project_id", options.projectId);
+  }
   if (options.agentNames?.length) query = query.in("agent_name", options.agentNames);
   if (options.status) query = query.eq("status", options.status);
   // Keyset, not offset: stable under inserts and index-friendly as the table grows.

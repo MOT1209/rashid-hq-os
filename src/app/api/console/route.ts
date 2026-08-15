@@ -68,10 +68,12 @@ export async function POST(request: Request) {
             payload: args as Json,
           });
           try {
-            // The console runs as the owner, so it carries both scopes.
+            // The console runs as the owner, so it carries both scopes and
+            // anything it registers is owned by the signed-in user.
             const result = await definition.execute(args as never, {
               agentName,
               scopes: ["read", "write"],
+              ownerId: session.user.id,
             });
             await finish("success", result);
             return result;

@@ -134,17 +134,23 @@ export async function updateProjectAction(form: FormData) {
 export async function deleteProjectAction(formData: FormData) {
   const session = await requireSession();
   const id = text(formData, "id");
-  if (!id) return;
+  if (!id) return { error: "Project is required." };
+
   // Scoped to the owner: defence in depth today, a real boundary the moment a
-  // second account exists.
-  const { error } = await getServiceSupabase()
+  // second account exists. `count` distinguishes "not yours / not there" from
+  // a successful delete — without it a no-op looked like success in the UI.
+  const { error, count } = await getServiceSupabase()
     .from("projects")
-    .delete()
+    .delete({ count: "exact" })
     .eq("id", id)
     .eq("owner_id", session.user.id);
-  if (error) safeMessage("Deleting the project", error);
+
+  if (error) return { error: safeMessage("Deleting the project", error) };
+  if (!count) return { error: "Project not found." };
+
   revalidatePath("/dashboard/projects");
   revalidatePath("/dashboard");
+  return { ok: true };
 }
 
 export async function addProjectToolAction(form: FormData) {

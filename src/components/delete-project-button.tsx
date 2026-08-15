@@ -17,13 +17,10 @@ export function DeleteProjectButton({
   projectName: string;
 }) {
   const { t } = useLocale();
-  const [, action, pending] = useActionState<null, FormData>(
-    async (_prev, formData) => {
-      await deleteProjectAction(formData);
-      return null;
-    },
-    null,
-  );
+  const [state, action, pending] = useActionState<
+    { error?: string; ok?: boolean } | null,
+    FormData
+  >(async (_prev, formData) => (await deleteProjectAction(formData)) ?? null, null);
 
   return (
     <form
@@ -43,6 +40,11 @@ export function DeleteProjectButton({
       >
         <Trash2 size={15} aria-hidden />
       </button>
+      {state?.error && (
+        <p role="alert" className="mt-1 text-[11px] text-err">
+          {state.error}
+        </p>
+      )}
     </form>
   );
 }

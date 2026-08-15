@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale } from "@/components/providers";
 import { EmptyState, StatusLed } from "@/components/ui";
 import type { AgentLog, LogStatus } from "@/types/database";
@@ -45,6 +45,13 @@ export function ActivityStream({
 
   const agentFilter = useMemo(() => agentNames?.join("|"), [agentNames]);
 
+  // Newest row currently held, kept in a ref so it never re-runs the
+  // subscription effect. Written from an effect, not during render.
+  const newestRef = useRef(initialLogs[0]?.created_at);
+  useEffect(() => {
+    newestRef.current = logs[0]?.created_at ?? newestRef.current;
+  }, [logs]);
+
   // A revalidation re-renders with fresh server rows; adopt them rather than
   // keeping the stale client list. Adjusting state during render is React's
   // documented pattern for this — an effect would cause a cascading render.
@@ -68,6 +75,12 @@ export function ActivityStream({
     const params = new URLSearchParams({ limit: String(limit) });
     if (projectId) params.set("projectId", projectId);
     if (allowedAgents) params.set("agents", allowedAgents.join(","));
+    // Newest row we already have, read through a ref so a server revalidation
+    // does not tear down the connection. EventSource reconnects on any blip,
+    // and without `since` the server would treat rows created meanwhile as
+    // already delivered and the feed would silently skip them.
+    const newest = newestRef.current;
+    if (newest) params.set("since", newest);
 
     const source = new EventSource(`/api/activity/stream?${params}`);
 

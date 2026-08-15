@@ -1,5 +1,27 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { assertSafeEndpoint, isSafeEndpoint } from "@/lib/net/safe-endpoint";
+
+// The guard resolves DNS, so the cases below stub the resolver rather than
+// reaching the network — otherwise CI turns red when a runner's DNS hiccups,
+// which says nothing about this code.
+vi.mock("node:dns/promises", () => ({
+  lookup: async (host: string) => {
+    const table: Record<string, { address: string; family: number }[]> = {
+      // A real public name that points at 127.0.0.1 — the case a hostname-only
+      // blocklist waves through.
+      "localtest.me": [{ address: "127.0.0.1", family: 4 }],
+      "example.com": [{ address: "93.184.216.34", family: 4 }],
+      "mixed.example": [
+        { address: "93.184.216.34", family: 4 },
+        { address: "10.0.0.7", family: 4 },
+      ],
+      "v6.example": [{ address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 }],
+    };
+    const hit = table[host];
+    if (!hit) throw new Error(`ENOTFOUND ${host}`);
+    return hit;
+  },
+}));
 
 /**
  * This guard is the only thing standing between an agent token and a full-read
@@ -50,11 +72,20 @@ describe("assertSafeEndpoint", () => {
   });
 
   it("rejects a public hostname that resolves to a private address", async () => {
-    // localtest.me is a real public DNS name pointing at 127.0.0.1 — the case
-    // a hostname-only blocklist would wave through.
     await expect(assertSafeEndpoint("https://localtest.me/mcp")).rejects.toThrow(
       /private/i,
     );
+  });
+
+  it("rejects when any resolved address is private, not just the first", async () => {
+    await expect(assertSafeEndpoint("https://mixed.example/mcp")).rejects.toThrow(
+      /private/i,
+    );
+  });
+
+  it("accepts a public IPv6 result", async () => {
+    const url = await assertSafeEndpoint("https://v6.example/mcp");
+    expect(url.hostname).toBe("v6.example");
   });
 
   it("rejects a hostname that does not resolve", async () => {

@@ -15,6 +15,13 @@ export type ToolContext = {
   projectId?: string | null;
   /** Scopes carried by the token. The CEO console passes both. */
   scopes?: string[];
+  /**
+   * The owner this call acts on behalf of — the user who issued the token, or
+   * the signed-in owner for the console. Every dashboard mutation is scoped by
+   * projects.owner_id, so anything created here must carry it or it becomes
+   * un-editable and un-deletable from the UI.
+   */
+  ownerId?: string | null;
 };
 
 export type ToolDefinition = {
@@ -110,6 +117,7 @@ const registerProject = {
         repository_url: args.repository_url ?? null,
         mcp_endpoint: args.mcp_endpoint ?? null,
         status: (args.status ?? "active") as "active",
+        owner_id: ctx.ownerId ?? null,
       })
       .select()
       .single();

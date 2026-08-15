@@ -44,7 +44,10 @@ export function SignInForm({ denied = false }: { denied?: boolean }) {
         setError(null);
 
         const { error: signInError } = await signIn.email({
-          email: String(form.get("email")),
+          // Autofill and paste routinely add a trailing space, and the server
+          // compares the address exactly. Passwords are left untouched — a
+          // space can be a real character there.
+          email: String(form.get("email")).trim(),
           password: String(form.get("password")),
         });
 

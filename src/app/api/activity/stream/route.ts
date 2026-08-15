@@ -31,6 +31,8 @@ export async function GET(request: Request) {
   const projectId = url.searchParams.get("projectId") ?? undefined;
   const agentNames = url.searchParams.get("agents")?.split(",").filter(Boolean);
   const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+  // Newest row the client already holds. On reconnect it replays the gap.
+  const since = url.searchParams.get("since") ?? undefined;
 
   const encoder = new TextEncoder();
   // id → status, so an update to an already-sent row is re-emitted once.
@@ -46,8 +48,12 @@ export async function GET(request: Request) {
         );
       };
 
+      // Guards against two polls overlapping if one runs longer than POLL_MS.
+      let polling = false;
+
       const poll = async () => {
-        if (closed) return;
+        if (closed || polling) return;
+        polling = true;
         try {
           const logs = await fetchLogs({ limit, projectId, agentNames });
           const fresh = logs.filter((log) => seen.get(log.id) !== log.status);
@@ -60,31 +66,19 @@ export async function GET(request: Request) {
           if (fresh.length) send("logs", fresh satisfies AgentLog[]);
         } catch (error) {
           console.error("[activity-stream] poll failed:", error);
+        } finally {
+          polling = false;
         }
       };
 
-      // Prime `seen` from the current window so the client is not re-sent the
-      // rows its server render already contains.
-      try {
-        for (const log of await fetchLogs({ limit, projectId, agentNames })) {
-          seen.set(log.id, log.status);
-        }
-      } catch (error) {
-        console.error("[activity-stream] priming failed:", error);
-      }
-      send("ready", { ok: true });
-
-      const pollTimer = setInterval(poll, POLL_MS);
-      // Comment frames keep proxies from closing an idle connection.
-      const beatTimer = setInterval(() => {
-        if (!closed) controller.enqueue(encoder.encode(": keepalive\n\n"));
-      }, HEARTBEAT_MS);
+      // Collected here so `stop` can clear them even when the client aborts
+      // before they are created.
+      const timers: ReturnType<typeof setInterval>[] = [];
 
       const stop = () => {
         if (closed) return;
         closed = true;
-        clearInterval(pollTimer);
-        clearInterval(beatTimer);
+        for (const timer of timers) clearInterval(timer);
         try {
           controller.close();
         } catch {
@@ -92,7 +86,34 @@ export async function GET(request: Request) {
         }
       };
 
+      // Registered before the first await: if the client disconnects during
+      // priming the abort event has already fired by the time we get back, and
+      // the timers below would poll Supabase forever on a dead connection.
       request.signal.addEventListener("abort", stop);
+
+      // Prime `seen` so the client is not re-sent rows it already has. `since`
+      // is the newest row the client holds; on an EventSource reconnect it lets
+      // the server replay anything created while the connection was down —
+      // priming from the current window alone would silently skip those.
+      try {
+        for (const log of await fetchLogs({ limit, projectId, agentNames })) {
+          if (since && log.created_at > since) continue;
+          seen.set(log.id, log.status);
+        }
+      } catch (error) {
+        console.error("[activity-stream] priming failed:", error);
+      }
+      if (request.signal.aborted) return stop();
+      send("ready", { ok: true });
+      void poll();
+
+      timers.push(setInterval(poll, POLL_MS));
+      // Comment frames keep proxies from closing an idle connection.
+      timers.push(
+        setInterval(() => {
+          if (!closed) controller.enqueue(encoder.encode(": keepalive\n\n"));
+        }, HEARTBEAT_MS),
+      );
     },
   });
 
