@@ -22,6 +22,9 @@ export function CeoConsole() {
   return (
     <section className="rounded-2xl border border-accent/30 bg-panel p-5 shadow-sm">
       <form
+        // Same reasoning as the sign-in form: before hydration there is no
+        // preventDefault(), and a GET fallback would put the command in the URL.
+        method="post"
         onSubmit={(event) => {
           event.preventDefault();
           const text = input.trim();

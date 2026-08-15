@@ -87,6 +87,12 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
   Endpoints are validated when stored *and* again before the request.
 - Agent tokens are stored as SHA-256 hashes — the plaintext is shown once, and
   scopes are enforced per tool.
+- **Security headers on every response** (`src/proxy.ts`): a nonce-based
+  Content Security Policy — same-origin only, `object-src 'none'`,
+  `frame-ancestors 'none'` — plus `nosniff`, a strict referrer policy and a
+  locked-down permissions policy. `'unsafe-eval'` is added **in development
+  only**, where React uses `eval` to rebuild server-side error stacks; a
+  production build needs none.
 - `/api/auth`, `/api/mcp` and `/api/console` are rate-limited in `src/proxy.ts`.
   The counters are per-instance and best effort; move them to a shared store
   before scaling out.
