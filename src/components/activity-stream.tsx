@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getBrowserSupabase } from "@/lib/supabase/client";
 import { useLocale } from "@/components/providers";
 import { EmptyState, StatusLed } from "@/components/ui";
 import type { AgentLog, LogStatus } from "@/types/database";
@@ -17,8 +16,10 @@ type Props = {
 };
 
 /**
- * Subscribes to agent_logs over Supabase Realtime. Inserts prepend, updates
- * patch in place (a call starts as `pending` and later flips to success/failed).
+ * Subscribes to /api/activity/stream (SSE). New rows prepend, rows already in
+ * the list are patched in place (a call starts `pending` and later flips to
+ * success/failed). The stream is authenticated server-side — the browser holds
+ * no database credentials.
  */
 export function ActivityStream({
   initialLogs,
@@ -35,7 +36,6 @@ export function ActivityStream({
   const agentFilter = useMemo(() => agentNames?.join("|"), [agentNames]);
 
   useEffect(() => {
-    const supabase = getBrowserSupabase();
     const allowedAgents = agentFilter ? agentFilter.split("|") : null;
 
     const matches = (log: AgentLog) => {
@@ -44,30 +44,31 @@ export function ActivityStream({
       return true;
     };
 
-    const channel = supabase
-      .channel("agent-logs-stream")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "agent_logs" },
-        (payload) => {
-          const log = payload.new as AgentLog;
-          if (!matches(log)) return;
-          setLogs((prev) => [log, ...prev.filter((l) => l.id !== log.id)].slice(0, limit));
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "agent_logs" },
-        (payload) => {
-          const log = payload.new as AgentLog;
-          if (!matches(log)) return;
-          setLogs((prev) => prev.map((l) => (l.id === log.id ? log : l)));
-        },
-      )
-      .subscribe((status) => setConnected(status === "SUBSCRIBED"));
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (projectId) params.set("projectId", projectId);
+    if (allowedAgents) params.set("agents", allowedAgents.join(","));
+
+    const source = new EventSource(`/api/activity/stream?${params}`);
+
+    source.addEventListener("ready", () => setConnected(true));
+    source.addEventListener("logs", (event) => {
+      const incoming = (JSON.parse((event as MessageEvent).data) as AgentLog[])
+        .filter(matches);
+      if (incoming.length === 0) return;
+
+      setLogs((prev) => {
+        const byId = new Map(prev.map((log) => [log.id, log]));
+        for (const log of incoming) byId.set(log.id, log);
+        return [...byId.values()]
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .slice(0, limit);
+      });
+    });
+    source.onerror = () => setConnected(false);
 
     return () => {
-      void supabase.removeChannel(channel);
+      setConnected(false);
+      source.close();
     };
   }, [projectId, agentFilter, limit]);
 

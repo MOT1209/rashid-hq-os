@@ -19,7 +19,7 @@ export function IssueTokenForm({ projects }: { projects: Project[] }) {
   );
 
   return (
-    <form action={action} className="grid gap-3 sm:grid-cols-3">
+    <form action={action} className="grid gap-3 sm:grid-cols-4">
       <input name="agent_name" placeholder={t.agent} required className={field} />
       <select name="project_id" defaultValue="" className={field}>
         <option value="">{`${t.project} — *`}</option>
@@ -28,6 +28,11 @@ export function IssueTokenForm({ projects }: { projects: Project[] }) {
             {p.name}
           </option>
         ))}
+      </select>
+      {/* Scopes are enforced per tool in /api/mcp — a read token cannot write. */}
+      <select name="scopes" defaultValue="read" className={field}>
+        <option value="read">{t.scopeRead}</option>
+        <option value="write">{t.scopeReadWrite}</option>
       </select>
       <button
         type="submit"
@@ -38,10 +43,10 @@ export function IssueTokenForm({ projects }: { projects: Project[] }) {
       </button>
 
       {state?.error && (
-        <p className="sm:col-span-3 text-xs text-err">{state.error}</p>
+        <p className="sm:col-span-4 text-xs text-err">{state.error}</p>
       )}
       {state?.token && (
-        <div className="sm:col-span-3 rounded-xl border border-accent/40 bg-accent-soft p-3">
+        <div className="sm:col-span-4 rounded-xl border border-accent/40 bg-accent-soft p-3">
           <p className="mb-2 text-xs text-warn">{t.tokenOnce}</p>
           <code className="block break-all text-xs">{state.token}</code>
         </div>

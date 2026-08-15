@@ -5,7 +5,7 @@ remote MCP endpoint that agents call to act on those projects. Every tool call i
 written to Supabase and streams to the dashboard live.
 
 - **Next.js 16** (App Router) + **TailwindCSS v4**
-- **Supabase** — Postgres + Realtime on `agent_logs`
+- **Supabase** — Postgres, read and written only by the server
 - **Better Auth** — owner sign-in + bearer tokens for agents
 - **AI SDK v6** via Vercel AI Gateway — the CEO command console
 - Arabic / English, dark / light
@@ -17,13 +17,13 @@ written to Supabase and streams to the dashboard live.
    - `SUPABASE_SERVICE_ROLE_KEY` — Supabase → Project Settings → API keys
    - `DATABASE_URL` — Supabase → Project Settings → Database (session pooler URI)
    - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
+   - `OWNER_EMAILS` — your email. Nobody else can sign up or sign in.
    - `AI_GATEWAY_API_KEY` — Vercel AI Gateway (the console returns 503 without it)
 3. Create the Better Auth tables: `npx @better-auth/cli migrate`
-4. `npm run dev`, then create the owner account:
-   `node scripts/seed-owner.mjs "you@example.com" "strong-password" "Rashid"`
-
-The application tables are already applied to the Supabase project; the SQL lives
-in `supabase/migrations/` for rebuilds.
+4. Apply the SQL in `supabase/migrations/` (run `0004` last — it closes anonymous
+   database access and must run *after* Better Auth has created its tables).
+5. `npm run dev`, then create the owner account (password ≥ 12 chars):
+   `node scripts/seed-owner.mjs "you@example.com" "a-strong-password" "Rashid"`
 
 ## Universal MCP endpoint
 
@@ -31,8 +31,15 @@ in `supabase/migrations/` for rebuilds.
 Issue and revoke tokens at `/dashboard/access`; a revoked token is rejected on its
 very next call.
 
-Tools: `list_projects`, `get_project`, `register_project`, `list_recent_logs`,
-`call_project_tool` (proxies to a project's own MCP endpoint).
+Tools and the scope each one needs:
+
+| Tool | Scope |
+| --- | --- |
+| `list_projects`, `get_project`, `list_recent_logs` | `read` |
+| `register_project`, `call_project_tool` | `write` |
+
+A token issued as **read only** is rejected on the `write` tools. A token pinned
+to a project can only see and act on that project.
 
 ```bash
 curl -X POST http://localhost:3000/api/mcp \
@@ -45,16 +52,34 @@ curl -X POST http://localhost:3000/api/mcp \
 | Path | Purpose |
 | --- | --- |
 | `/dashboard` | KPIs, CEO console, recent activity |
-| `/dashboard/activity` | Full realtime stream with status LEDs |
+| `/dashboard/activity` | Full live stream with status LEDs |
 | `/dashboard/projects` | Project registry + custom MCP tools |
 | `/dashboard/departments/[dev\|store\|media\|custom]` | Per-department views |
 | `/dashboard/access` | Issue / revoke agent tokens |
 
 ## Security notes
 
-- The service role key is server-only; the browser gets a read-only publishable key.
-- Agent tokens are stored as SHA-256 hashes — the plaintext is shown once.
-- RLS allows anonymous **SELECT** on `projects`, `agent_logs`, `project_tools` so
-  Realtime can reach the browser. Anyone holding the publishable key can read those
-  rows, so keep secrets out of tool payloads. Hardening path: mint short-lived
-  Supabase JWTs for the signed-in owner and restrict the policies to `authenticated`.
+- **Single owner.** Sign-up is closed to everyone outside `OWNER_EMAILS`, enforced
+  at account creation and again on every guarded page. An empty `OWNER_EMAILS`
+  locks the console rather than opening it.
+- **The browser holds no database credentials.** Activity streams over
+  `/api/activity/stream` (SSE, owner session required); the service role key never
+  leaves the server. Migration `0004` removes the anonymous SELECT policies that
+  the old Realtime subscription needed.
+- **Outbound calls are guarded.** `call_project_tool` POSTs only to public `https`
+  endpoints — private ranges, loopback and cloud metadata (`169.254.169.254`) are
+  rejected, DNS results are checked address by address, and redirects are refused.
+  Endpoints are validated when stored *and* again before the request.
+- Agent tokens are stored as SHA-256 hashes — the plaintext is shown once, and
+  scopes are enforced per tool.
+- `/api/auth`, `/api/mcp` and `/api/console` are rate-limited in `src/proxy.ts`.
+  The counters are per-instance and best effort; move them to a shared store
+  before scaling out.
+- Database errors are logged server-side and returned as generic messages, so
+  schema details never reach a client.
+
+### Before deploying
+
+Set `BETTER_AUTH_URL` to the production origin (sessions break otherwise), set
+`OWNER_EMAILS`, and leave `ALLOW_PRIVATE_MCP_ENDPOINTS` unset — it disables the
+SSRF guard and exists only for local development.

@@ -2,19 +2,27 @@ import "server-only";
 
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { assertSafeEndpoint } from "@/lib/net/safe-endpoint";
+import { dbError } from "@/lib/errors";
 import type { Json } from "@/types/database";
+
+export type Scope = "read" | "write";
 
 export type ToolContext = {
   /** Who is calling — an agent name from agent_tokens, or the CEO console. */
   agentName: string;
   /** When set, the caller is pinned to a single project. */
   projectId?: string | null;
+  /** Scopes carried by the token. The CEO console passes both. */
+  scopes?: string[];
 };
 
 export type ToolDefinition = {
   name: string;
   description: string;
   schema: z.ZodTypeAny;
+  /** Least privilege a caller needs. Enforced in src/app/api/mcp/route.ts. */
+  requiredScope: Scope;
   execute: (args: never, ctx: ToolContext) => Promise<Json>;
 };
 
@@ -22,10 +30,14 @@ function scopeError(): never {
   throw new Error("This token is scoped to a different project.");
 }
 
+/** Remote tool responses are logged and echoed back; keep them bounded. */
+const MAX_REMOTE_BODY = 100_000;
+
 const listProjects = {
   name: "list_projects",
   description:
     "List every project in the Alking Enterprises registry, optionally filtered by category or status.",
+  requiredScope: "read" as const,
   schema: z.object({
     category: z.string().optional(),
     status: z.enum(["active", "idle", "maintenance"]).optional(),
@@ -41,7 +53,7 @@ const listProjects = {
     if (ctx.projectId) query = query.eq("id", ctx.projectId);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw dbError("list_projects", error);
     return { projects: data ?? [] } as Json;
   },
 };
@@ -49,6 +61,7 @@ const listProjects = {
 const getProject = {
   name: "get_project",
   description: "Fetch one project with the custom MCP tools registered against it.",
+  requiredScope: "read" as const,
   schema: z.object({ project_id: z.string().uuid() }),
   async execute(args: { project_id: string }, ctx: ToolContext) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
@@ -62,7 +75,7 @@ const getProject = {
         .eq("project_id", args.project_id),
     ]);
 
-    if (error) throw new Error(error.message);
+    if (error) throw dbError("get_project", error);
     if (!project) throw new Error("Project not found.");
     return { project, tools: tools ?? [] } as Json;
   },
@@ -72,15 +85,22 @@ const registerProject = {
   name: "register_project",
   description:
     "Register a new project in the enterprise registry so it appears on the CEO dashboard.",
+  requiredScope: "write" as const,
   schema: z.object({
-    name: z.string().min(1),
-    category: z.string().optional(),
+    name: z.string().min(1).max(200),
+    category: z.string().max(100).optional(),
     url: z.string().url().optional(),
     repository_url: z.string().url().optional(),
     mcp_endpoint: z.string().url().optional(),
     status: z.enum(["active", "idle", "maintenance"]).default("active"),
   }),
-  async execute(args: Record<string, string>) {
+  async execute(args: Record<string, string>, ctx: ToolContext) {
+    // A project-scoped token must not be able to mint new, unscoped projects
+    // (which would also be new outbound endpoints for call_project_tool).
+    if (ctx.projectId) scopeError();
+    // Validated before storage so the endpoint can never become an SSRF target.
+    if (args.mcp_endpoint) await assertSafeEndpoint(args.mcp_endpoint);
+
     const { data, error } = await getServiceSupabase()
       .from("projects")
       .insert({
@@ -94,7 +114,7 @@ const registerProject = {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw dbError("register_project", error);
     return { project: data } as Json;
   },
 };
@@ -102,6 +122,7 @@ const registerProject = {
 const listRecentLogs = {
   name: "list_recent_logs",
   description: "Read the most recent agent activity, newest first.",
+  requiredScope: "read" as const,
   schema: z.object({
     project_id: z.string().uuid().optional(),
     agent_name: z.string().optional(),
@@ -122,7 +143,7 @@ const listRecentLogs = {
     if (args.agent_name) query = query.eq("agent_name", args.agent_name);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw dbError("list_recent_logs", error);
     return { logs: data ?? [] } as Json;
   },
 };
@@ -131,9 +152,10 @@ const callProjectTool = {
   name: "call_project_tool",
   description:
     "Invoke a custom tool registered on a project, proxied to that project's own MCP endpoint.",
+  requiredScope: "write" as const,
   schema: z.object({
     project_id: z.string().uuid(),
-    tool_name: z.string(),
+    tool_name: z.string().max(200),
     input: z.record(z.string(), z.unknown()).default({}),
   }),
   async execute(
@@ -163,14 +185,24 @@ const callProjectTool = {
       );
     }
 
-    const response = await fetch(endpoint, {
+    // Last line of defence: endpoints are validated on write, but a row could
+    // predate that check or be edited out of band.
+    const safeUrl = await assertSafeEndpoint(endpoint);
+
+    const response = await fetch(safeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ tool: args.tool_name, input: args.input ?? {} }),
+      // A followed redirect would walk straight past assertSafeEndpoint.
+      redirect: "manual",
       signal: AbortSignal.timeout(30_000),
     });
 
-    const text = await response.text();
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error("Remote tool attempted a redirect, which is not allowed.");
+    }
+
+    const text = (await response.text()).slice(0, MAX_REMOTE_BODY);
     let body: unknown = text;
     try {
       body = JSON.parse(text);
@@ -179,9 +211,12 @@ const callProjectTool = {
     }
 
     if (!response.ok) {
-      throw new Error(`Remote tool failed (${response.status}): ${text.slice(0, 300)}`);
+      console.error(
+        `[mcp] call_project_tool ${args.tool_name} -> ${response.status}: ${text.slice(0, 300)}`,
+      );
+      throw new Error(`Remote tool failed with status ${response.status}.`);
     }
-    return { endpoint, response: body } as Json;
+    return { endpoint: safeUrl.toString(), status: response.status, response: body } as Json;
   },
 };
 

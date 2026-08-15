@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { dbError } from "@/lib/errors";
 
 export type AgentToken = {
   id: string;
@@ -49,7 +50,7 @@ export async function issueAgentToken(input: {
     .select("id, agent_name, token_prefix, scopes, project_id, created_at")
     .single();
 
-  if (error) throw new Error(`Could not issue token: ${error.message}`);
+  if (error) throw dbError("Issuing the token", error);
   return { token, record: data as AgentToken };
 }
 
@@ -61,7 +62,7 @@ export async function listAgentTokens(): Promise<AgentToken[]> {
     )
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(error.message);
+  if (error) throw dbError("Listing tokens", error);
   return (data ?? []) as AgentToken[];
 }
 
@@ -70,7 +71,7 @@ export async function revokeAgentToken(id: string) {
     .from("agent_tokens")
     .update({ revoked_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError("Revoking the token", error);
 }
 
 /**
@@ -99,10 +100,18 @@ export async function verifyAgentToken(
   if (record.expires_at && new Date(record.expires_at) < new Date()) return null;
 
   // Fire-and-forget: last_used_at is telemetry, not part of the auth decision.
-  void supabase
-    .from("agent_tokens")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("id", record.id);
+  // Still needs a catch, or a failed write becomes an unhandled rejection.
+  void (async () => {
+    try {
+      const { error: updateError } = await supabase
+        .from("agent_tokens")
+        .update({ last_used_at: new Date().toISOString() })
+        .eq("id", record.id);
+      if (updateError) console.error("[auth] last_used_at:", updateError.message);
+    } catch (cause) {
+      console.error("[auth] last_used_at:", cause);
+    }
+  })();
 
   return record;
 }

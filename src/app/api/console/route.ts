@@ -1,12 +1,16 @@
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
+import { isOwnerEmail } from "@/lib/owners";
 import { startActivity } from "@/lib/activity";
 import { TOOLS } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+/** The console drives real tools; keep a runaway client from driving them far. */
+const MAX_MESSAGES = 60;
 
 const SYSTEM_PROMPT = `You are the executive assistant of the CEO of Alking Enterprises.
 You operate the company's project registry and its agents through the tools you are given.
@@ -21,7 +25,7 @@ Rules:
  */
 export async function POST(request: Request) {
   const session = await getSession();
-  if (!session) {
+  if (!session || !isOwnerEmail(session.user.email)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
@@ -35,7 +39,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages } = (await request.json()) as { messages: UIMessage[] };
+  let messages: UIMessage[];
+  try {
+    const body = (await request.json()) as { messages?: unknown };
+    if (!Array.isArray(body.messages)) throw new Error("messages must be an array");
+    if (body.messages.length > MAX_MESSAGES) throw new Error("conversation too long");
+    messages = body.messages as UIMessage[];
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid request body." }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const agentName = "CEO Console";
 
   const tools = Object.fromEntries(
@@ -52,7 +68,11 @@ export async function POST(request: Request) {
             payload: args as Json,
           });
           try {
-            const result = await definition.execute(args as never, { agentName });
+            // The console runs as the owner, so it carries both scopes.
+            const result = await definition.execute(args as never, {
+              agentName,
+              scopes: ["read", "write"],
+            });
             await finish("success", result);
             return result;
           } catch (error) {

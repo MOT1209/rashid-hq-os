@@ -1,21 +1,24 @@
 import "server-only";
 
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { dbError } from "@/lib/errors";
 import type { AgentLog, Project, ProjectTool } from "@/types/database";
 
 export async function fetchProjects(): Promise<Project[]> {
-  const { data } = await getServiceSupabase()
+  const { data, error } = await getServiceSupabase()
     .from("projects")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) throw dbError("Loading projects", error);
   return (data ?? []) as Project[];
 }
 
 export async function fetchProjectTools(): Promise<ProjectTool[]> {
-  const { data } = await getServiceSupabase()
+  const { data, error } = await getServiceSupabase()
     .from("project_tools")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) throw dbError("Loading project tools", error);
   return (data ?? []) as ProjectTool[];
 }
 
@@ -33,7 +36,8 @@ export async function fetchLogs(options: {
   if (options.projectId) query = query.eq("project_id", options.projectId);
   if (options.agentNames?.length) query = query.in("agent_name", options.agentNames);
 
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) throw dbError("Loading activity", error);
   return (data ?? []) as AgentLog[];
 }
 

@@ -87,15 +87,27 @@ export async function POST(request: Request) {
     const tool = findTool(toolName);
     if (!tool) return rpcError(id, -32602, `Unknown tool: ${toolName}`);
 
+    // A token's scopes are the authorization decision, not decoration.
+    if (!agent.scopes?.includes(tool.requiredScope)) {
+      return rpcError(
+        id,
+        -32003,
+        `This token lacks the "${tool.requiredScope}" scope required by ${toolName}.`,
+      );
+    }
+
     const parsed = tool.schema.safeParse(rawArgs);
     if (!parsed.success) {
       return rpcError(id, -32602, `Invalid arguments: ${parsed.error.message}`);
     }
 
+    // Read project_id from the validated args — the raw value is an arbitrary
+    // string that would silently fail the uuid column on insert.
+    const args = parsed.data as Record<string, unknown>;
     const finish = await startActivity({
       projectId:
         agent.project_id ??
-        (typeof rawArgs.project_id === "string" ? rawArgs.project_id : null),
+        (typeof args.project_id === "string" ? args.project_id : null),
       agentName: agent.agent_name,
       toolName,
       payload: parsed.data as Json,
@@ -105,6 +117,7 @@ export async function POST(request: Request) {
       const result = await tool.execute(parsed.data as never, {
         agentName: agent.agent_name,
         projectId: agent.project_id,
+        scopes: agent.scopes,
       });
       await finish("success", result);
       return rpcResult(id, {
@@ -112,7 +125,11 @@ export async function POST(request: Request) {
         structuredContent: result,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Tool errors are already sanitised (see src/lib/errors.ts); anything
+      // else is logged in full and reported generically.
+      const message =
+        error instanceof Error ? error.message : "The tool failed unexpectedly.";
+      console.error(`[mcp] ${toolName} failed:`, error);
       await finish("failed", { error: message });
       return rpcResult(id, {
         content: [{ type: "text", text: message }],
