@@ -6,7 +6,7 @@ import { updateProjectAction } from "@/app/actions";
 import { useLocale } from "@/components/providers";
 import { DeleteProjectButton } from "@/components/delete-project-button";
 import { Field, FormError, StatusBadge, fieldClass } from "@/components/ui";
-import { PROJECT_CATEGORIES, categoryLabel } from "@/lib/agents";
+import { categoryLabel, categoryLabelOf, type ProjectCategory } from "@/lib/agents";
 import type { Project, ProjectStatus } from "@/types/database";
 
 type State = { error?: string; ok?: boolean } | null;
@@ -16,7 +16,13 @@ type State = { error?: string; ok?: boolean } | null;
  * only be created and deleted — a typo in an endpoint meant recreating the row
  * and losing its logs to the cascade.
  */
-export function ProjectRow({ project }: { project: Project }) {
+export function ProjectRow({
+  project,
+  categories,
+}: {
+  project: Project;
+  categories: ProjectCategory[];
+}) {
   const { t, locale } = useLocale();
   const id = useId();
   const [editing, setEditing] = useState(false);
@@ -60,9 +66,9 @@ export function ProjectRow({ project }: { project: Project }) {
                 className={fieldClass}
               >
                 <option value="">—</option>
-                {PROJECT_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c.value} value={c.value}>
-                    {t[c.label]}
+                    {categoryLabelOf(c, locale)}
                   </option>
                 ))}
               </select>
@@ -149,7 +155,7 @@ export function ProjectRow({ project }: { project: Project }) {
           </a>
         )}
       </td>
-      <td className="py-3 text-muted">{categoryLabel(t, project.category) ?? "—"}</td>
+      <td className="py-3 text-muted">{categoryLabel(categories, locale, project.category) ?? "—"}</td>
       <td className="max-w-56 truncate py-3 text-xs text-muted">
         {project.mcp_endpoint ?? "—"}
       </td>

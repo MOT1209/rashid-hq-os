@@ -80,7 +80,12 @@ curl -X POST http://localhost:7070/api/mcp \
 | `/dashboard/projects` | Project registry and MCP tools, both editable inline; each tool has a **Test** button that calls its endpoint and shows the reply |
 | `/dashboard/departments/[dev\|store\|media\|custom]` | Per-department views |
 | `/dashboard/access` | Issue / revoke agent tokens, with scopes and an expiry |
-| `/dashboard/settings` | Change the owner password |
+| `/dashboard/settings` | Change the owner password; add and remove project categories |
+
+Departments and categories live in the `departments` and `project_categories`
+tables, not in the source. Adding one is a row, and its Arabic and English names
+come with it — no code change, no deploy. A project keeps whatever category
+string it was saved with, so removing a category never breaks an existing row.
 
 Fully bilingual (Arabic / English, RTL-aware) and usable on small screens — the
 sidebar becomes a drawer below `md`.

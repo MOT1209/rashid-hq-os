@@ -1,31 +1,45 @@
 import { notFound } from "next/navigation";
 import { ActivityStream } from "@/components/activity-stream";
 import { EmptyState, Panel, StatusBadge } from "@/components/ui";
-import { getT } from "@/lib/locale-server";
-import { fetchLogs, fetchProjects, projectNameMap } from "@/lib/queries";
+import { getLocale, getT } from "@/lib/locale-server";
 import {
-  DEPARTMENTS,
+  fetchCategories,
+  fetchDepartments,
+  fetchLogs,
+  fetchProjects,
+  projectNameMap,
+} from "@/lib/queries";
+import {
+  agentLabel,
   categoryLabel,
   departmentForCategory,
+  departmentName,
   getDepartment,
 } from "@/lib/agents";
 import type { ProjectStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
-/** The four departments are a fixed set, so their routes are known up front. */
-export function generateStaticParams() {
-  return DEPARTMENTS.map((d) => ({ dept: d.key }));
-}
+// Departments are rows now, so their routes are only known at request time —
+// no generateStaticParams. The page is force-dynamic regardless.
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ dept: string }>;
 }) {
-  const [{ dept }, t] = await Promise.all([params, getT()]);
-  const department = getDepartment(dept);
-  return { title: department ? `${t[department.key]} — ${t.brand}` : t.notFoundTitle };
+  const [{ dept }, t, locale, departments] = await Promise.all([
+    params,
+    getT(),
+    getLocale(),
+    fetchDepartments(),
+  ]);
+  const department = getDepartment(departments, dept);
+  return {
+    title: department
+      ? `${departmentName(department, locale)} — ${t.brand}`
+      : t.notFoundTitle,
+  };
 }
 
 export default async function DepartmentPage({
@@ -33,18 +47,24 @@ export default async function DepartmentPage({
 }: {
   params: Promise<{ dept: string }>;
 }) {
-  const { dept } = await params;
-  const department = getDepartment(dept);
+  const [{ dept }, t, locale, departments, categories] = await Promise.all([
+    params,
+    getT(),
+    getLocale(),
+    fetchDepartments(),
+    fetchCategories(),
+  ]);
+
+  const department = getDepartment(departments, dept);
   if (!department) notFound();
 
-  const t = await getT();
   const [allProjects, logs] = await Promise.all([
     fetchProjects(),
-    fetchLogs({ limit: 50, agentNames: [department.agent] }),
+    fetchLogs({ limit: 50, agentNames: [department.agent_name] }),
   ]);
 
   const projects = allProjects.filter(
-    (p) => departmentForCategory(p.category).key === department.key,
+    (p) => departmentForCategory(departments, categories, p.category)?.key === department.key,
   );
 
   const statusLabel: Record<ProjectStatus, string> = {
@@ -58,9 +78,9 @@ export default async function DepartmentPage({
       <header>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <span aria-hidden>{department.icon}</span>
-          {t[department.key]}
+          {departmentName(department, locale)}
         </h1>
-        <p className="text-sm text-muted">{t[department.agentLabel]}</p>
+        <p className="text-sm text-muted">{agentLabel(department, locale)}</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -77,7 +97,7 @@ export default async function DepartmentPage({
                   <div className="min-w-0">
                     <p className="truncate font-medium">{project.name}</p>
                     <p className="truncate text-xs text-muted">
-                      {categoryLabel(t, project.category) ?? "—"}
+                      {categoryLabel(categories, locale, project.category) ?? "—"}
                     </p>
                   </div>
                   <StatusBadge
@@ -94,7 +114,7 @@ export default async function DepartmentPage({
           <ActivityStream
             initialLogs={logs}
             projectNames={projectNameMap(allProjects)}
-            agentNames={[department.agent]}
+            agentNames={[department.agent_name]}
             compact
           />
         </Panel>

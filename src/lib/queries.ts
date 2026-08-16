@@ -1,8 +1,33 @@
 import "server-only";
 
+import { cache } from "react";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { dbError } from "@/lib/errors";
+import type { Department, ProjectCategory } from "@/lib/agents";
 import type { AgentLog, LogStatus, Project, ProjectTool } from "@/types/database";
+
+/**
+ * Departments and categories are read by nearly every page — the sidebar, the
+ * dashboard, the project forms. `cache` dedupes them to one query per request
+ * instead of one per component that asks.
+ */
+export const fetchDepartments = cache(async (): Promise<Department[]> => {
+  const { data, error } = await getServiceSupabase()
+    .from("departments")
+    .select("*")
+    .order("sort_order");
+  if (error) throw dbError("Loading departments", error);
+  return (data ?? []) as Department[];
+});
+
+export const fetchCategories = cache(async (): Promise<ProjectCategory[]> => {
+  const { data, error } = await getServiceSupabase()
+    .from("project_categories")
+    .select("*")
+    .order("sort_order");
+  if (error) throw dbError("Loading categories", error);
+  return (data ?? []) as ProjectCategory[];
+});
 
 /** Registry pages need every column; pickers only need id + name. */
 const PROJECT_COLUMNS =

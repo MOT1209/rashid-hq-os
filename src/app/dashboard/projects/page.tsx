@@ -3,13 +3,17 @@ import { ProjectRow } from "@/components/project-row";
 import { ToolRow } from "@/components/tool-row";
 import { EmptyState, Panel } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
-import { fetchProjects, fetchProjectTools } from "@/lib/queries";
+import { fetchCategories, fetchProjects, fetchProjectTools } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
   const t = await getT();
-  const [projects, tools] = await Promise.all([fetchProjects(), fetchProjectTools()]);
+  const [projects, tools, categories] = await Promise.all([
+    fetchProjects(),
+    fetchProjectTools(),
+    fetchCategories(),
+  ]);
 
   const projectName = new Map(projects.map((p) => [p.id, p.name]));
 
@@ -21,7 +25,7 @@ export default async function ProjectsPage() {
       </header>
 
       <Panel title={t.newProject}>
-        <ProjectForm />
+        <ProjectForm categories={categories} />
       </Panel>
 
       <Panel title={t.projects}>
@@ -43,7 +47,7 @@ export default async function ProjectsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {projects.map((project) => (
-                  <ProjectRow key={project.id} project={project} />
+                  <ProjectRow key={project.id} project={project} categories={categories} />
                 ))}
               </tbody>
             </table>

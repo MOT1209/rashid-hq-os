@@ -19,9 +19,15 @@ import {
 import { useLocale } from "@/components/providers";
 import { setLocaleAction, setThemeAction } from "@/app/actions";
 import { signOut } from "@/lib/auth-client";
-import { DEPARTMENTS } from "@/lib/agents";
+import { departmentName, type Department } from "@/lib/agents";
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({
+  departments,
+  children,
+}: {
+  departments: Department[];
+  children: React.ReactNode;
+}) {
   const { t, locale, theme } = useLocale();
   const pathname = usePathname();
   const router = useRouter();
@@ -83,7 +89,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {t.departments}
       </p>
       <nav aria-label={t.departments} className="mt-2 space-y-1">
-        {DEPARTMENTS.map((d) => {
+        {departments.map((d) => {
           const href = `/dashboard/departments/${d.key}`;
           return (
             <Link
@@ -94,7 +100,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               className={linkClass(href)}
             >
               <span aria-hidden>{d.icon}</span>
-              {t[d.key]}
+              {departmentName(d, locale)}
             </Link>
           );
         })}

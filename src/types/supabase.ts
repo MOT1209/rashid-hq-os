@@ -56,6 +56,72 @@ export type Database = {
           },
         ];
       };
+      departments: {
+        Row: {
+          agent_label_ar: string;
+          agent_label_en: string;
+          agent_name: string;
+          created_at: string;
+          icon: string;
+          is_fallback: boolean;
+          key: string;
+          name_ar: string;
+          name_en: string;
+          sort_order: number;
+        };
+        Insert: {
+          agent_label_ar: string;
+          agent_label_en: string;
+          agent_name: string;
+          created_at?: string;
+          icon?: string;
+          is_fallback?: boolean;
+          key: string;
+          name_ar: string;
+          name_en: string;
+          sort_order?: number;
+        };
+        Update: {
+          agent_label_ar?: string;
+          agent_label_en?: string;
+          agent_name?: string;
+          created_at?: string;
+          icon?: string;
+          is_fallback?: boolean;
+          key?: string;
+          name_ar?: string;
+          name_en?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      project_categories: {
+        Row: {
+          created_at: string;
+          department_key: string | null;
+          label_ar: string;
+          label_en: string;
+          sort_order: number;
+          value: string;
+        };
+        Insert: {
+          created_at?: string;
+          department_key?: string | null;
+          label_ar: string;
+          label_en: string;
+          sort_order?: number;
+          value: string;
+        };
+        Update: {
+          created_at?: string;
+          department_key?: string | null;
+          label_ar?: string;
+          label_en?: string;
+          sort_order?: number;
+          value?: string;
+        };
+        Relationships: [];
+      };
       agent_tokens: {
         Row: {
           agent_name: string;

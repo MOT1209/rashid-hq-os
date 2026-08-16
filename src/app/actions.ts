@@ -276,6 +276,69 @@ export async function issueTokenAction(form: FormData) {
   }
 }
 
+/**
+ * Departments and categories used to be arrays in the source, so adding one was
+ * a code change plus two dictionary edits plus a deploy. These keep them
+ * editable at runtime.
+ */
+export async function saveCategoryAction(form: FormData) {
+  await requireSession();
+  const value = text(form, "value");
+  const labelAr = text(form, "label_ar");
+  const labelEn = text(form, "label_en");
+  if (!value || !labelAr || !labelEn) {
+    return { error: "Value and both labels are required." };
+  }
+
+  const departmentKey = text(form, "department_key");
+  const { error } = await getServiceSupabase()
+    .from("project_categories")
+    .upsert({
+      value,
+      label_ar: labelAr,
+      label_en: labelEn,
+      department_key: departmentKey,
+      sort_order: Number(form.get("sort_order")) || 0,
+    });
+
+  if (error) return { error: safeMessage("Saving the category", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "save_category",
+    payload: { value, department_key: departmentKey },
+    status: "success",
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteCategoryAction(form: FormData) {
+  await requireSession();
+  const value = text(form, "value");
+  if (!value) return { error: "Category is required." };
+
+  // Projects keep the string they were saved with; categoryLabel passes an
+  // unknown value straight through, so nothing breaks visually.
+  const { error } = await getServiceSupabase()
+    .from("project_categories")
+    .delete()
+    .eq("value", value);
+
+  if (error) return { error: safeMessage("Deleting the category", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "delete_category",
+    payload: { value },
+    status: "success",
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function revokeTokenAction(form: FormData) {
   await requireSession();
   const id = text(form, "id");

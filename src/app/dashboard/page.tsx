@@ -6,14 +6,17 @@ import { PanelSkeleton, StatCardsSkeleton } from "@/components/skeleton";
 import { Panel, StatCard, StatusBadge } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
 import {
+  fetchCategories,
+  fetchDepartments,
   fetchLogs,
   fetchProjectOptions,
   fetchProjects,
   fetchStats,
   projectNameMap,
 } from "@/lib/queries";
-import { DEPARTMENTS, categoryLabel } from "@/lib/agents";
-import type { Dictionary } from "@/lib/i18n";
+import { agentLabel, categoryLabel, departmentName } from "@/lib/agents";
+import { getLocale } from "@/lib/locale-server";
+import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +27,7 @@ export const dynamic = "force-dynamic";
  * waiting on the slowest Supabase round-trip.
  */
 export default async function DashboardPage() {
-  const t = await getT();
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
 
   return (
     <div className="space-y-6">
@@ -47,27 +50,12 @@ export default async function DashboardPage() {
         </div>
 
         <div className="space-y-6">
-          <Panel title={t.departments}>
-            <ul className="space-y-2">
-              {DEPARTMENTS.map((d) => (
-                <li key={d.key}>
-                  <Link
-                    href={`/dashboard/departments/${d.key}`}
-                    className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm hover:border-accent/50"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span aria-hidden>{d.icon}</span>
-                      {t[d.key]}
-                    </span>
-                    <span className="text-xs text-muted">{t[d.agentLabel]}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Panel>
+          <Suspense fallback={<PanelSkeleton rows={4} />}>
+            <DepartmentsPanel t={t} locale={locale} />
+          </Suspense>
 
           <Suspense fallback={<PanelSkeleton rows={4} />}>
-            <ProjectsPanel t={t} />
+            <ProjectsPanel t={t} locale={locale} />
           </Suspense>
         </div>
       </div>
@@ -105,8 +93,33 @@ async function RecentActivity({ t }: { t: Dictionary }) {
   );
 }
 
-async function ProjectsPanel({ t }: { t: Dictionary }) {
-  const projects = await fetchProjects(6);
+async function DepartmentsPanel({ t, locale }: { t: Dictionary; locale: Locale }) {
+  const departments = await fetchDepartments();
+
+  return (
+    <Panel title={t.departments}>
+      <ul className="space-y-2">
+        {departments.map((d) => (
+          <li key={d.key}>
+            <Link
+              href={`/dashboard/departments/${d.key}`}
+              className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm hover:border-accent/50"
+            >
+              <span className="flex items-center gap-2">
+                <span aria-hidden>{d.icon}</span>
+                {departmentName(d, locale)}
+              </span>
+              <span className="text-xs text-muted">{agentLabel(d, locale)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+async function ProjectsPanel({ t, locale }: { t: Dictionary; locale: Locale }) {
+  const [projects, categories] = await Promise.all([fetchProjects(6), fetchCategories()]);
 
   const statusLabel: Record<ProjectStatus, string> = {
     active: t.active,
@@ -130,7 +143,7 @@ async function ProjectsPanel({ t }: { t: Dictionary }) {
               {project.name}
               {project.category && (
                 <span className="ms-2 text-xs text-muted">
-                  {categoryLabel(t, project.category)}
+                  {categoryLabel(categories, locale, project.category)}
                 </span>
               )}
             </span>

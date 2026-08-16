@@ -4,13 +4,13 @@ import { useActionState, useId } from "react";
 import { createProjectAction, addProjectToolAction } from "@/app/actions";
 import { useLocale } from "@/components/providers";
 import { Field, FormError, fieldClass } from "@/components/ui";
-import { PROJECT_CATEGORIES } from "@/lib/agents";
+import { categoryLabelOf, type ProjectCategory } from "@/lib/agents";
 import type { Project } from "@/types/database";
 
 type State = { error?: string; ok?: boolean } | null;
 
-export function ProjectForm() {
-  const { t } = useLocale();
+export function ProjectForm({ categories }: { categories: ProjectCategory[] }) {
+  const { t, locale } = useLocale();
   const id = useId();
   const errorId = `${id}-error`;
   const [state, action, pending] = useActionState<State, FormData>(
@@ -34,9 +34,9 @@ export function ProjectForm() {
       <Field id={`${id}-category`} label={t.category} hideLabel>
         <select id={`${id}-category`} name="category" defaultValue="" className={fieldClass}>
           <option value="">{t.category}</option>
-          {PROJECT_CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <option key={c.value} value={c.value}>
-              {t[c.label]}
+              {categoryLabelOf(c, locale)}
             </option>
           ))}
         </select>
