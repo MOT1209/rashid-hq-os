@@ -147,6 +147,21 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 run it by hand. Override the window with `LOG_RETENTION`. Payloads and results
 larger than 32 KB are stored truncated, with the original size recorded.
 
+### Password recovery and error tracking
+
+Both are optional integrations that activate the moment their key exists, and
+change nothing when it does not.
+
+- **Resend** (`RESEND_API_KEY`) turns on `/forgot-password`. Install it with
+  `vercel integration add resend/resend-email`, which sets the variable for you.
+  Without it the endpoint still answers — identically for an address that has an
+  account and one that does not, so it cannot be used to enumerate users — but
+  no mail is sent and the attempt is logged.
+- **Sentry** (`SENTRY_DSN`) receives what `src/lib/errors.ts` records. Every
+  error gets a reference id that appears in the server log *and* in the message
+  the user sees, so a screenshot is enough to find the trace — with or without
+  Sentry configured.
+
 ### Known limits
 
 - Rate-limit counters live in memory per instance and key on

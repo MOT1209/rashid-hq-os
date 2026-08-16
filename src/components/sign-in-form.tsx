@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
@@ -96,6 +97,13 @@ export function SignInForm({ denied = false }: { denied?: boolean }) {
         {hydrated ? t.signIn : t.loading}
       </button>
       {error && <FormError id={errorId}>{error}</FormError>}
+
+      <Link
+        href="/forgot-password"
+        className="block text-center text-xs text-muted hover:text-text"
+      >
+        {t.forgotPassword}
+      </Link>
     </form>
   );
 }

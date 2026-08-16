@@ -130,6 +130,13 @@ export const dictionaries = {
     confirmRemoveMember: "إزالة وصول هذا العضو؟",
     noMembers: "لا أعضاء إضافيون.",
     readOnlyNotice: "حسابك للاطّلاع فقط — التعديل معطّل.",
+    forgotPassword: "نسيت كلمة المرور؟",
+    resetPassword: "إعادة تعيين كلمة المرور",
+    resetSent: "إن كان هذا البريد مسجّلًا، أُرسل إليه رابط إعادة التعيين. تحقّق من بريدك.",
+    resetSendLink: "إرسال رابط الاستعادة",
+    resetDone: "تم تعيين كلمة المرور. يمكنك الدخول الآن.",
+    resetInvalidLink: "هذا الرابط غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.",
+    backToSignIn: "العودة لتسجيل الدخول",
   },
   en: {
     brand: "Alking Enterprises",
@@ -258,6 +265,13 @@ export const dictionaries = {
     confirmRemoveMember: "Remove this member's access?",
     noMembers: "No additional members.",
     readOnlyNotice: "Your account is read-only — editing is disabled.",
+    forgotPassword: "Forgot your password?",
+    resetPassword: "Reset your password",
+    resetSent: "If that address has an account, a reset link is on its way. Check your inbox.",
+    resetSendLink: "Send reset link",
+    resetDone: "Password set. You can sign in now.",
+    resetInvalidLink: "This link is invalid or has expired. Request a new one.",
+    backToSignIn: "Back to sign in",
   },
 } as const;
 

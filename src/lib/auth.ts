@@ -5,6 +5,7 @@ import { bearer } from "better-auth/plugins";
 import { Pool } from "pg";
 
 import { isOwnerEmail } from "@/lib/owners";
+import { sendPasswordReset } from "@/lib/email";
 
 const connectionString = process.env.DATABASE_URL;
 const isDev = process.env.NODE_ENV === "development";
@@ -84,6 +85,17 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
     minPasswordLength: 12,
+    /**
+     * Without this a forgotten password meant editing the database by hand —
+     * on an account with no second owner to fall back on. Sends only when
+     * RESEND_API_KEY is set; the endpoint stays enabled either way, and Better
+     * Auth's reply is identical whether or not the address exists, so it does
+     * not leak who has an account.
+     */
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordReset(user.email, url);
+    },
+    resetPasswordTokenExpiresIn: 3600,
   },
   databaseHooks: {
     user: {
