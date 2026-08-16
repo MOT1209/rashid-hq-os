@@ -185,7 +185,11 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      /** Deletes agent_logs older than the interval; see migration 0006. */
+      prune_agent_logs: {
+        Args: { older_than?: string };
+        Returns: number;
+      };
     };
     Enums: {
       [_ in never]: never;

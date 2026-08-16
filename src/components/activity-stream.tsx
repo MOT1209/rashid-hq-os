@@ -65,6 +65,8 @@ export function ActivityStream({
   useEffect(() => {
     const allowedAgents = agentFilter ? agentFilter.split("|") : null;
 
+    // The server applies these too; this is a second line of defence against a
+    // stale connection delivering rows from a filter that has since changed.
     const matches = (log: AgentLog) => {
       if (projectId && log.project_id !== projectId) return false;
       if (status && log.status !== status) return false;
@@ -72,37 +74,68 @@ export function ActivityStream({
       return true;
     };
 
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (projectId) params.set("projectId", projectId);
-    if (allowedAgents) params.set("agents", allowedAgents.join(","));
-    // Newest row we already have, read through a ref so a server revalidation
-    // does not tear down the connection. EventSource reconnects on any blip,
-    // and without `since` the server would treat rows created meanwhile as
-    // already delivered and the feed would silently skip them.
-    const newest = newestRef.current;
-    if (newest) params.set("since", newest);
+    let source: EventSource | null = null;
 
-    const source = new EventSource(`/api/activity/stream?${params}`);
+    const open = () => {
+      if (source) return;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (projectId) params.set("projectId", projectId);
+      if (allowedAgents) params.set("agents", allowedAgents.join(","));
+      if (status) params.set("status", status);
+      // Newest row we already have, read through a ref so a server revalidation
+      // does not tear down the connection. EventSource reconnects on any blip,
+      // and without `since` the server would treat rows created meanwhile as
+      // already delivered and the feed would silently skip them.
+      const newest = newestRef.current;
+      if (newest) params.set("since", newest);
 
-    source.addEventListener("ready", () => setConnected(true));
-    source.addEventListener("logs", (event) => {
-      const incoming = (JSON.parse((event as MessageEvent).data) as AgentLog[])
-        .filter(matches);
-      if (incoming.length === 0) return;
+      source = new EventSource(`/api/activity/stream?${params}`);
+      attach(source);
+    };
 
-      setLogs((prev) => {
-        const byId = new Map(prev.map((log) => [log.id, log]));
-        for (const log of incoming) byId.set(log.id, log);
-        return [...byId.values()].sort((a, b) =>
-          b.created_at.localeCompare(a.created_at),
-        );
+    const close = () => {
+      source?.close();
+      source = null;
+      setConnected(false);
+    };
+
+    // A hidden tab is not being read, and every open tab holds a server
+    // invocation polling the database. Drop the connection while the tab is in
+    // the background and reopen on return — `since` replays whatever was missed.
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") close();
+      else open();
+    };
+
+    function attach(es: EventSource) {
+      es.addEventListener("ready", () => setConnected(true));
+      es.addEventListener("logs", (event) => {
+        const incoming = (JSON.parse((event as MessageEvent).data) as AgentLog[])
+          .filter(matches);
+        if (incoming.length === 0) return;
+
+        setLogs((prev) => {
+          const byId = new Map(prev.map((log) => [log.id, log]));
+          // A slim row from the live feed must not wipe the payload a full row
+          // already carried; merge rather than replace.
+          for (const log of incoming) {
+            const existing = byId.get(log.id);
+            byId.set(log.id, existing ? { ...existing, ...log } : log);
+          }
+          return [...byId.values()].sort((a, b) =>
+            b.created_at.localeCompare(a.created_at),
+          );
+        });
       });
-    });
-    source.onerror = () => setConnected(false);
+      es.onerror = () => setConnected(false);
+    }
+
+    if (document.visibilityState !== "hidden") open();
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      setConnected(false);
-      source.close();
+      document.removeEventListener("visibilitychange", onVisibility);
+      close();
     };
   }, [projectId, agentFilter, status, limit]);
 

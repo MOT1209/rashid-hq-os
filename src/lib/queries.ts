@@ -61,12 +61,28 @@ export type LogFilters = {
   status?: LogStatus;
   /** Keyset pagination: return rows strictly older than this timestamp. */
   before?: string;
+  /**
+   * Live tail: return only rows at or newer than this timestamp. Lets the SSE
+   * feed ask for the delta instead of re-reading its whole window every poll.
+   */
+  since?: string;
+  /** Drop the jsonb payload/result columns — the compact feed does not show them. */
+  slim?: boolean;
 };
 
+/** Everything except the two unbounded jsonb columns. */
+const LOG_COLUMNS_SLIM =
+  "id, project_id, agent_name, tool_name, status, created_at";
+
 export async function fetchLogs(options: LogFilters = {}): Promise<AgentLog[]> {
+  // The generated types resolve `select()` per literal, so a conditional column
+  // list confuses the parser. The runtime shape is a subset of AgentLog either
+  // way — payload/result are simply absent when `slim` is set.
+  const columns: "*" = (options.slim ? LOG_COLUMNS_SLIM : "*") as "*";
+
   let query = getServiceSupabase()
     .from("agent_logs")
-    .select("*")
+    .select(columns)
     .order("created_at", { ascending: false })
     .limit(options.limit ?? 50);
 
@@ -80,6 +96,9 @@ export async function fetchLogs(options: LogFilters = {}): Promise<AgentLog[]> {
   if (options.status) query = query.eq("status", options.status);
   // Keyset, not offset: stable under inserts and index-friendly as the table grows.
   if (options.before) query = query.lt("created_at", options.before);
+  // `gte` not `gt`: a row updated in place keeps its created_at, so the live
+  // tail must still see a pending → success flip at the boundary.
+  if (options.since) query = query.gte("created_at", options.since);
 
   const { data, error } = await query;
   if (error) throw dbError("Loading activity", error);

@@ -1,14 +1,23 @@
-import { fetchLogs } from "@/lib/queries";
+import { fetchLogs, isUuid } from "@/lib/queries";
 import { getSession } from "@/lib/session";
 import { isOwnerEmail } from "@/lib/owners";
-import type { AgentLog } from "@/types/database";
+import type { AgentLog, LogStatus } from "@/types/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+/**
+ * Each connected tab holds an invocation for this long before EventSource
+ * reconnects. Kept well under the platform ceiling so a tab left open
+ * overnight is a series of short-lived invocations, not one endless one.
+ */
+export const maxDuration = 120;
 
 const POLL_MS = 3000;
 const HEARTBEAT_MS = 25_000;
+
+function isStatus(value: string | null): value is LogStatus {
+  return value === "success" || value === "failed" || value === "pending";
+}
 
 /**
  * Server-authenticated activity feed (SSE).
@@ -18,8 +27,9 @@ const HEARTBEAT_MS = 25_000;
  * to anyone holding the publishable key. Here the service role reads on the
  * server and only the signed-in owner receives the stream.
  *
- * Sends rows whose id has not been seen yet, plus rows whose status changed
- * (a call starts `pending` and later flips to success/failed).
+ * Each poll asks for rows at or newer than the newest one already sent, rather
+ * than re-reading the whole window — a quiet feed costs an empty result set
+ * instead of `limit` rows including two unbounded jsonb columns.
  */
 export async function GET(request: Request) {
   const session = await getSession();
@@ -28,15 +38,34 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const projectId = url.searchParams.get("projectId") ?? undefined;
+  const projectIdParam = url.searchParams.get("projectId") ?? undefined;
   const agentNames = url.searchParams.get("agents")?.split(",").filter(Boolean);
   const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+  const statusParam = url.searchParams.get("status");
   // Newest row the client already holds. On reconnect it replays the gap.
   const since = url.searchParams.get("since") ?? undefined;
+
+  // A junk project id filters to something that cannot exist; say so once
+  // rather than letting every poll raise 22P02 into a swallowed catch.
+  if (projectIdParam && !isUuid(projectIdParam)) {
+    return new Response("Invalid projectId", { status: 400 });
+  }
+
+  // Filtering on the server matters: with client-side filtering a burst of
+  // non-matching rows could fill the window and the live view would stop
+  // updating while still showing "Live".
+  const filters = {
+    projectId: projectIdParam,
+    agentNames,
+    status: isStatus(statusParam) ? statusParam : undefined,
+    slim: true as const,
+  };
 
   const encoder = new TextEncoder();
   // id → status, so an update to an already-sent row is re-emitted once.
   const seen = new Map<string, string>();
+  // Watermark for the next delta query.
+  let watermark = since;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -48,6 +77,19 @@ export async function GET(request: Request) {
         );
       };
 
+      const remember = (logs: AgentLog[]) => {
+        for (const log of logs) {
+          seen.set(log.id, log.status);
+          if (!watermark || log.created_at > watermark) watermark = log.created_at;
+        }
+        // Cap the memory of a long-lived stream.
+        if (seen.size > 2000) {
+          const keep = [...seen.keys()].slice(-1000);
+          const kept = new Set(keep);
+          for (const id of seen.keys()) if (!kept.has(id)) seen.delete(id);
+        }
+      };
+
       // Guards against two polls overlapping if one runs longer than POLL_MS.
       let polling = false;
 
@@ -55,15 +97,10 @@ export async function GET(request: Request) {
         if (closed || polling) return;
         polling = true;
         try {
-          const logs = await fetchLogs({ limit, projectId, agentNames });
+          const logs = await fetchLogs({ ...filters, limit, since: watermark });
           const fresh = logs.filter((log) => seen.get(log.id) !== log.status);
-          for (const log of logs) seen.set(log.id, log.status);
-          // Cap the memory of a long-lived stream.
-          if (seen.size > 1000) {
-            const keep = new Set(logs.map((l) => l.id));
-            for (const id of seen.keys()) if (!keep.has(id)) seen.delete(id);
-          }
-          if (fresh.length) send("logs", fresh satisfies AgentLog[]);
+          remember(logs);
+          if (fresh.length) send("logs", fresh);
         } catch (error) {
           console.error("[activity-stream] poll failed:", error);
         } finally {
@@ -91,12 +128,11 @@ export async function GET(request: Request) {
       // the timers below would poll Supabase forever on a dead connection.
       request.signal.addEventListener("abort", stop);
 
-      // Prime `seen` so the client is not re-sent rows it already has. `since`
-      // is the newest row the client holds; on an EventSource reconnect it lets
-      // the server replay anything created while the connection was down —
-      // priming from the current window alone would silently skip those.
+      // Prime `seen` so the client is not re-sent rows it already has. Rows
+      // newer than `since` are deliberately left unseen: on an EventSource
+      // reconnect they are the gap the client missed and must be replayed.
       try {
-        for (const log of await fetchLogs({ limit, projectId, agentNames })) {
+        for (const log of await fetchLogs({ ...filters, limit })) {
           if (since && log.created_at > since) continue;
           seen.set(log.id, log.status);
         }

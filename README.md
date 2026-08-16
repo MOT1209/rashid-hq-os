@@ -109,6 +109,13 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 - Database errors are logged server-side and returned as generic messages, so
   schema details never reach a client.
 
+### Retention
+
+`agent_logs` keeps 90 days. A Vercel Cron hits `/api/maintenance/prune` nightly
+(`vercel.json`), authenticated by `CRON_SECRET`; the signed-in owner can also
+run it by hand. Override the window with `LOG_RETENTION`. Payloads and results
+larger than 32 KB are stored truncated, with the original size recorded.
+
 ### Known limits
 
 - Rate-limit counters live in memory per instance and key on
