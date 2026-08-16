@@ -5,11 +5,13 @@ import { EmptyState, Panel } from "@/components/ui";
 import { getLocale, getT } from "@/lib/locale-server";
 import { fetchProjectOptions } from "@/lib/queries";
 import { listAgentTokens } from "@/lib/agent-tokens";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccessPage() {
-  const [t, locale] = await Promise.all([getT(), getLocale()]);
+  const [t, locale, session] = await Promise.all([getT(), getLocale(), requireSession()]);
+  const isAdmin = session.role === "admin";
   const [projects, tokens, headerList] = await Promise.all([
     fetchProjectOptions(),
     listAgentTokens(),
@@ -30,9 +32,11 @@ export default async function AccessPage() {
         </p>
       </header>
 
-      <Panel title={t.issueToken}>
-        <IssueTokenForm projects={projects} />
-      </Panel>
+      {isAdmin && (
+        <Panel title={t.issueToken}>
+          <IssueTokenForm projects={projects} />
+        </Panel>
+      )}
 
       <Panel title={t.access}>
         {tokens.length === 0 ? (
@@ -90,8 +94,10 @@ export default async function AccessPage() {
                       )}
                     </td>
                     <td className="py-3 text-end">
-                      {token.revoked_at ? (
-                        <span className="text-xs text-muted">{t.revoked}</span>
+                      {token.revoked_at || !isAdmin ? (
+                        <span className="text-xs text-muted">
+                          {token.revoked_at ? t.revoked : "—"}
+                        </span>
                       ) : (
                         <form action={revokeTokenAction}>
                           <input type="hidden" name="id" value={token.id} />

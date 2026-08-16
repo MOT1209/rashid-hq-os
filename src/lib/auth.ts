@@ -89,18 +89,23 @@ export const auth = betterAuth({
     user: {
       create: {
         /**
-         * Single-owner console. `POST /api/auth/sign-up/email` is public by
-         * design in Better Auth, so the allowlist is what actually closes the
-         * door — it fails closed when OWNER_EMAILS is unset. Seeding the owner
-         * still works (scripts/seed-owner.mjs), and re-registering an existing
-         * owner is blocked by the unique email constraint.
+         * `POST /api/auth/sign-up/email` is public by design in Better Auth, so
+         * this is what actually closes the door. Two ways through: an address in
+         * OWNER_EMAILS (fails closed when unset), or one an admin has invited
+         * into `members`. Re-registering an existing account is blocked by the
+         * unique email constraint.
          */
         before: async (user) => {
-          if (!isOwnerEmail(user.email)) {
-            throw new APIError("FORBIDDEN", {
-              message: "Sign-up is closed on this console.",
-            });
-          }
+          // Invited members can create their account; everyone else cannot.
+          // Checked in this order so OWNER_EMAILS never needs the database.
+          if (isOwnerEmail(user.email)) return;
+
+          const { resolveRole } = await import("@/lib/members");
+          if (await resolveRole(user.email)) return;
+
+          throw new APIError("FORBIDDEN", {
+            message: "Sign-up is closed on this console.",
+          });
         },
       },
     },

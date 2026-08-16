@@ -19,9 +19,12 @@ type State = { error?: string; ok?: boolean } | null;
 export function ProjectRow({
   project,
   categories,
+  canEdit = true,
 }: {
   project: Project;
   categories: ProjectCategory[];
+  /** Presentation only — the server actions enforce the same rule. */
+  canEdit?: boolean;
 }) {
   const { t, locale } = useLocale();
   const id = useId();
@@ -169,6 +172,8 @@ export function ProjectRow({
       </td>
       <td className="py-3">
         <div className="flex items-center justify-end gap-1">
+          {!canEdit && <span className="text-xs text-muted">—</span>}
+          {canEdit && (
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -177,7 +182,10 @@ export function ProjectRow({
           >
             <Pencil size={15} aria-hidden />
           </button>
-          <DeleteProjectButton projectId={project.id} projectName={project.name} />
+          )}
+          {canEdit && (
+            <DeleteProjectButton projectId={project.id} projectName={project.name} />
+          )}
         </div>
       </td>
     </tr>

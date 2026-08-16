@@ -18,7 +18,16 @@ type State = { error?: string; ok?: boolean; result?: string } | null;
  * was permanent, and the only way to learn whether it worked was to wait for a
  * real agent call to fail.
  */
-export function ToolRow({ tool, projectName }: { tool: ProjectTool; projectName: string }) {
+export function ToolRow({
+  tool,
+  projectName,
+  canEdit = true,
+}: {
+  tool: ProjectTool;
+  projectName: string;
+  /** Presentation only — the server actions enforce the same rule. */
+  canEdit?: boolean;
+}) {
   const { t } = useLocale();
   const id = useId();
   const [editing, setEditing] = useState(false);
@@ -120,6 +129,7 @@ export function ToolRow({ tool, projectName }: { tool: ProjectTool; projectName:
           {tool.endpoint ?? "—"}
         </span>
 
+        {canEdit && (
         <form action={runTest}>
           <input type="hidden" name="project_id" value={tool.project_id} />
           <input type="hidden" name="tool_name" value={tool.tool_name} />
@@ -133,7 +143,9 @@ export function ToolRow({ tool, projectName }: { tool: ProjectTool; projectName:
             <PlugZap size={15} aria-hidden />
           </button>
         </form>
+        )}
 
+        {canEdit && (
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -142,8 +154,9 @@ export function ToolRow({ tool, projectName }: { tool: ProjectTool; projectName:
         >
           <Pencil size={15} aria-hidden />
         </button>
+        )}
 
-        <DeleteTool toolId={tool.id} toolName={tool.tool_name} />
+        {canEdit && <DeleteTool toolId={tool.id} toolName={tool.tool_name} />}
       </div>
     </li>
   );

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { logActivity, startActivity } from "@/lib/activity";
 import { issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
 import { findTool } from "@/lib/mcp/tools";
@@ -56,7 +56,7 @@ export async function setThemeAction(theme: string) {
 }
 
 export async function createProjectAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const name = text(form, "name");
   if (!name) return { error: "Name is required." };
 
@@ -101,7 +101,7 @@ export async function createProjectAction(form: FormData) {
 }
 
 export async function updateProjectAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const id = text(form, "id");
   const name = text(form, "name");
   if (!id) return { error: "Project is required." };
@@ -149,7 +149,7 @@ export async function updateProjectAction(form: FormData) {
 }
 
 export async function deleteProjectAction(formData: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const id = text(formData, "id");
   if (!id) return { error: "Project is required." };
 
@@ -202,7 +202,7 @@ export async function deleteProjectAction(formData: FormData) {
 }
 
 export async function addProjectToolAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const projectId = text(form, "project_id");
   const toolName = text(form, "tool_name");
   if (!projectId || !toolName) return { error: "Project and tool name are required." };
@@ -235,7 +235,7 @@ export async function addProjectToolAction(form: FormData) {
 }
 
 export async function issueTokenAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const agentName = text(form, "agent_name");
   if (!agentName) return { error: "Agent name is required." };
 
@@ -282,7 +282,7 @@ export async function issueTokenAction(form: FormData) {
  * editable at runtime.
  */
 export async function saveCategoryAction(form: FormData) {
-  await requireSession();
+  await requireAdmin();
   const value = text(form, "value");
   const labelAr = text(form, "label_ar");
   const labelEn = text(form, "label_en");
@@ -315,7 +315,7 @@ export async function saveCategoryAction(form: FormData) {
 }
 
 export async function deleteCategoryAction(form: FormData) {
-  await requireSession();
+  await requireAdmin();
   const value = text(form, "value");
   if (!value) return { error: "Category is required." };
 
@@ -339,8 +339,61 @@ export async function deleteCategoryAction(form: FormData) {
   return { ok: true };
 }
 
+/** Grants or changes someone's role. Admins only, by requireAdmin above. */
+export async function saveMemberAction(form: FormData) {
+  const session = await requireAdmin();
+  const email = text(form, "email")?.toLowerCase();
+  const role = form.get("role") === "admin" ? "admin" : "viewer";
+  if (!email || !email.includes("@")) return { error: "A valid email is required." };
+
+  const { error } = await getServiceSupabase()
+    .from("members")
+    .upsert({ email, role, invited_by: session.user.email });
+
+  if (error) return { error: safeMessage("Saving the member", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "save_member",
+    payload: { email, role },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
+export async function removeMemberAction(form: FormData) {
+  const session = await requireAdmin();
+  const email = text(form, "email")?.toLowerCase();
+  if (!email) return { error: "Member is required." };
+
+  // Removing yourself would be a one-click lockout for anyone not covered by
+  // OWNER_EMAILS, so it is refused rather than merely hidden.
+  if (email === session.user.email?.toLowerCase()) {
+    return { error: "You cannot remove your own access." };
+  }
+
+  const { error } = await getServiceSupabase()
+    .from("members")
+    .delete()
+    .eq("email", email);
+
+  if (error) return { error: safeMessage("Removing the member", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "remove_member",
+    payload: { email },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
 export async function revokeTokenAction(form: FormData) {
-  await requireSession();
+  await requireAdmin();
   const id = text(form, "id");
   if (!id) return;
 
@@ -363,7 +416,7 @@ export async function revokeTokenAction(form: FormData) {
 
 /** Tools could only ever be added — a typo'd endpoint was permanent. */
 export async function updateProjectToolAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const id = text(form, "id");
   const toolName = text(form, "tool_name");
   if (!id || !toolName) return { error: "Tool name is required." };
@@ -413,7 +466,7 @@ export async function updateProjectToolAction(form: FormData) {
 }
 
 export async function deleteProjectToolAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const id = text(form, "id");
   if (!id) return { error: "Tool is required." };
 
@@ -450,7 +503,7 @@ export async function deleteProjectToolAction(form: FormData) {
  * genuine MCP call.
  */
 export async function testProjectToolAction(form: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const projectId = text(form, "project_id");
   const toolName = text(form, "tool_name");
   if (!projectId || !toolName) return { error: "Project and tool are required." };

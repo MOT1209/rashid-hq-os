@@ -104,9 +104,12 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 
 ## Security notes
 
-- **Single owner.** Sign-up is closed to everyone outside `OWNER_EMAILS`, enforced
-  at account creation and again on every guarded page. An empty `OWNER_EMAILS`
-  locks the console rather than opening it.
+- **Closed by invitation, with roles.** Two ways in: an address in
+  `OWNER_EMAILS` (always admin, and an empty value locks the console rather than
+  opening it), or one an admin invited from `/dashboard/settings`. An **admin**
+  can do everything; a **viewer** reads the dashboard and every write is
+  refused by `requireAdmin` in `src/lib/session.ts` — hiding the buttons is
+  presentation, that check is the boundary.
 - **The browser holds no database credentials.** Activity streams over
   `/api/activity/stream` (SSE, owner session required); the service role key never
   leaves the server. Migration `0004` removes the anonymous SELECT policies that

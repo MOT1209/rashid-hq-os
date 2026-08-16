@@ -56,6 +56,27 @@ export type Database = {
           },
         ];
       };
+      members: {
+        Row: {
+          created_at: string;
+          email: string;
+          invited_by: string | null;
+          role: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          invited_by?: string | null;
+          role?: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          invited_by?: string | null;
+          role?: string;
+        };
+        Relationships: [];
+      };
       departments: {
         Row: {
           agent_label_ar: string;
