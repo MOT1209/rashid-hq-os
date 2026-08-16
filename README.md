@@ -47,6 +47,20 @@ A token issued as **read only** is rejected on the `write` tools. A token pinned
 to a project can only see and act on that project. Tokens expire — 90 days by
 default, and the expiry is shown in the tokens table.
 
+### Verifying a call came from here
+
+`call_project_tool` POSTs `{ tool, input, project_id, issued_at }` and always
+sends `x-hq-source: alking-hq`. Set `OUTBOUND_SIGNING_SECRET` and it also sends
+`x-hq-signature: sha256=…`, an HMAC of the exact request body. On the receiving
+side:
+
+```js
+const expected =
+  "sha256=" + createHmac("sha256", SHARED_SECRET).update(rawBody).digest("hex");
+if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) reject();
+// issued_at is inside the signed body — reject anything older than a minute.
+```
+
 **Everything the owner does is logged too.** Creating, editing and deleting a
 project, issuing and revoking a token: all appear in the activity feed under
 `CEO Console`, so the trail is not limited to what agents did.

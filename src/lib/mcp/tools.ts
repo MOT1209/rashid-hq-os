@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
@@ -54,6 +55,28 @@ export function scopeDenialReason(
 
 /** Remote tool responses are logged and echoed back; keep them bounded. */
 const MAX_REMOTE_BODY = 100_000;
+
+/**
+ * Identifies the caller to the project's own MCP server.
+ *
+ * call_project_tool used to send nothing but a content-type, so a receiving
+ * server had no way to distinguish a genuine call from anyone who found the
+ * URL. With OUTBOUND_SIGNING_SECRET set, every request carries an HMAC of the
+ * exact body; the receiver recomputes it with the shared secret. The timestamp
+ * is inside the signed body, so a replay is detectable.
+ *
+ * Unset means unsigned, as before — this is opt-in so existing endpoints that
+ * do not verify anything keep working.
+ */
+function outboundAuthHeaders(body: string): Record<string, string> {
+  const secret = process.env.OUTBOUND_SIGNING_SECRET;
+  if (!secret) return { "x-hq-source": "alking-hq" };
+
+  return {
+    "x-hq-source": "alking-hq",
+    "x-hq-signature": `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
+  };
+}
 
 const listProjects = {
   name: "list_projects",
@@ -212,10 +235,23 @@ const callProjectTool = {
     // predate that check or be edited out of band.
     const safeUrl = await assertSafeEndpoint(endpoint);
 
+    const requestBody = JSON.stringify({
+      tool: args.tool_name,
+      input: args.input ?? {},
+      // Lets the receiver tie the call to a project and reject replays.
+      project_id: args.project_id,
+      issued_at: new Date().toISOString(),
+    });
+
     const response = await fetch(safeUrl, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tool: args.tool_name, input: args.input ?? {} }),
+      headers: {
+        "content-type": "application/json",
+        // Until now the receiving server had no way to tell a call from HQ
+        // apart from any other request that found the URL.
+        ...outboundAuthHeaders(requestBody),
+      },
+      body: requestBody,
       // A followed redirect would walk straight past assertSafeEndpoint.
       redirect: "manual",
       signal: AbortSignal.timeout(30_000),

@@ -62,20 +62,11 @@ export function Panel({
   );
 }
 
-export function StatCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-}) {
+export function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-2xl border border-border bg-panel p-5">
       <p className="text-xs font-medium uppercase tracking-wider text-muted">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-accent">{value}</p>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
 }

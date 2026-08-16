@@ -12,6 +12,7 @@ create table if not exists public.agent_tokens (
   created_at timestamptz not null default now()
 );
 
-create index if not exists agent_tokens_hash_idx on public.agent_tokens (token_hash);
+-- No index on token_hash: the `unique` constraint above already creates one,
+-- and lookups go through it.
 alter table public.agent_tokens enable row level security;
 -- No policies: tokens are readable and writable only through the service role.

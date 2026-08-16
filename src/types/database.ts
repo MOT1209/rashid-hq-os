@@ -13,4 +13,3 @@ export type LogStatus = "success" | "failed" | "pending";
 export type Project = Omit<Row<"projects">, "status"> & { status: ProjectStatus };
 export type AgentLog = Omit<Row<"agent_logs">, "status"> & { status: LogStatus };
 export type ProjectTool = Row<"project_tools">;
-export type AgentTokenRow = Row<"agent_tokens">;
