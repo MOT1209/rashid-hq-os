@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  Settings,
   Sun,
   X,
 } from "lucide-react";
@@ -41,6 +42,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { href: "/dashboard/activity", label: t.activity, icon: Activity },
     { href: "/dashboard/projects", label: t.projects, icon: Boxes },
     { href: "/dashboard/access", label: t.access, icon: KeyRound },
+    { href: "/dashboard/settings", label: t.settings, icon: Settings },
   ];
 
   const linkClass = (href: string) =>
