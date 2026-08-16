@@ -47,6 +47,7 @@ export default async function AccessPage() {
                   <th scope="col" className="py-2 text-start">{t.token}</th>
                   <th scope="col" className="py-2 text-start">{t.scope}</th>
                   <th scope="col" className="py-2 text-start">{t.project}</th>
+                  <th scope="col" className="py-2 text-start">{t.expiresAt}</th>
                   <th scope="col" className="py-2 text-start">{t.lastUsed}</th>
                   <th scope="col" className="py-2 text-end">{t.actions}</th>
                 </tr>
@@ -63,6 +64,21 @@ export default async function AccessPage() {
                     </td>
                     <td className="py-3 text-xs text-muted">
                       {token.project_id ? names[token.project_id] ?? "—" : "*"}
+                    </td>
+                    <td className="py-3 text-xs">
+                      {!token.expires_at ? (
+                        <span className="text-muted">{t.neverExpires}</span>
+                      ) : new Date(token.expires_at) < new Date() ? (
+                        <span className="text-err">{t.expired}</span>
+                      ) : (
+                        <time
+                          dateTime={token.expires_at}
+                          suppressHydrationWarning
+                          className="text-muted"
+                        >
+                          {new Date(token.expires_at).toLocaleDateString(locale)}
+                        </time>
+                      )}
                     </td>
                     <td className="py-3 text-xs text-muted">
                       {token.last_used_at ? (

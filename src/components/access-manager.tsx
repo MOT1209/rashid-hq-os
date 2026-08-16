@@ -38,7 +38,7 @@ export function IssueTokenForm({
   };
 
   return (
-    <form action={action} className="grid gap-3 sm:grid-cols-4">
+    <form action={action} className="grid gap-3 sm:grid-cols-5">
       <Field id={`${id}-agent`} label={t.agent} hideLabel>
         <input
           id={`${id}-agent`}
@@ -69,6 +69,18 @@ export function IssueTokenForm({
         </select>
       </Field>
 
+      {/* expires_at was always enforced but never settable, so every token
+          issued was immortal. Default to 90 days rather than forever. */}
+      <Field id={`${id}-expiry`} label={t.expiry} hideLabel>
+        <select id={`${id}-expiry`} name="expires_days" defaultValue="90" className={fieldClass}>
+          <option value="7">{t.days7}</option>
+          <option value="30">{t.days30}</option>
+          <option value="90">{t.days90}</option>
+          <option value="365">{t.days365}</option>
+          <option value="0">{t.neverExpires}</option>
+        </select>
+      </Field>
+
       <button
         type="submit"
         disabled={pending}
@@ -78,13 +90,13 @@ export function IssueTokenForm({
       </button>
 
       {state?.error && (
-        <div className="sm:col-span-4">
+        <div className="sm:col-span-5">
           <FormError id={errorId}>{state.error}</FormError>
         </div>
       )}
 
       {state?.token && (
-        <div className="sm:col-span-4 rounded-xl border border-accent/40 bg-accent-soft p-3">
+        <div className="sm:col-span-5 rounded-xl border border-accent/40 bg-accent-soft p-3">
           <p className="mb-2 text-xs text-warn">{t.tokenOnce}</p>
           <div className="flex items-start gap-2">
             <code className="block flex-1 break-all text-xs">{state.token}</code>

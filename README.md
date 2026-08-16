@@ -44,7 +44,12 @@ Tools and the scope each one needs:
 | `register_project`, `call_project_tool` | `write` |
 
 A token issued as **read only** is rejected on the `write` tools. A token pinned
-to a project can only see and act on that project.
+to a project can only see and act on that project. Tokens expire — 90 days by
+default, and the expiry is shown in the tokens table.
+
+**Everything the owner does is logged too.** Creating, editing and deleting a
+project, issuing and revoking a token: all appear in the activity feed under
+`CEO Console`, so the trail is not limited to what agents did.
 
 ```bash
 curl -X POST http://localhost:7070/api/mcp \
@@ -58,9 +63,10 @@ curl -X POST http://localhost:7070/api/mcp \
 | --- | --- |
 | `/dashboard` | KPIs, CEO console, recent activity (each panel streams independently) |
 | `/dashboard/activity` | Full live stream, filterable by project and status, paginated |
-| `/dashboard/projects` | Project registry with inline editing + custom MCP tools |
+| `/dashboard/projects` | Project registry and MCP tools, both editable inline; each tool has a **Test** button that calls its endpoint and shows the reply |
 | `/dashboard/departments/[dev\|store\|media\|custom]` | Per-department views |
-| `/dashboard/access` | Issue / revoke agent tokens, with scopes |
+| `/dashboard/access` | Issue / revoke agent tokens, with scopes and an expiry |
+| `/dashboard/settings` | Change the owner password |
 
 Fully bilingual (Arabic / English, RTL-aware) and usable on small screens — the
 sidebar becomes a drawer below `md`.

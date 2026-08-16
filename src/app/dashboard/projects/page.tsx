@@ -1,5 +1,6 @@
 import { ProjectForm, ProjectToolForm } from "@/components/project-form";
 import { ProjectRow } from "@/components/project-row";
+import { ToolRow } from "@/components/tool-row";
 import { EmptyState, Panel } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
 import { fetchProjects, fetchProjectTools } from "@/lib/queries";
@@ -57,16 +58,11 @@ export default async function ProjectsPage() {
         ) : (
           <ul className="mt-4 divide-y divide-border text-sm">
             {tools.map((tool) => (
-              <li key={tool.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <code className="text-accent">{tool.tool_name}</code>
-                  {/* Which project a tool belongs to was previously invisible. */}
-                  <span className="ms-2 text-xs text-muted">
-                    · {projectName.get(tool.project_id) ?? "—"}
-                  </span>
-                </div>
-                <span className="truncate text-xs text-muted">{tool.endpoint ?? "—"}</span>
-              </li>
+              <ToolRow
+                key={tool.id}
+                tool={tool}
+                projectName={projectName.get(tool.project_id) ?? "—"}
+              />
             ))}
           </ul>
         )}

@@ -4,13 +4,22 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/session";
-import { logActivity } from "@/lib/activity";
+import { logActivity, startActivity } from "@/lib/activity";
 import { issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
+import { findTool } from "@/lib/mcp/tools";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
 import { assertSafeEndpoint, UnsafeEndpointError } from "@/lib/net/safe-endpoint";
 import { safeMessage } from "@/lib/errors";
 import type { ProjectStatus } from "@/types/database";
+
+/**
+ * agent_logs recorded what agents did and almost nothing the owner did: only
+ * project creation was logged, so editing, deleting, issuing a token and
+ * revoking one all happened without a trace. This actor name distinguishes
+ * those entries from an agent's in the same feed.
+ */
+const OWNER_ACTOR = "CEO Console";
 
 function text(form: FormData, key: string) {
   const value = form.get(key);
@@ -126,6 +135,14 @@ export async function updateProjectAction(form: FormData) {
 
   if (error) return { error: safeMessage("Updating the project", error) };
 
+  await logActivity({
+    projectId: id,
+    agentName: OWNER_ACTOR,
+    toolName: "update_project",
+    payload: { name },
+    status: "success",
+  });
+
   revalidatePath("/dashboard/projects");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -136,10 +153,28 @@ export async function deleteProjectAction(formData: FormData) {
   const id = text(formData, "id");
   if (!id) return { error: "Project is required." };
 
+  const supabase = getServiceSupabase();
+
+  // Read what is about to disappear so the audit entry can say so. Deleting a
+  // project cascades to its logs, its tools and its live agent tokens.
+  const [{ data: project }, { count: tokenCount }] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("name")
+      .eq("id", id)
+      .eq("owner_id", session.user.id)
+      .maybeSingle(),
+    supabase
+      .from("agent_tokens")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", id)
+      .is("revoked_at", null),
+  ]);
+
   // Scoped to the owner: defence in depth today, a real boundary the moment a
   // second account exists. `count` distinguishes "not yours / not there" from
   // a successful delete — without it a no-op looked like success in the UI.
-  const { error, count } = await getServiceSupabase()
+  const { error, count } = await supabase
     .from("projects")
     .delete({ count: "exact" })
     .eq("id", id)
@@ -147,6 +182,19 @@ export async function deleteProjectAction(formData: FormData) {
 
   if (error) return { error: safeMessage("Deleting the project", error) };
   if (!count) return { error: "Project not found." };
+
+  // Deliberately unlinked: agent_logs cascades on project delete, so an entry
+  // carrying this project_id would be erased along with the thing it records.
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "delete_project",
+    payload: {
+      deleted_project_id: id,
+      name: project?.name ?? null,
+      revoked_tokens: tokenCount ?? 0,
+    },
+    status: "success",
+  });
 
   revalidatePath("/dashboard/projects");
   revalidatePath("/dashboard");
@@ -198,12 +246,28 @@ export async function issueTokenAction(form: FormData) {
 
   const scopes = form.get("scopes") === "read" ? ["read"] : ["read", "write"];
 
+  // expires_at has always been stored and enforced, but nothing ever set it —
+  // every token issued was immortal until revoked by hand.
+  const days = Number(form.get("expires_days"));
+  const expiresAt =
+    Number.isFinite(days) && days > 0
+      ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
   try {
     const { token } = await issueAgentToken({
       agentName,
       projectId,
       scopes,
+      expiresAt,
       createdBy: session.user.id,
+    });
+    await logActivity({
+      agentName: OWNER_ACTOR,
+      toolName: "issue_token",
+      projectId,
+      payload: { agent_name: agentName, scopes, expires_at: expiresAt },
+      status: "success",
     });
     revalidatePath("/dashboard/access");
     return { token };
@@ -216,6 +280,143 @@ export async function revokeTokenAction(form: FormData) {
   await requireSession();
   const id = text(form, "id");
   if (!id) return;
+
+  const { data: token } = await getServiceSupabase()
+    .from("agent_tokens")
+    .select("agent_name, project_id")
+    .eq("id", id)
+    .maybeSingle();
+
   await revokeAgentToken(id);
+  await logActivity({
+    projectId: token?.project_id ?? null,
+    agentName: OWNER_ACTOR,
+    toolName: "revoke_token",
+    payload: { agent_name: token?.agent_name ?? null },
+    status: "success",
+  });
   revalidatePath("/dashboard/access");
+}
+
+/** Tools could only ever be added — a typo'd endpoint was permanent. */
+export async function updateProjectToolAction(form: FormData) {
+  const session = await requireSession();
+  const id = text(form, "id");
+  const toolName = text(form, "tool_name");
+  if (!id || !toolName) return { error: "Tool name is required." };
+
+  const supabase = getServiceSupabase();
+  const { data: existing } = await supabase
+    .from("project_tools")
+    .select("project_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!existing || !(await assertOwnsProject(existing.project_id, session.user.id))) {
+    return { error: "Tool not found." };
+  }
+
+  const endpoint = text(form, "endpoint");
+  if (endpoint) {
+    try {
+      await assertSafeEndpoint(endpoint);
+    } catch (error) {
+      if (error instanceof UnsafeEndpointError) return { error: error.message };
+      throw error;
+    }
+  }
+
+  const { error } = await supabase
+    .from("project_tools")
+    .update({
+      tool_name: toolName,
+      description: text(form, "description"),
+      endpoint,
+    })
+    .eq("id", id);
+
+  if (error) return { error: safeMessage("Updating the tool", error) };
+
+  await logActivity({
+    projectId: existing.project_id,
+    agentName: OWNER_ACTOR,
+    toolName: "update_project_tool",
+    payload: { tool_name: toolName },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/projects");
+  return { ok: true };
+}
+
+export async function deleteProjectToolAction(form: FormData) {
+  const session = await requireSession();
+  const id = text(form, "id");
+  if (!id) return { error: "Tool is required." };
+
+  const supabase = getServiceSupabase();
+  const { data: existing } = await supabase
+    .from("project_tools")
+    .select("project_id, tool_name")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!existing || !(await assertOwnsProject(existing.project_id, session.user.id))) {
+    return { error: "Tool not found." };
+  }
+
+  const { error } = await supabase.from("project_tools").delete().eq("id", id);
+  if (error) return { error: safeMessage("Deleting the tool", error) };
+
+  await logActivity({
+    projectId: existing.project_id,
+    agentName: OWNER_ACTOR,
+    toolName: "delete_project_tool",
+    payload: { tool_name: existing.tool_name },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/projects");
+  return { ok: true };
+}
+
+/**
+ * Fires a project's registered tool with an empty input so the owner can see
+ * whether the endpoint answers — previously you only found out when a real
+ * agent call failed. Runs through the same SSRF guard and activity log as a
+ * genuine MCP call.
+ */
+export async function testProjectToolAction(form: FormData) {
+  const session = await requireSession();
+  const projectId = text(form, "project_id");
+  const toolName = text(form, "tool_name");
+  if (!projectId || !toolName) return { error: "Project and tool are required." };
+  if (!(await assertOwnsProject(projectId, session.user.id))) {
+    return { error: "Project not found." };
+  }
+
+  const tool = findTool("call_project_tool");
+  if (!tool) return { error: "Tool unavailable." };
+
+  const finish = await startActivity({
+    projectId,
+    agentName: OWNER_ACTOR,
+    toolName: "call_project_tool",
+    payload: { tool_name: toolName, test: true },
+  });
+
+  try {
+    const result = await tool.execute(
+      { project_id: projectId, tool_name: toolName, input: {} } as never,
+      { agentName: OWNER_ACTOR, scopes: ["read", "write"], ownerId: session.user.id },
+    );
+    await finish("success", result);
+    revalidatePath("/dashboard/projects");
+    return { ok: true, result: JSON.stringify(result).slice(0, 2000) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The call failed.";
+    await finish("failed", { error: message });
+    revalidatePath("/dashboard/projects");
+    return { error: message };
+  }
 }
