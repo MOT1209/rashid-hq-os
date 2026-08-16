@@ -89,9 +89,12 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 - **Outbound calls are guarded.** `call_project_tool` POSTs only to public `https`
   endpoints — private ranges, loopback and cloud metadata (`169.254.169.254`) are
   rejected, DNS results are checked address by address, and redirects are refused.
-  Endpoints are validated when stored *and* again before the request.
-- Agent tokens are stored as SHA-256 hashes — the plaintext is shown once, and
-  scopes are enforced per tool.
+  Endpoints are validated when stored *and* again before the request, and the
+  connection is pinned to the address that was vetted, so a name that changes
+  answers between the check and the request cannot reach an internal host.
+- Agent tokens are hashed with an HMAC keyed by `TOKEN_PEPPER` (a bare SHA-256
+  when it is unset). The plaintext is shown once, scopes are enforced per tool,
+  and tokens issued before the pepper existed are re-hashed as they are used.
 - **Security headers on every response** (`src/proxy.ts`): a nonce-based
   Content Security Policy — same-origin only, `object-src 'none'`,
   `frame-ancestors 'none'` — plus `nosniff`, a strict referrer policy and a
@@ -122,11 +125,8 @@ larger than 32 KB are stored truncated, with the original size recorded.
   `x-vercel-forwarded-for` / `x-real-ip` only — headers the platform sets.
   Behind a different proxy they collapse to one bucket, so treat the throttle
   as a brake and the auth checks as the real boundary.
-- `call_project_tool` resolves DNS, then `fetch` resolves again; a name that
-  flips between the two would slip past. Redirects are refused, which keeps the
-  window narrow, but a shared-store resolver cache would close it properly.
-- Token hashes are plain SHA-256. That is sound for the 256-bit random tokens
-  issued here; an HMAC with a server-side pepper would be stricter.
+- The proxy's throttle on `/api/mcp` and `/api/console` is still per-instance.
+  Sign-in is the one that mattered and it now counts in Postgres.
 
 ### Before deploying
 

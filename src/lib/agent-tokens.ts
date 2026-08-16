@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { dbError } from "@/lib/errors";
 
@@ -20,8 +20,34 @@ export type AgentToken = {
 
 const PREFIX = "hq_";
 
-function hash(token: string) {
+/**
+ * Token digests.
+ *
+ * A bare SHA-256 of a 256-bit random token is already impractical to reverse,
+ * but it is an unkeyed digest: anyone who obtained the table could test guesses
+ * offline at full speed. Keying it with a server-held pepper means a stolen
+ * database alone is not enough.
+ *
+ * TOKEN_PEPPER is optional so an existing deployment keeps working. When it is
+ * set, tokens hashed under the old scheme are still accepted and upgraded in
+ * place on first use — see verifyAgentToken.
+ */
+const pepper = process.env.TOKEN_PEPPER;
+
+function legacyHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function hash(token: string) {
+  return pepper
+    ? createHmac("sha256", pepper).update(token).digest("hex")
+    : legacyHash(token);
+}
+
+/** Constant-time compare of two hex digests of equal length. */
+function digestsMatch(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
 }
 
 /**
@@ -88,13 +114,37 @@ export async function verifyAgentToken(
   if (!token.startsWith(PREFIX)) return null;
 
   const supabase = getServiceSupabase();
-  const { data, error } = await supabase
+  const columns =
+    "id, agent_name, token_prefix, scopes, project_id, created_by, last_used_at, revoked_at, expires_at, created_at";
+
+  const current = hash(token);
+  const primary = await supabase
     .from("agent_tokens")
-    .select(
-      "id, agent_name, token_prefix, scopes, project_id, created_by, last_used_at, revoked_at, expires_at, created_at",
-    )
-    .eq("token_hash", hash(token))
+    .select(columns)
+    .eq("token_hash", current)
     .maybeSingle();
+
+  const { error } = primary;
+  let data = primary.data;
+
+  // Tokens issued before TOKEN_PEPPER was set are still stored as a bare
+  // SHA-256. Accept them once, then upgrade the row in place so the weaker
+  // digest disappears as tokens are used rather than by invalidating them all.
+  let upgradeFrom: string | null = null;
+  if (!error && !data && pepper) {
+    const legacy = legacyHash(token);
+    if (!digestsMatch(legacy, current)) {
+      const fallback = await supabase
+        .from("agent_tokens")
+        .select(columns)
+        .eq("token_hash", legacy)
+        .maybeSingle();
+      if (!fallback.error && fallback.data) {
+        data = fallback.data;
+        upgradeFrom = legacy;
+      }
+    }
+  }
 
   if (error || !data) return null;
   const record = data as AgentToken;
@@ -105,11 +155,17 @@ export async function verifyAgentToken(
   // Still needs a catch, or a failed write becomes an unhandled rejection.
   void (async () => {
     try {
+      // Rewrite the digest in the same round-trip that records the use.
+      const patch = upgradeFrom
+        ? { last_used_at: new Date().toISOString(), token_hash: current }
+        : { last_used_at: new Date().toISOString() };
+
       const { error: updateError } = await supabase
         .from("agent_tokens")
-        .update({ last_used_at: new Date().toISOString() })
+        .update(patch)
         .eq("id", record.id);
       if (updateError) console.error("[auth] last_used_at:", updateError.message);
+      else if (upgradeFrom) console.info(`[auth] upgraded token digest ${record.id}`);
     } catch (cause) {
       console.error("[auth] last_used_at:", cause);
     }

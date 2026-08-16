@@ -2,6 +2,7 @@ import "server-only";
 
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent } from "undici";
 
 /**
  * Guards every outbound call this server makes on behalf of an agent.
@@ -102,7 +103,43 @@ export async function assertSafeEndpoint(value: string): Promise<URL> {
     throw new UnsafeEndpointError("Endpoint resolves to a private address.");
   }
 
+  vetted.set(host, { ...addresses[0], at: Date.now() });
   return url;
+}
+
+/**
+ * Addresses that passed the check above, so the connection can be pinned to
+ * one of them. Without this the guard resolves the name, then `fetch` resolves
+ * it again — and a name that changes answers between the two calls slips
+ * through (DNS rebinding).
+ */
+const vetted = new Map<string, { address: string; family: number; at: number }>();
+const VETTED_TTL_MS = 30_000;
+
+/**
+ * An undici dispatcher whose DNS lookup returns only the address this module
+ * already vetted. TLS still uses the hostname for SNI and certificate checks,
+ * so pinning the socket does not weaken transport security.
+ *
+ * Returns undefined when the host was not vetted (or the entry aged out), in
+ * which case the caller should re-run assertSafeEndpoint rather than connect.
+ */
+export function pinnedDispatcher(url: URL): Agent | undefined {
+  if (allowPrivate()) return undefined;
+
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (isIP(host)) return undefined; // A literal cannot be re-resolved.
+
+  const hit = vetted.get(host);
+  if (!hit || Date.now() - hit.at > VETTED_TTL_MS) return undefined;
+
+  return new Agent({
+    connect: {
+      lookup: (_hostname, _options, callback) => {
+        callback(null, hit.address, hit.family);
+      },
+    },
+  });
 }
 
 /** Same check, as a boolean — for validating input before it is stored. */

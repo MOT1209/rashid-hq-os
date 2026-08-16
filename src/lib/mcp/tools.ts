@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { assertSafeEndpoint } from "@/lib/net/safe-endpoint";
+import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
 import { dbError } from "@/lib/errors";
 import type { Json } from "@/types/database";
 
@@ -219,7 +219,11 @@ const callProjectTool = {
       // A followed redirect would walk straight past assertSafeEndpoint.
       redirect: "manual",
       signal: AbortSignal.timeout(30_000),
-    });
+      // Connect to the address the guard actually vetted, so a name that
+      // changes answers between the check and the request cannot be used to
+      // reach an internal host. TLS still validates against the hostname.
+      dispatcher: pinnedDispatcher(safeUrl),
+    } as RequestInit & { dispatcher?: unknown });
 
     if (response.status >= 300 && response.status < 400) {
       throw new Error("Remote tool attempted a redirect, which is not allowed.");
