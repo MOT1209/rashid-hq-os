@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAgentToken } from "@/lib/agent-tokens";
 import { startActivity } from "@/lib/activity";
-import { findTool, TOOLS } from "@/lib/mcp/tools";
+import { findTool, scopeDenialReason, TOOLS } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
 export const runtime = "nodejs";
@@ -94,13 +94,8 @@ export async function POST(request: Request) {
     if (!tool) return rpcError(id, -32602, `Unknown tool: ${toolName}`);
 
     // A token's scopes are the authorization decision, not decoration.
-    if (!agent.scopes?.includes(tool.requiredScope)) {
-      return rpcError(
-        id,
-        -32003,
-        `This token lacks the "${tool.requiredScope}" scope required by ${toolName}.`,
-      );
-    }
+    const denied = scopeDenialReason(tool, agent.scopes);
+    if (denied) return rpcError(id, -32003, denied);
 
     const parsed = tool.schema.safeParse(rawArgs);
     if (!parsed.success) {

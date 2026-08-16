@@ -7,7 +7,7 @@ written to Supabase and streams to the dashboard live.
 - **Next.js 16** (App Router) + **TailwindCSS v4**
 - **Supabase** — Postgres, read and written only by the server
 - **Better Auth** — owner sign-in + bearer tokens for agents
-- **AI SDK v6** via Vercel AI Gateway — the CEO command console
+- **AI SDK v7** via Vercel AI Gateway — the CEO command console
 - Arabic / English, dark / light
 
 ## Setup
@@ -19,15 +19,16 @@ written to Supabase and streams to the dashboard live.
    - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
    - `OWNER_EMAILS` — your email. Nobody else can sign up or sign in.
    - `AI_GATEWAY_API_KEY` — Vercel AI Gateway (the console returns 503 without it)
-3. Create the Better Auth tables: `npx @better-auth/cli migrate`
-4. Apply the SQL in `supabase/migrations/` (run `0004` last — it closes anonymous
-   database access and must run *after* Better Auth has created its tables).
-5. `npm run dev` — serves on **http://localhost:7070** — then create the owner
+3. Apply the SQL in `supabase/migrations/` in order. Every file is re-runnable,
+   and `0005` carries the Better Auth schema so no separate step is needed.
+   (`npm run auth:migrate` regenerates that schema from the installed package if
+   you ever upgrade Better Auth.)
+4. `npm run dev` — serves on **http://localhost:7070** — then create the owner
    account (password ≥ 12 chars):
    `node scripts/seed-owner.mjs "you@example.com" "a-strong-password" "Rashid"`
 
-The port is set in the `dev` and `start` scripts. Changing it means changing
-`BETTER_AUTH_URL` to match, or sign-in breaks.
+The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
+automatically in development, so changing the port means changing both.
 
 ## Universal MCP endpoint
 
@@ -97,9 +98,14 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
   locked-down permissions policy. `'unsafe-eval'` is added **in development
   only**, where React uses `eval` to rebuild server-side error stacks; a
   production build needs none.
-- `/api/auth`, `/api/mcp` and `/api/console` are rate-limited in `src/proxy.ts`.
-  The counters are per-instance and best effort; move them to a shared store
-  before scaling out.
+- **Sign-in is rate-limited in Postgres**, not in process memory: Better Auth
+  stores counters in the `rateLimit` table, so the limit holds across serverless
+  instances. `/sign-in/email` allows 5 attempts per minute. `src/proxy.ts` adds a
+  cheap per-instance throttle in front of `/api/mcp` and `/api/console` — that
+  one *is* best-effort and should move to a shared store before scaling out.
+- **Every legitimate origin is trusted, not just one.** Preview deployments and
+  local development sign in without changing configuration; add a custom domain
+  through `TRUSTED_ORIGINS`.
 - Database errors are logged server-side and returned as generic messages, so
   schema details never reach a client.
 

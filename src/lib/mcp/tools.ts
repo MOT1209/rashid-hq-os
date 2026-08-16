@@ -37,6 +37,21 @@ function scopeError(): never {
   throw new Error("This token is scoped to a different project.");
 }
 
+/**
+ * Whether a caller's scopes permit a tool. Pure and exported so the
+ * authorization boundary can be tested directly rather than only through a
+ * live request — a token with no scopes, or an unknown scope, must be refused.
+ */
+export function scopeDenialReason(
+  tool: Pick<ToolDefinition, "name" | "requiredScope">,
+  scopes: string[] | undefined,
+): string | null {
+  if (!scopes?.includes(tool.requiredScope)) {
+    return `This token lacks the "${tool.requiredScope}" scope required by ${tool.name}.`;
+  }
+  return null;
+}
+
 /** Remote tool responses are logged and echoed back; keep them bounded. */
 const MAX_REMOTE_BODY = 100_000;
 

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "auth:migrate": "better-auth migrate",
+    "auth:migrate": "node --env-file=.env.local scripts/auth-migrate.mjs",
     "seed:owner": "node scripts/seed-owner.mjs"
   },
   "dependencies": {

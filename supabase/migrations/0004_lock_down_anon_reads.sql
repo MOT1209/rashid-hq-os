@@ -20,7 +20,17 @@ revoke all on public.project_tools from anon, authenticated;
 revoke all on public.agent_tokens from anon, authenticated;
 
 -- agent_logs no longer needs to be published for browser Realtime.
-alter publication supabase_realtime drop table public.agent_logs;
+-- Guarded so re-running the folder does not fail once it is already dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'agent_logs'
+  ) then
+    alter publication supabase_realtime drop table public.agent_logs;
+  end if;
+end $$;
+
 alter table public.agent_logs replica identity default;
 
 -- Better Auth creates these directly over pg (outside any migration), so they

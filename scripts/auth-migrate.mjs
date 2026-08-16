@@ -20,6 +20,9 @@ const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:7070",
   emailAndPassword: { enabled: true, autoSignIn: true },
+  // Must mirror src/lib/auth.ts, or the generated schema misses the rateLimit
+  // table that database-backed throttling needs.
+  rateLimit: { enabled: true, storage: "database" },
   plugins: [bearer()],
 });
 
