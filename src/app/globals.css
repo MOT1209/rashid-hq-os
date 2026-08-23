@@ -49,7 +49,7 @@ body {
 }
 
 [dir="rtl"] body {
-  font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, ui-sans-serif, system-ui, sans-serif;
 }
 
 @keyframes pulse-led {
@@ -59,4 +59,22 @@ body {
 
 .led-pending {
   animation: pulse-led 1.2s ease-in-out infinite;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

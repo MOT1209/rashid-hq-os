@@ -5,6 +5,17 @@ import { useLocale } from "@/components/providers";
 import { EmptyState, StatusLed } from "@/components/ui";
 import type { AgentLog, LogStatus } from "@/types/database";
 
+/** Browser memory ceiling — the feed merges SSE events cumulatively; without a
+ *  cap the list grows forever on a busy system and eventually crashes the tab.
+ *
+ *  It bounds the *live* feed only. Applying it to "load more" as well would drop
+ *  exactly the older rows that were just fetched — they sort last — leaving the
+ *  list unchanged, the cursor unchanged, and every further click re-requesting
+ *  the same page forever. Pagination is a deliberate act with a human behind it,
+ *  so it is allowed to grow past the ceiling; the ceiling then holds the list
+ *  where the reader left it instead of shrinking it back. */
+const MAX_LOGS = 500;
+
 type Props = {
   initialLogs: AgentLog[];
   projectNames: Record<string, string>;
@@ -122,9 +133,9 @@ export function ActivityStream({
             const existing = byId.get(log.id);
             byId.set(log.id, existing ? { ...existing, ...log } : log);
           }
-          return [...byId.values()].sort((a, b) =>
-            b.created_at.localeCompare(a.created_at),
-          );
+          return [...byId.values()]
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+            .slice(0, Math.max(MAX_LOGS, prev.length));
         });
       });
       es.onerror = () => setConnected(false);
@@ -163,7 +174,6 @@ export function ActivityStream({
       setHasMore(data.hasMore);
     } catch (error) {
       console.error("[activity] load more failed:", error);
-      setHasMore(false);
     } finally {
       setLoadingMore(false);
     }

@@ -1,9 +1,11 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useLocale } from "@/components/providers";
 import type { Project } from "@/types/database";
+
+const STORAGE_KEY = "activity-filters";
 
 const field =
   "rounded-xl border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent";
@@ -23,10 +25,40 @@ export function ActivityFilters({
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
 
+  // On first render, if the URL has no filters, restore from localStorage.
+  useEffect(() => {
+    if (params.get("projectId") || params.get("status")) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as {
+        projectId?: string;
+        status?: string;
+      };
+      const next = new URLSearchParams();
+      if (saved.projectId) next.set("projectId", saved.projectId);
+      if (saved.status) next.set("status", saved.status);
+      if (next.toString()) {
+        startTransition(() => router.replace(`${pathname}?${next}`));
+      }
+    } catch {
+      // Malformed JSON — ignore.
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveFilters = (projectId: string, status: string) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ projectId, status }));
+    } catch { /* storage full or unavailable */ }
+  };
+
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+
+    const projectId = key === "projectId" ? value : (params.get("projectId") ?? "");
+    const status = key === "status" ? value : (params.get("status") ?? "");
+    saveFilters(projectId, status);
+
     startTransition(() => router.replace(`${pathname}?${next}`));
   };
 
@@ -71,7 +103,10 @@ export function ActivityFilters({
       {hasFilters && (
         <button
           type="button"
-          onClick={() => startTransition(() => router.replace(pathname))}
+          onClick={() => {
+            try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+            startTransition(() => router.replace(pathname));
+          }}
           className="rounded-xl border border-border px-3 py-2 text-sm text-muted hover:text-text"
         >
           {t.clear}
