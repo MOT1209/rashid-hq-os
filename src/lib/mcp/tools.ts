@@ -56,6 +56,9 @@ export function scopeDenialReason(
 /** Remote tool responses are logged and echoed back; keep them bounded. */
 const MAX_REMOTE_BODY = 100_000;
 
+/** Maximum size of the input payload we will forward to a remote endpoint. */
+const MAX_INPUT_PAYLOAD = 10_240;
+
 /**
  * Identifies the caller to the project's own MCP server.
  *
@@ -234,6 +237,16 @@ const callProjectTool = {
     // Last line of defence: endpoints are validated on write, but a row could
     // predate that check or be edited out of band.
     const safeUrl = await assertSafeEndpoint(endpoint);
+
+    // Bound the input payload before it hits the wire — unbounded JSON would
+    // be forwarded as-is and logged to agent_logs (truncated to 32 KB there,
+    // but the outbound request itself is not capped without this check).
+    const inputPayload = JSON.stringify(args.input ?? {});
+    if (inputPayload.length > MAX_INPUT_PAYLOAD) {
+      throw new Error(
+        `Input payload (${inputPayload.length} bytes) exceeds the ${MAX_INPUT_PAYLOAD}-byte limit.`,
+      );
+    }
 
     const requestBody = JSON.stringify({
       tool: args.tool_name,

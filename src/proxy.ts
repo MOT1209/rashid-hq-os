@@ -18,12 +18,25 @@ import { NextResponse, type NextRequest } from "next/server";
  * boundary.
  */
 
-type Rule = { windowMs: number; max: number };
+type Rule = {
+  windowMs: number;
+  max: number;
+  /** Restricts the rule to these verbs. Omitted means every verb. */
+  methods?: string[];
+  /** Over-limit body. A page prefix must not answer a navigation with JSON. */
+  format?: "json" | "text";
+};
 
 const RULES: [prefix: string, rule: Rule][] = [
   ["/api/auth", { windowMs: 60_000, max: 20 }],
   ["/api/mcp", { windowMs: 60_000, max: 120 }],
   ["/api/console", { windowMs: 60_000, max: 20 }],
+  // Server Actions POST to page URLs, not /api/*, so they bypass the rules
+  // above. Scoped to POST on purpose: this prefix also covers every page load
+  // and every <Link> prefetch, and the sidebar alone fans out one RSC request
+  // per nav item, so counting reads here would throttle ordinary browsing —
+  // hardest on a host where clientIp() falls back to a single shared bucket.
+  ["/dashboard", { windowMs: 60_000, max: 120, methods: ["POST"], format: "text" }],
 ];
 
 const hits = new Map<string, number[]>();
@@ -98,21 +111,27 @@ export function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID();
   const headers = securityHeaders(nonce);
 
-  const match = RULES.find(([prefix]) => pathname.startsWith(prefix));
+  const match = RULES.find(
+    ([prefix, rule]) =>
+      pathname.startsWith(prefix) && (!rule.methods || rule.methods.includes(request.method)),
+  );
   if (match) {
     const [prefix, rule] = match;
     if (overLimit(`${clientIp(request)}:${prefix}`, rule)) {
-      return NextResponse.json(
-        { error: "rate_limited", error_description: "Too many requests." },
-        {
-          status: 429,
-          // Throttled responses get the same headers as every other one.
-          headers: {
-            ...headers,
-            "retry-after": String(Math.ceil(rule.windowMs / 1000)),
-          },
-        },
-      );
+      // Throttled responses get the same headers as every other one.
+      const init = {
+        status: 429,
+        headers: { ...headers, "retry-after": String(Math.ceil(rule.windowMs / 1000)) },
+      };
+      return rule.format === "text"
+        ? new NextResponse("Too many requests. Please wait a moment and try again.", {
+            ...init,
+            headers: { ...init.headers, "content-type": "text/plain; charset=utf-8" },
+          })
+        : NextResponse.json(
+            { error: "rate_limited", error_description: "Too many requests." },
+            init,
+          );
     }
   }
 

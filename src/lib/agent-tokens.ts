@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { dbError } from "@/lib/errors";
+import { isOwnerEmail } from "@/lib/owners";
 
 export type AgentToken = {
   id: string;
@@ -92,6 +93,23 @@ export async function listAgentTokens(): Promise<AgentToken[]> {
 
   if (error) throw dbError("Listing tokens", error);
   return (data ?? []) as AgentToken[];
+}
+
+/**
+ * Who may revoke a given token: whoever issued it, an owner on OWNER_EMAILS, or
+ * anyone at all if the row predates `created_by` being recorded.
+ *
+ * A member-table admin is still "admin" in the session role, so the role alone
+ * cannot stand in for the owner check. Lives here rather than beside the action
+ * so the access table can hide the button on exactly the rows it refuses.
+ */
+export function canRevokeToken(
+  createdBy: string | null,
+  viewer: { user: { id: string; email?: string | null } },
+) {
+  if (!createdBy) return true;
+  if (createdBy === viewer.user.id) return true;
+  return isOwnerEmail(viewer.user.email);
 }
 
 export async function revokeAgentToken(id: string) {

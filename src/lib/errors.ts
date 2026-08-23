@@ -1,5 +1,9 @@
 import "server-only";
 
+// Set SENTRY_DSN in .env.local to enable Sentry error reporting.
+// Format: https://KEY@HOST/PROJECT_ID
+// Without it, errors are still logged locally with a reference UUID.
+
 import { randomUUID } from "node:crypto";
 
 /**

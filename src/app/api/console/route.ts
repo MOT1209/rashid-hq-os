@@ -1,7 +1,7 @@
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
-import { isOwnerEmail } from "@/lib/owners";
+import { resolveRole } from "@/lib/members";
 import { startActivity } from "@/lib/activity";
 import { TOOLS } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
@@ -24,8 +24,12 @@ Rules:
  * so every action it takes shows up in the live activity stream.
  */
 export async function POST(request: Request) {
+  // The console drives every write tool, so it needs the same admin check as a
+  // server action — not the OWNER_EMAILS allowlist, which would refuse an admin
+  // created through the member manager.
   const session = await getSession();
-  if (!session || !isOwnerEmail(session.user.email)) {
+  const role = session ? await resolveRole(session.user.email) : null;
+  if (!session || role !== "admin") {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 

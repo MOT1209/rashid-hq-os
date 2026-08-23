@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/session";
 import { logActivity, startActivity } from "@/lib/activity";
-import { issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
+import { canRevokeToken, issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
 import { findTool } from "@/lib/mcp/tools";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
@@ -21,9 +21,28 @@ import type { ProjectStatus } from "@/types/database";
  */
 const OWNER_ACTOR = "CEO Console";
 
+/** Longest value accepted in any single text field on a form. */
+const MAX_FIELD = 500;
+
 function text(form: FormData, key: string) {
   const value = form.get(key);
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/**
+ * Oversized input is refused, never trimmed to fit. Slicing a value silently
+ * stores a fragment the owner never typed, and the fragment can still be
+ * plausible: a truncated mcp_endpoint parses as a URL and would be fetched as
+ * one. Returns the message to hand back, so the form names the offending field
+ * instead of reporting success on mangled data.
+ */
+function tooLong(form: FormData): string | null {
+  for (const [key, value] of form.entries()) {
+    if (typeof value === "string" && value.trim().length > MAX_FIELD) {
+      return `"${key}" is longer than ${MAX_FIELD} characters.`;
+    }
+  }
+  return null;
 }
 
 /** Confirms the signed-in owner owns this project before it can be mutated. */
@@ -57,6 +76,9 @@ export async function setThemeAction(theme: string) {
 
 export async function createProjectAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const name = text(form, "name");
   if (!name) return { error: "Name is required." };
 
@@ -102,6 +124,9 @@ export async function createProjectAction(form: FormData) {
 
 export async function updateProjectAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const id = text(form, "id");
   const name = text(form, "name");
   if (!id) return { error: "Project is required." };
@@ -150,6 +175,9 @@ export async function updateProjectAction(form: FormData) {
 
 export async function deleteProjectAction(formData: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(formData);
+  if (oversized) return { error: oversized };
+
   const id = text(formData, "id");
   if (!id) return { error: "Project is required." };
 
@@ -203,6 +231,9 @@ export async function deleteProjectAction(formData: FormData) {
 
 export async function addProjectToolAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const projectId = text(form, "project_id");
   const toolName = text(form, "tool_name");
   if (!projectId || !toolName) return { error: "Project and tool name are required." };
@@ -236,6 +267,9 @@ export async function addProjectToolAction(form: FormData) {
 
 export async function issueTokenAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const agentName = text(form, "agent_name");
   if (!agentName) return { error: "Agent name is required." };
 
@@ -283,6 +317,9 @@ export async function issueTokenAction(form: FormData) {
  */
 export async function saveCategoryAction(form: FormData) {
   await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const value = text(form, "value");
   const labelAr = text(form, "label_ar");
   const labelEn = text(form, "label_en");
@@ -316,6 +353,9 @@ export async function saveCategoryAction(form: FormData) {
 
 export async function deleteCategoryAction(form: FormData) {
   await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const value = text(form, "value");
   if (!value) return { error: "Category is required." };
 
@@ -342,6 +382,9 @@ export async function deleteCategoryAction(form: FormData) {
 /** Grants or changes someone's role. Admins only, by requireAdmin above. */
 export async function saveMemberAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const email = text(form, "email")?.toLowerCase();
   const role = form.get("role") === "admin" ? "admin" : "viewer";
   if (!email || !email.includes("@")) return { error: "A valid email is required." };
@@ -365,6 +408,9 @@ export async function saveMemberAction(form: FormData) {
 
 export async function removeMemberAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const email = text(form, "email")?.toLowerCase();
   if (!email) return { error: "Member is required." };
 
@@ -393,22 +439,42 @@ export async function removeMemberAction(form: FormData) {
 }
 
 export async function revokeTokenAction(form: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const id = text(form, "id");
   if (!id) return;
 
   const { data: token } = await getServiceSupabase()
     .from("agent_tokens")
-    .select("agent_name, project_id")
+    .select("agent_name, project_id, created_by")
     .eq("id", id)
     .maybeSingle();
 
+  if (!token) return;
+
+  // Defence in depth: the issuer can revoke, and so can an OWNER_EMAILS owner —
+  // otherwise a leaked token issued by a since-departed admin could never be
+  // pulled from the console. `role` is "admin" for member-table admins too, so
+  // it cannot stand in for the owner check here.
+  if (!canRevokeToken(token.created_by, session)) {
+    // Silent no-ops were invisible: the button did nothing and said nothing.
+    // The refusal now lands in the same feed as every other owner action.
+    await logActivity({
+      projectId: token.project_id ?? null,
+      agentName: OWNER_ACTOR,
+      toolName: "revoke_token",
+      payload: { agent_name: token.agent_name ?? null, denied: "not_the_issuer" },
+      status: "failed",
+    });
+    revalidatePath("/dashboard/access");
+    return;
+  }
+
   await revokeAgentToken(id);
   await logActivity({
-    projectId: token?.project_id ?? null,
+    projectId: token.project_id ?? null,
     agentName: OWNER_ACTOR,
     toolName: "revoke_token",
-    payload: { agent_name: token?.agent_name ?? null },
+    payload: { agent_name: token.agent_name ?? null },
     status: "success",
   });
   revalidatePath("/dashboard/access");
@@ -417,6 +483,9 @@ export async function revokeTokenAction(form: FormData) {
 /** Tools could only ever be added — a typo'd endpoint was permanent. */
 export async function updateProjectToolAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const id = text(form, "id");
   const toolName = text(form, "tool_name");
   if (!id || !toolName) return { error: "Tool name is required." };
@@ -467,6 +536,9 @@ export async function updateProjectToolAction(form: FormData) {
 
 export async function deleteProjectToolAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const id = text(form, "id");
   if (!id) return { error: "Tool is required." };
 
@@ -504,6 +576,9 @@ export async function deleteProjectToolAction(form: FormData) {
  */
 export async function testProjectToolAction(form: FormData) {
   const session = await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
   const projectId = text(form, "project_id");
   const toolName = text(form, "tool_name");
   if (!projectId || !toolName) return { error: "Project and tool are required." };

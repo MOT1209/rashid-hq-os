@@ -1,9 +1,18 @@
+import { timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getSession } from "@/lib/session";
 import { isOwnerEmail } from "@/lib/owners";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Compares two strings in constant time to prevent timing attacks. */
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 /**
  * Deletes activity older than the retention window.
@@ -18,8 +27,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  const authorized = secret
-    ? request.headers.get("authorization") === `Bearer ${secret}`
+  const authHeader = request.headers.get("authorization");
+  const authorized = secret && authHeader
+    ? safeCompare(authHeader, `Bearer ${secret}`)
     : false;
 
   if (!authorized) {

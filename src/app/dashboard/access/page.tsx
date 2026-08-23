@@ -4,7 +4,7 @@ import { IssueTokenForm } from "@/components/access-manager";
 import { EmptyState, Panel } from "@/components/ui";
 import { getLocale, getT } from "@/lib/locale-server";
 import { fetchProjectOptions } from "@/lib/queries";
-import { listAgentTokens } from "@/lib/agent-tokens";
+import { canRevokeToken, listAgentTokens } from "@/lib/agent-tokens";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +94,9 @@ export default async function AccessPage() {
                       )}
                     </td>
                     <td className="py-3 text-end">
-                      {token.revoked_at || !isAdmin ? (
+                      {token.revoked_at ||
+                      !isAdmin ||
+                      !canRevokeToken(token.created_by, session) ? (
                         <span className="text-xs text-muted">
                           {token.revoked_at ? t.revoked : "—"}
                         </span>
