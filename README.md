@@ -19,6 +19,10 @@ written to Supabase and streams to the dashboard live.
    - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
    - `OWNER_EMAILS` — your email. Nobody else can sign up or sign in.
    - `AI_GATEWAY_API_KEY` — Vercel AI Gateway (the console returns 503 without it)
+   - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — optional. Install the Upstash for
+     Redis integration (`vercel integration add upstash/upstash-kv`) and
+     `vercel env pull` to get these; without them, rate limiting falls back to
+     per-instance memory (see Security notes).
 3. Apply the SQL in `supabase/migrations/` in order. Every file is re-runnable,
    and `0005` carries the Better Auth schema so no separate step is needed.
    (`npm run auth:migrate` regenerates that schema from the installed package if
@@ -132,8 +136,12 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 - **Sign-in is rate-limited in Postgres**, not in process memory: Better Auth
   stores counters in the `rateLimit` table, so the limit holds across serverless
   instances. `/sign-in/email` allows 5 attempts per minute. `src/proxy.ts` adds a
-  cheap per-instance throttle in front of `/api/mcp` and `/api/console` — that
-  one *is* best-effort and should move to a shared store before scaling out.
+  sliding-window throttle in front of `/api/auth`, `/api/mcp`, `/api/console` and
+  every Server Action POST under `/dashboard`, backed by Upstash Redis
+  (`KV_REST_API_URL` / `KV_REST_API_TOKEN`, set automatically by the Upstash for
+  Redis integration) — one shared counter across every instance. Without those
+  variables it falls back to a per-instance in-memory counter, and a live Redis
+  hiccup fails open to that same fallback rather than blocking requests.
 - **Every legitimate origin is trusted, not just one.** Preview deployments and
   local development sign in without changing configuration; add a custom domain
   through `TRUSTED_ORIGINS`.
@@ -164,12 +172,13 @@ change nothing when it does not.
 
 ### Known limits
 
-- Rate-limit counters live in memory per instance and key on
-  `x-vercel-forwarded-for` / `x-real-ip` only — headers the platform sets.
-  Behind a different proxy they collapse to one bucket, so treat the throttle
-  as a brake and the auth checks as the real boundary.
-- The proxy's throttle on `/api/mcp` and `/api/console` is still per-instance.
-  Sign-in is the one that mattered and it now counts in Postgres.
+- Rate-limit counters key on `x-vercel-forwarded-for` / `x-real-ip` only —
+  headers the platform sets. Behind a different proxy they collapse to one
+  bucket, so treat the throttle as a brake and the auth checks as the real
+  boundary.
+- Without the Upstash for Redis integration connected, the proxy throttle
+  falls back to per-instance memory. Sign-in doesn't depend on this — it
+  counts in Postgres regardless.
 
 ### Before deploying
 

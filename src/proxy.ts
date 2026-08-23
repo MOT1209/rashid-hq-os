@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 /**
  * Two jobs, both of which have to happen before a route renders:
@@ -6,16 +8,18 @@ import { NextResponse, type NextRequest } from "next/server";
  * 1. Security headers, including a nonce-based Content Security Policy. The
  *    dashboard renders agent-supplied strings (tool names, payloads, project
  *    names), so a CSP is the backstop if any of that ever escapes escaping.
- * 2. An in-memory sliding-window throttle on the three routes where an
- *    unbounded caller costs something real: password guessing on /api/auth,
- *    token guessing plus agent_logs flooding on /api/mcp, and model spend on
- *    /api/console.
+ * 2. A sliding-window throttle on the routes where an unbounded caller costs
+ *    something real: password guessing on /api/auth, token guessing plus
+ *    agent_logs flooding on /api/mcp, model spend on /api/console, and every
+ *    Server Action POST under /dashboard.
  *
- * The throttle is per-instance and best-effort — Next may run this on more than
- * one instance, so treat it as a brake, not a guarantee. That is enough for a
- * single-owner console; if this ever scales out, move the counters to a shared
- * store (Vercel KV / Upstash) and keep the auth checks downstream as the real
- * boundary.
+ * The throttle is backed by Upstash Redis (REST, so it works from any
+ * runtime) when KV_REST_API_URL/TOKEN are set — one shared counter across
+ * every instance, which is the real requirement once this scales past one.
+ * Locally, or in any environment where the integration isn't connected, it
+ * falls back to an in-memory counter scoped to this instance: still a brake,
+ * just not a cross-instance guarantee. Either way, the auth checks downstream
+ * are the actual boundary — this is best-effort shaping in front of them.
  */
 
 type Rule = {
@@ -39,6 +43,32 @@ const RULES: [prefix: string, rule: Rule][] = [
   ["/dashboard", { windowMs: 60_000, max: 120, methods: ["POST"], format: "text" }],
 ];
 
+const redis =
+  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+    ? new Redis({ url: process.env.KV_REST_API_URL, token: process.env.KV_REST_API_TOKEN })
+    : null;
+
+/** One Ratelimit instance per rule, built lazily and cached by prefix. */
+const limiters = new Map<string, Ratelimit>();
+
+function limiterFor(prefix: string, rule: Rule): Ratelimit {
+  const cached = limiters.get(prefix);
+  if (cached) return cached;
+
+  const limiter = new Ratelimit({
+    redis: redis!,
+    limiter: Ratelimit.slidingWindow(rule.max, `${rule.windowMs} ms`),
+    prefix: `ratelimit:${prefix}`,
+    // Every call already crosses the network for the route it is guarding;
+    // analytics would be a second Redis round trip for no reader of this
+    // single-owner console.
+    analytics: false,
+  });
+  limiters.set(prefix, limiter);
+  return limiter;
+}
+
+/** In-memory fallback for local dev and any environment without Redis wired up. */
 const hits = new Map<string, number[]>();
 
 /**
@@ -57,7 +87,7 @@ function clientIp(request: NextRequest) {
   return "unknown";
 }
 
-function overLimit(key: string, rule: Rule) {
+function overLimitInMemory(key: string, rule: Rule) {
   const now = Date.now();
   const recent = (hits.get(key) ?? []).filter((t) => now - t < rule.windowMs);
   recent.push(now);
@@ -71,6 +101,20 @@ function overLimit(key: string, rule: Rule) {
   }
 
   return recent.length > rule.max;
+}
+
+async function overLimit(key: string, prefix: string, rule: Rule) {
+  if (!redis) return overLimitInMemory(key, rule);
+
+  // A Redis hiccup should not take the whole console down: fail open and let
+  // the in-memory brake (and the real auth checks) keep covering this request.
+  try {
+    const { success } = await limiterFor(prefix, rule).limit(key);
+    return !success;
+  } catch (error) {
+    console.error("[proxy] rate limit check failed, falling back:", error);
+    return overLimitInMemory(key, rule);
+  }
 }
 
 function securityHeaders(nonce: string) {
@@ -106,7 +150,7 @@ function securityHeaders(nonce: string) {
   };
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const nonce = crypto.randomUUID();
   const headers = securityHeaders(nonce);
@@ -117,7 +161,7 @@ export function proxy(request: NextRequest) {
   );
   if (match) {
     const [prefix, rule] = match;
-    if (overLimit(`${clientIp(request)}:${prefix}`, rule)) {
+    if (await overLimit(`${clientIp(request)}:${prefix}`, prefix, rule)) {
       // Throttled responses get the same headers as every other one.
       const init = {
         status: 429,
