@@ -1,6 +1,7 @@
 import { CategoryManager } from "@/components/category-manager";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { MemberManager } from "@/components/member-manager";
+import { TwoFactorForm } from "@/components/two-factor-form";
 import { Panel } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
 import { fetchCategories, fetchDepartments } from "@/lib/queries";
@@ -36,6 +37,10 @@ export default async function SettingsPage() {
 
       <Panel title={t.changePassword}>
         <ChangePasswordForm />
+      </Panel>
+
+      <Panel title={t.twoFactor}>
+        <TwoFactorForm initiallyEnabled={Boolean(session.user.twoFactorEnabled)} />
       </Panel>
 
       {isAdmin && (

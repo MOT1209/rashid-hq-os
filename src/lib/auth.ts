@@ -1,7 +1,7 @@
 import "server-only";
 
 import { APIError, betterAuth } from "better-auth";
-import { bearer } from "better-auth/plugins";
+import { bearer, twoFactor } from "better-auth/plugins";
 import { Pool } from "pg";
 
 import { isOwnerEmail } from "@/lib/owners";
@@ -122,7 +122,14 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [bearer()],
+  plugins: [
+    bearer(),
+    // TOTP + backup codes only — no email/SMS OTP, which would need its own
+    // delivery channel this console doesn't have. `enable` only issues the
+    // secret; `twoFactorEnabled` flips on after the first verifyTotp, so a
+    // scan that's never completed never locks the owner out.
+    twoFactor({ issuer: "Alking HQ OS" }),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

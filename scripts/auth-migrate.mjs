@@ -5,7 +5,7 @@
  *   node --env-file=.env.local scripts/auth-migrate.mjs
  */
 import { betterAuth } from "better-auth";
-import { bearer } from "better-auth/plugins";
+import { bearer, twoFactor } from "better-auth/plugins";
 import { getMigrations } from "better-auth/db/migration";
 import pg from "pg";
 
@@ -23,7 +23,7 @@ const auth = betterAuth({
   // Must mirror src/lib/auth.ts, or the generated schema misses the rateLimit
   // table that database-backed throttling needs.
   rateLimit: { enabled: true, storage: "database" },
-  plugins: [bearer()],
+  plugins: [bearer(), twoFactor({ issuer: "Alking HQ OS" })],
 });
 
 const { toBeCreated, toBeAdded, runMigrations } = await getMigrations(auth.options);
