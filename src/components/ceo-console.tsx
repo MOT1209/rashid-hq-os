@@ -9,6 +9,7 @@ import {
 } from "ai";
 import { Send, Sparkles } from "lucide-react";
 import { useLocale } from "@/components/providers";
+import { parseCommandHistory, pushCommandHistory } from "@/lib/client-storage";
 
 const HISTORY_KEY = "command-history";
 const MAX_HISTORY = 20;
@@ -25,9 +26,7 @@ export function CeoConsole() {
 
   const [history, setHistory] = useState<string[]>(() => {
     try {
-      const saved: unknown = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
-      // Anything else in this key would blow up `prev.filter` on first submit.
-      return Array.isArray(saved) ? saved.filter((h) => typeof h === "string") : [];
+      return parseCommandHistory(localStorage.getItem(HISTORY_KEY), MAX_HISTORY);
     } catch {
       return [];
     }
@@ -78,7 +77,7 @@ export function CeoConsole() {
     if (!text.trim() || busy) return;
 
     // Save to history (deduplicated, most-recent first); the effect persists it.
-    setHistory((prev) => [text, ...prev.filter((h) => h !== text)].slice(0, MAX_HISTORY));
+    setHistory((prev) => pushCommandHistory(prev, text, MAX_HISTORY));
     setHistoryIndex(-1);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";

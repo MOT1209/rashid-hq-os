@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import { useLocale } from "@/components/providers";
+import { parseSavedFilters } from "@/lib/client-storage";
 import type { Project } from "@/types/database";
 
 const STORAGE_KEY = "activity-filters";
@@ -28,19 +29,17 @@ export function ActivityFilters({
   // On first render, if the URL has no filters, restore from localStorage.
   useEffect(() => {
     if (params.get("projectId") || params.get("status")) return;
+    let saved: ReturnType<typeof parseSavedFilters> = {};
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as {
-        projectId?: string;
-        status?: string;
-      };
-      const next = new URLSearchParams();
-      if (saved.projectId) next.set("projectId", saved.projectId);
-      if (saved.status) next.set("status", saved.status);
-      if (next.toString()) {
-        startTransition(() => router.replace(`${pathname}?${next}`));
-      }
+      saved = parseSavedFilters(localStorage.getItem(STORAGE_KEY));
     } catch {
-      // Malformed JSON — ignore.
+      // Storage disabled (private mode, permissions) — nothing to restore.
+    }
+    const next = new URLSearchParams();
+    if (saved.projectId) next.set("projectId", saved.projectId);
+    if (saved.status) next.set("status", saved.status);
+    if (next.toString()) {
+      startTransition(() => router.replace(`${pathname}?${next}`));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
