@@ -36,9 +36,21 @@ automatically in development, so changing the port means changing both.
 
 ## Universal MCP endpoint
 
-`POST /api/mcp` — JSON-RPC 2.0, `Authorization: Bearer hq_…`.
-Issue and revoke tokens at `/dashboard/access`; a revoked token is rejected on its
-very next call.
+Two transports onto the same server — same tool registry
+(`src/lib/mcp/tools.ts`), same bearer tokens, same activity log. Issue and
+revoke tokens at `/dashboard/access`; a revoked token is rejected on its very
+next call, on either transport.
+
+- `POST /api/mcp` — a hand-rolled JSON-RPC 2.0 endpoint. `Authorization: Bearer hq_…`.
+- `POST/GET/DELETE /api/mcp-server` — a real Streamable HTTP MCP server (via
+  [`mcp-handler`](https://www.npmjs.com/package/mcp-handler)), reachable
+  directly by any MCP client:
+  ```bash
+  claude mcp add --transport http alking-hq https://YOUR_DOMAIN/api/mcp-server \
+    --header "Authorization: Bearer hq_…"
+  ```
+  Claude Desktop and other Streamable HTTP clients connect the same way —
+  point them at the URL with that header.
 
 Tools and the scope each one needs:
 
