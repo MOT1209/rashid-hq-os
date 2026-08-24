@@ -169,6 +169,15 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 run it by hand. Override the window with `LOG_RETENTION`. Payloads and results
 larger than 32 KB are stored truncated, with the original size recorded.
 
+### Scheduled health check
+
+A second Vercel Cron hits `/api/agent/daily-check` once a day, authenticated
+the same way (`CRON_SECRET`). It pings every active project's `mcp_endpoint`
+(same request shape and SSRF guard as `call_project_tool`) and logs the result
+under the agent name **Scheduled Health Check** — a dead integration shows up
+in Live Activity on its own, without anyone having to call it first. This is
+the only agent in this console that runs without a human prompting it.
+
 ### Password recovery and error tracking
 
 Both are optional integrations that activate the moment their key exists, and
