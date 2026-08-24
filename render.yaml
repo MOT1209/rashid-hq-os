@@ -6,8 +6,8 @@
 # fill it in from the Render dashboard once the service exists. See
 # .env.example in the repo root for what each one does and how to get it.
 #
-# The app defaults to port 7070 locally (see package.json), but Render assigns
-# its own port via $PORT — startCommand below overrides -p to use it.
+# `npm start` (package.json) binds to $PORT when Render sets it, falling back
+# to 7070 otherwise — no override needed here.
 
 services:
   - type: web
@@ -16,7 +16,7 @@ services:
     plan: starter
     region: oregon
     buildCommand: npm ci && npm run build
-    startCommand: npx next start -p $PORT
+    startCommand: npm run start
     healthCheckPath: /sign-in
     envVars:
       - key: NODE_ENV
