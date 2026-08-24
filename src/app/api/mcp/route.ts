@@ -44,9 +44,6 @@ function unauthorized() {
  * every tool call is written to agent_logs and streams to the dashboard live.
  */
 export async function POST(request: Request) {
-  const agent = await verifyAgentToken(request.headers.get("authorization"));
-  if (!agent) return unauthorized();
-
   let body: RpcRequest;
   try {
     body = (await request.json()) as RpcRequest;
@@ -62,6 +59,16 @@ export async function POST(request: Request) {
     return rpcError(id, -32600, "Invalid Request: missing method");
   }
 
+  // A liveness probe, deliberately unauthenticated: the scheduled health
+  // check (src/app/api/agent/daily-check) pings every registered project's
+  // mcp_endpoint with no credentials, so gating this method behind a bearer
+  // token would make every project — including this one, if self-registered
+  // — read as permanently down.
+  if (method === "ping") return rpcResult(id, {});
+
+  const agent = await verifyAgentToken(request.headers.get("authorization"));
+  if (!agent) return unauthorized();
+
   if (method === "initialize") {
     return rpcResult(id, {
       protocolVersion: PROTOCOL_VERSION,
@@ -74,8 +81,6 @@ export async function POST(request: Request) {
   if (method.startsWith("notifications/")) {
     return new NextResponse(null, { status: 202 });
   }
-
-  if (method === "ping") return rpcResult(id, {});
 
   if (method === "tools/list") {
     return rpcResult(id, {

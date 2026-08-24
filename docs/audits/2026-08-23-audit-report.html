@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alking HQ OS — تقرير الفحص الشامل</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root {
+    --gold:#d4af37; --gold-dim:#b8962e; --gold-glow:rgba(212,175,55,.12);
+    --bg:#0a0a0f; --bg-card:#111118; --bg-code:#0d0d14;
+    --border:#1e1e2a; --border-light:#2a2a3a;
+    --text:#e8e6e3; --text-dim:#8a8a9a; --text-muted:#5a5a6a;
+    --green:#22c55e; --green-bg:rgba(34,197,94,.1);
+    --red:#ef4444; --red-bg:rgba(239,68,68,.1);
+    --amber:#f59e0b; --amber-bg:rgba(245,158,11,.1);
+    --blue:#3b82f6; --blue-bg:rgba(59,130,246,.1);
+    --radius:12px; --radius-sm:8px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;
+    line-height:1.75; padding:0 0 80px;
+  }
+  code, .mono { font-family:"IBM Plex Mono",monospace; }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 24px; }
+
+  header.hero {
+    border-bottom:1px solid var(--border);
+    padding:56px 0 40px;
+    background:radial-gradient(ellipse 900px 300px at 50% -10%, var(--gold-glow), transparent);
+  }
+  .kicker { color:var(--gold); font-size:13px; letter-spacing:.08em; font-weight:600; margin-bottom:10px; }
+  h1 { font-size:34px; font-weight:700; margin-bottom:8px; }
+  .sub { color:var(--text-dim); font-size:15px; max-width:640px; }
+  .meta-row { display:flex; gap:24px; margin-top:24px; flex-wrap:wrap; }
+  .meta-item { font-size:13px; color:var(--text-muted); }
+  .meta-item b { color:var(--text-dim); font-weight:500; }
+
+  .scoreboard {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:12px; margin-top:32px;
+  }
+  .score-card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; text-align:center;
+  }
+  .score-card .val { font-size:24px; font-weight:700; color:var(--green); }
+  .score-card .lbl { font-size:12px; color:var(--text-muted); margin-top:4px; }
+
+  section { padding:44px 0; border-bottom:1px solid var(--border); }
+  section:last-of-type { border-bottom:none; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:24px; }
+  .sec-num { color:var(--gold); font-family:"IBM Plex Mono",monospace; font-size:13px; }
+  h2 { font-size:22px; font-weight:600; }
+  h3 { font-size:16px; font-weight:600; margin:24px 0 10px; color:var(--text); }
+  p { color:var(--text-dim); font-size:14.5px; margin-bottom:10px; }
+  ul, ol { padding-inline-start:22px; margin-bottom:12px; }
+  li { color:var(--text-dim); font-size:14.5px; margin-bottom:6px; }
+  strong { color:var(--text); font-weight:600; }
+
+  .badge {
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px;
+    letter-spacing:.02em;
+  }
+  .badge.pass { background:var(--green-bg); color:var(--green); }
+  .badge.warn { background:var(--amber-bg); color:var(--amber); }
+  .badge.info { background:var(--blue-bg); color:var(--blue); }
+  .badge.fail { background:var(--red-bg); color:var(--red); }
+
+  .check-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+  .check {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .check .name { font-size:13.5px; color:var(--text); }
+  .check .name .sub-name { display:block; font-size:11.5px; color:var(--text-muted); margin-top:2px; font-family:"IBM Plex Mono",monospace;}
+
+  .card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:14px;
+  }
+  .card.finding { border-inline-start:3px solid var(--border-light); }
+  .card.finding.warn { border-inline-start-color:var(--amber); }
+  .card.finding.info { border-inline-start-color:var(--blue); }
+  .card.finding.pass { border-inline-start-color:var(--green); }
+  .card-title { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .card-title strong { font-size:15px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin:10px 0 18px; }
+  th, td { text-align:start; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text-dim); }
+  th { color:var(--text-muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  td code, th code { background:var(--bg-code); padding:2px 6px; border-radius:4px; font-size:12.5px; color:var(--gold-dim); }
+
+  pre {
+    background:var(--bg-code); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:14px 16px; font-size:12.5px; overflow-x:auto; color:var(--text-dim); margin:10px 0;
+  }
+
+  .files-touched {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin:12px 0;
+  }
+  .file-chip {
+    font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--text-dim);
+    background:var(--bg-code); border:1px solid var(--border); border-radius:6px; padding:8px 10px;
+  }
+
+  .priority-list { display:flex; flex-direction:column; gap:10px; }
+  .priority-item { display:flex; gap:14px; align-items:flex-start; }
+  .p-rank {
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; font-family:"IBM Plex Mono",monospace;
+  }
+  .p-rank.high { background:var(--red-bg); color:var(--red); }
+  .p-rank.med { background:var(--amber-bg); color:var(--amber); }
+  .p-rank.low { background:var(--blue-bg); color:var(--blue); }
+
+  footer { text-align:center; padding:40px 0 0; color:var(--text-muted); font-size:12.5px; }
+  a { color:var(--gold); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">ALKING ENTERPRISES · CEO COMMAND CENTER</div>
+    <h1>تقرير الفحص الشامل</h1>
+    <p class="sub">
+      فحص كامل للمشروع: القراءة الكودية، فحص الأنواع والـ lint والاختبارات، تدقيق التبعيات،
+      وتشغيل حي في المتصفح مع تسجيل دخول فعلي — بالإضافة إلى مراجعة التعديلات غير المُلتزَمة
+      (uncommitted) الموجودة حالياً في شجرة العمل.
+    </p>
+    <div class="meta-row">
+      <div class="meta-item"><b>التاريخ:</b> 2026-08-23</div>
+      <div class="meta-item"><b>الفرع:</b> main</div>
+      <div class="meta-item"><b>البيئة:</b> localhost:7070 (dev)</div>
+      <div class="meta-item"><b>Node:</b> v24.19.0 · <b>Next:</b> 16.3.1</div>
+    </div>
+    <div class="scoreboard">
+      <div class="score-card"><div class="val">✓</div><div class="lbl">tsc --noEmit</div></div>
+      <div class="score-card"><div class="val">✓</div><div class="lbl">eslint</div></div>
+      <div class="score-card"><div class="val">87/87</div><div class="lbl">vitest</div></div>
+      <div class="score-card"><div class="val">0</div><div class="lbl">npm audit</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 1 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>نظرة عامة على المشروع</h2></div>
+    <p>
+      <strong>Alking HQ OS</strong> مركز قيادة موحّد لكل مشاريع الشركة، مبني بـ Next.js 16 (App Router)
+      و TailwindCSS v4 و Supabase (Postgres) و Better Auth، مع نقطة MCP بعيدة موحّدة يستدعيها الوكلاء
+      (agents) للتعامل مع المشاريع المسجّلة. كل استدعاء يُسجَّل في Supabase ويُبث حيّاً للوحة التحكم.
+    </p>
+    <p>المشروع مربوط فعلياً بحساب <code>Vercel</code> (النشر الحالي على <code>rashid-hq-os.vercel.app</code>)
+      وقاعدة بيانات Supabase حقيقية — أي أن هذا ليس هيكلاً تجريبياً، بل بنية جاهزة للإنتاج.</p>
+
+    <h3>البنية الأساسية</h3>
+    <table>
+      <tr><th>الطبقة</th><th>التقنية</th><th>الملاحظة</th></tr>
+      <tr><td>الواجهة</td><td>Next.js 16 · React 19 · Tailwind v4</td><td>ثنائي اللغة (ar/en)، RTL كامل</td></tr>
+      <tr><td>المصادقة</td><td>Better Auth</td><td>owner allowlist + أدوار (admin/viewer) + جلسات</td></tr>
+      <tr><td>قاعدة البيانات</td><td>Supabase (Postgres)</td><td>مفتاح service-role لا يغادر السيرفر أبداً</td></tr>
+      <tr><td>الذكاء الاصطناعي</td><td>AI SDK v7 عبر Vercel AI Gateway</td><td>كونسول CEO — نفس أدوات MCP</td></tr>
+      <tr><td>البروتوكول</td><td>MCP (JSON-RPC 2.0)</td><td>توكنات bearer بصلاحيات read/write</td></tr>
+    </table>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>نتائج الفحوصات الآلية</h2></div>
+    <p>تم تشغيل كل أوامر الفحص المتوفرة في <code>package.json</code> على الشجرة الحالية (بما فيها التعديلات غير الملتزَمة):</p>
+    <div class="check-grid">
+      <div class="check"><div class="name">TypeScript<span class="sub-name">tsc --noEmit</span></div><span class="badge pass">نظيف</span></div>
+      <div class="check"><div class="name">ESLint<span class="sub-name">eslint</span></div><span class="badge pass">0 تحذيرات</span></div>
+      <div class="check"><div class="name">Vitest<span class="sub-name">13 ملفات · 87 اختبار</span></div><span class="badge pass">87/87 ناجحة</span></div>
+      <div class="check"><div class="name">npm audit<span class="sub-name">production deps</span></div><span class="badge pass">0 ثغرات</span></div>
+      <div class="check"><div class="name">CI Workflow<span class="sub-name">.github/workflows/ci.yml</span></div><span class="badge info">يطابق الأوامر المحلية</span></div>
+    </div>
+    <p style="margin-top:14px">
+      <strong>ملاحظة:</strong> CI يبني المشروع بمتغيرات بيئة وهمية (placeholder) للتأكد أن البناء لا يعتمد
+      فعلياً على اتصال حي بـ Supabase — وهذا تصميم سليم لخط أنابيب بناء بلا أسرار.
+    </p>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>الفحص الحي (تشغيل فعلي في المتصفح)</h2></div>
+    <p>تم تشغيل السيرفر محلياً على <code>:7070</code> والدخول بجلسة حقيقية موجودة مسبقاً، وزيارة كل الصفحات الرئيسية:</p>
+
+    <div class="check-grid">
+      <div class="check"><div class="name">/dashboard<span class="sub-name">KPIs + كونسول + نشاط</span></div><span class="badge pass">يعمل</span></div>
+      <div class="check"><div class="name">/dashboard/activity<span class="sub-name">بث SSE + تصفية</span></div><span class="badge pass">يعمل</span></div>
+      <div class="check"><div class="name">/dashboard/projects<span class="sub-name">تسجيل مشاريع + أدوات MCP</span></div><span class="badge pass">يعمل</span></div>
+      <div class="check"><div class="name">/dashboard/access<span class="sub-name">إصدار/إلغاء توكنات</span></div><span class="badge pass">يعمل</span></div>
+      <div class="check"><div class="name">/dashboard/settings<span class="sub-name">كلمة المرور + أعضاء + تصنيفات</span></div><span class="badge pass">يعمل</span></div>
+      <div class="check"><div class="name">/sign-in<span class="sub-name">غير مصادَق</span></div><span class="badge pass">200 + CSP headers</span></div>
+    </div>
+
+    <h3>فحوصات حماية الطرفيات (endpoints)</h3>
+    <table>
+      <tr><th>الطلب</th><th>النتيجة المتوقعة</th><th>النتيجة الفعلية</th></tr>
+      <tr><td><code>POST /api/mcp</code> بلا توكن</td><td>رفض</td><td><span class="badge pass">401 invalid_token ✓</span></td></tr>
+      <tr><td><code>POST /api/console</code> بلا جلسة</td><td>رفض</td><td><span class="badge pass">401 ✓</span></td></tr>
+      <tr><td><code>GET /api/maintenance/prune</code> بلا سر</td><td>رفض</td><td><span class="badge pass">401 ✓</span></td></tr>
+      <tr><td>ترويسات الأمان على كل استجابة</td><td>CSP + nosniff + referrer-policy + permissions-policy</td><td><span class="badge pass">موجودة كلها ✓</span></td></tr>
+    </table>
+    <p>لم تُلاحظ أي أخطاء في console المتصفح أثناء التصفح، والواجهة العربية (RTL) تُعرض بشكل صحيح على كل الصفحات المفحوصة.</p>
+
+    <div class="card finding info">
+      <div class="card-title"><strong>ملاحظة غير معطِّلة — نسبة الفشل 100% في KPI</strong><span class="badge info">بيانات، ليست خللاً برمجياً</span></div>
+      <p>لوحة القيادة تعرض "نسبة الفشل: 100%" لأن المشروع الوحيد المسجّل حالياً هو <code>Demo Project</code>
+        بنقطة MCP وهمية (<code>https://example.com</code>)، ومحاولات <code>Setup Check</code> ضده تفشل كما هو متوقَّع.
+        هذا سلوك صحيح للنظام على بيانات تجريبية — سيتحسّن تلقائياً بمجرد تسجيل مشاريع حقيقية بنقاط MCP فعلية.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>مراجعة التعديلات غير المُلتزَمة (Uncommitted)</h2></div>
+    <p>
+      شجرة العمل تحتوي تعديلات في 12 ملفاً وملفين جديدين — وهي مجموعة متماسكة من التحصين الأمني وتحسينات
+      واجهة كونسول CEO. رجعت المراجعة الكودية <strong>لا مشاكل صحّية</strong> في أي منها؛ كل تعديل مصحوب
+      بتعليق يشرح "لماذا"، وكلها مغطاة بالفحوصات الآلية أعلاه.
+    </p>
+
+    <h3>1) صلاحية إلغاء التوكن (canRevokeToken) — إصلاح أمني حقيقي</h3>
+    <div class="card finding pass">
+      <div class="card-title"><strong>src/lib/agent-tokens.ts · src/app/actions.ts</strong><span class="badge pass">جاهز للالتزام</span></div>
+      <p>سابقاً، أي "admin" (بما فيهم مشرف أضيف عبر جدول الأعضاء) كان يستطيع إلغاء أي توكن، بما في ذلك
+        توكن أصدره مشرف آخر أو المالك نفسه. التعديل يقصر الإلغاء على: من أصدر التوكن، أو مالك في
+        <code>OWNER_EMAILS</code>، مع سماح خاص للصفوف القديمة (قبل تسجيل <code>created_by</code>).
+        الزر مخفي في الواجهة عن غير المخوَّلين، <strong>والفحص مكرَّر في السيرفر</strong> (server action) —
+        وهذا هو الحد الحقيقي، لا مجرد إخفاء واجهي.</p>
+      <p>محاولة إلغاء مرفوضة تُسجَّل الآن في سجل النشاط بدل الفشل الصامت — تحسين ملحوظ للتتبّع.</p>
+      <p><strong>الاختبارات:</strong> <code>tests/revoke-permission.test.ts</code> يغطي 6 حالات (المُصدِر، المالك،
+        عدم حساسية الحالة/المسافات في allowlist، رفض مشرف آخر، الصفوف القديمة، الفشل الآمن عند عدم ضبط
+        <code>OWNER_EMAILS</code>) — تمر جميعها.</p>
+    </div>
+
+    <h3>2) تحصينات أمنية إضافية</h3>
+    <table>
+      <tr><th>الملف</th><th>التعديل</th><th>الأثر</th></tr>
+      <tr><td><code>src/app/actions.ts</code></td><td>حد أقصى 500 حرف على كل حقل نصي في كل server action (<code>tooLong</code>)</td><td>يمنع تخزين بيانات مقتطَعة أو ضخمة، مع رسالة خطأ واضحة بدل قص صامت</td></tr>
+      <tr><td><code>src/app/api/maintenance/prune/route.ts</code></td><td>مقارنة <code>CRON_SECRET</code> بزمن ثابت (<code>timingSafeEqual</code>)</td><td>يمنع هجوم توقيت (timing attack) لتخمين السر</td></tr>
+      <tr><td><code>src/app/api/console/route.ts</code></td><td>التحقق أصبح عبر <code>resolveRole</code> بدل <code>isOwnerEmail</code> فقط</td><td>يسمح لمشرف من جدول الأعضاء (لا في OWNER_EMAILS) باستخدام الكونسول — إصلاح ثغرة منطقية سابقة</td></tr>
+      <tr><td><code>src/lib/mcp/tools.ts</code></td><td>حد 10 كيلوبايت على حمولة الإدخال قبل إرسالها للطرف البعيد</td><td>يمنع إرسال JSON غير محدود الحجم عبر الشبكة</td></tr>
+      <tr><td><code>src/proxy.ts</code></td><td>تحديد معدّل (rate limit) جديد على POST لمسار <code>/dashboard/*</code> (Server Actions)</td><td>يسد ثغرة كانت تتجاوز حدود <code>/api/*</code> تماماً؛ مقصور على POST فقط لتفادي خنق التصفح العادي</td></tr>
+    </table>
+
+    <h3>3) تحسينات واجهة وتجربة استخدام</h3>
+    <table>
+      <tr><th>الملف</th><th>التعديل</th></tr>
+      <tr><td><code>src/components/ceo-console.tsx</code></td><td>تحويل الحقل إلى textarea متعدد الأسطر مع تمدد تلقائي، تاريخ أوامر (↑/↓) محفوظ في localStorage، زر "إعادة المحاولة" عند الخطأ، عرض ناتج الأدوات (tool output) بدل اسم الأداة فقط، تمرير تلقائي لآخر رسالة</td></tr>
+      <tr><td><code>src/components/activity-filters.tsx</code></td><td>حفظ فلاتر النشاط (مشروع/حالة) في localStorage واستعادتها تلقائياً</td></tr>
+      <tr><td><code>src/components/activity-stream.tsx</code></td><td>سقف 500 سجل للبث الحي لمنع تسرب الذاكرة على المدى الطويل، مع إصلاح خلل كان يوقف "تحميل المزيد" عند أول فشل شبكي</td></tr>
+      <tr><td><code>src/app/globals.css</code></td><td>ترتيب خط عربي أفضل للـ RTL، إضافة <code>:focus-visible</code> واضح لإمكانية الوصول، واحترام <code>prefers-reduced-motion</code></td></tr>
+    </table>
+
+    <h3>الملفات الجديدة غير المتتبَّعة</h3>
+    <div class="files-touched">
+      <div class="file-chip">tests/revoke-permission.test.ts</div>
+      <div class="file-chip">audit-report.html <span style="color:var(--text-muted)">(هذا التقرير)</span></div>
+    </div>
+
+    <div class="card finding pass" style="margin-top:18px">
+      <div class="card-title"><strong>التوصية</strong></div>
+      <p>هذه المجموعة جاهزة للالتزام (commit). أقترح تقسيمها إلى commit أو اثنين منطقياً — مثلاً
+        "hardening: token revoke authorization + input/rate limits" و"feat(console): command history, retry, tool output" —
+        بدل commit ضخم واحد، حتى يسهل الرجوع لأي منها لاحقاً. لم يُنفَّذ أي التزام بدون طلبك.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>الوضع الأمني العام</h2></div>
+    <p>المشروع يطبّق ممارسات أمان جادة وغير شائعة في مشاريع بهذا الحجم — وهذا انطباع المراجعة الكاملة للكود وليس فقط ما هو موثّق في README:</p>
+    <ul>
+      <li><strong>حراسة SSRF حقيقية:</strong> <code>call_project_tool</code> يتحقق من العنوان بعد تحليل DNS، يرفض النطاقات الخاصة و metadata endpoint (<code>169.254.169.254</code>)، ويُثبّت الاتصال على العنوان الذي تم فحصه (يمنع DNS rebinding).</li>
+      <li><strong>توكنات مُجزَّأة (hashed)</strong> بـ HMAC ومفتاح <code>TOKEN_PEPPER</code>، مع إعادة تجزئة تدريجية للتوكنات القديمة.</li>
+      <li><strong>تحديد معدّل تسجيل الدخول في Postgres</strong> (لا في ذاكرة العملية) — يصمد أمام تعدد النسخ الخادمة (serverless instances).</li>
+      <li><strong>CSP صارم قائم على nonce</strong>، بلا <code>unsafe-eval</code> في الإنتاج.</li>
+      <li><strong>لا مفاتيح قاعدة بيانات في المتصفح إطلاقاً</strong> — كل شيء عبر SSE موثَّق بجلسة السيرفر.</li>
+    </ul>
+
+    <h3>محدودية معروفة (موثّقة بالفعل في README)</h3>
+    <p>عدّادات تحديد المعدّل على <code>/api/mcp</code> و<code>/api/console</code> و(الآن) POST على <code>/dashboard/*</code>
+      لا تزال في ذاكرة كل نسخة خادمة على حدة (per-instance) — أي أنها فرملة أولى وليست الحد الحقيقي (المصادقة هي الحد الحقيقي).
+      عند التوسّع لأكثر من نسخة خادمة متزامنة، يستحق هذا الانتقال إلى مخزن مشترك (Redis/Upstash عبر Vercel Marketplace).</p>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>أولويات مقترحة للتطوير القادم</h2></div>
+    <div class="priority-list">
+      <div class="priority-item">
+        <div class="p-rank high">1</div>
+        <div>
+          <strong>الالتزام (commit) بالتعديلات الحالية</strong>
+          <p style="margin-top:2px">إصلاح صلاحية إلغاء التوكن وحماية console/route.ts يستحقان أن يُشحنا بسرعة — كلاهما إصلاح لثغرة منطقية موجودة حالياً في main.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank med">2</div>
+        <div>
+          <strong>تحديد معدّل مشترك بين النسخ (Redis/Upstash)</strong>
+          <p style="margin-top:2px">قبل أي توسّع أفقي جاد للنشر — يحوّل الفرملة الحالية إلى حد فعلي حتى تحت حِمل موزَّع.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank med">3</div>
+        <div>
+          <strong>مصادقة ثنائية العامل (2FA/MFA) لحسابات المالك</strong>
+          <p style="margin-top:2px">النظام حالياً نقطة تحكم مركزية وحيدة لكل مشاريع الشركة — حماية إضافية لحساب المالك تقلّل الأثر عند تسريب كلمة مرور واحدة.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank low">4</div>
+        <div>
+          <strong>اختبارات لمكوّنات الواجهة الجديدة</strong>
+          <p style="margin-top:2px">تاريخ الأوامر في الكونسول وحفظ الفلاتر تعتمد على localStorage بمنطق غير بسيط (تقييد الطول، تنظيف JSON فاسد) — تستحق اختبار وحدة كما حصل مع <code>canRevokeToken</code>.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank low">5</div>
+        <div>
+          <strong>تسجيل مشاريع حقيقية</strong>
+          <p style="margin-top:2px">حالياً يوجد "Demo Project" فقط بنقطة MCP وهمية — بمجرد ربط أول مشروع فعلي ستتضح مؤشرات الأداء (KPIs) الحقيقية بدل نسبة فشل 100% الظاهرة من بيانات تجريبية.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>خلاصة</h2></div>
+    <p>
+      المشروع في حالة صحية ممتازة: فحوصات الأنواع والـ lint والاختبارات الـ87 كلها نظيفة، لا ثغرات في
+      التبعيات، والتشغيل الحي يعكس ما يوثّقه README تماماً — الحراسات الأمنية فعّالة عملياً وليست
+      وعوداً نظرية فقط. التعديلات غير المُلتزَمة حالياً تمثّل تحصيناً أمنياً حقيقياً (أبرزها إصلاح صلاحية
+      إلغاء التوكن) بالإضافة لتحسينات واجهة ناضجة، وكلها مكتوبة بعناية وموثَّقة ومُختبَرة. التوصية الوحيدة
+      العاجلة هي <strong>الالتزام بهذه التعديلات</strong> — الباقي تحسينات تدريجية لمرحلة التوسّع القادمة.
+    </p>
+  </section>
+
+</div>
+
+<footer>
+  تقرير أُعِدّ آلياً بمراجعة كودية كاملة + فحوصات آلية + تشغيل حي في المتصفح — Alking Enterprises
+</footer>
+
+</body>
+</html>

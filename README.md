@@ -128,6 +128,9 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
   can do everything; a **viewer** reads the dashboard and every write is
   refused by `requireAdmin` in `src/lib/session.ts` — hiding the buttons is
   presentation, that check is the boundary.
+- **Two-factor authentication** is available per-account from
+  `/dashboard/settings` (migration `0009`, `TwoFactorForm`) — an owner can
+  require a TOTP code on top of the password without any extra configuration.
 - **The browser holds no database credentials.** Activity streams over
   `/api/activity/stream` (SSE, owner session required); the service role key never
   leaves the server. Migration `0004` removes the anonymous SELECT policies that
@@ -177,6 +180,11 @@ the same way (`CRON_SECRET`). It pings every active project's `mcp_endpoint`
 under the agent name **Scheduled Health Check** — a dead integration shows up
 in Live Activity on its own, without anyone having to call it first. This is
 the only agent in this console that runs without a human prompting it.
+
+The ping carries no `Authorization` header, so `/api/mcp` dispatches the
+`ping` method before its bearer-token check — otherwise every registered
+project, including this one if self-registered, would read as permanently
+down. Every other method still requires a token.
 
 ### Password recovery and error tracking
 
