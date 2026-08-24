@@ -44,8 +44,10 @@ Tools and the scope each one needs:
 
 | Tool | Scope |
 | --- | --- |
-| `list_projects`, `get_project`, `list_recent_logs` | `read` |
-| `register_project`, `call_project_tool` | `write` |
+| `list_projects`, `get_project`, `list_recent_logs`, `list_categories` | `read` |
+| `register_project`, `update_project`, `delete_project`, `add_project_tool`, `update_project_tool`, `delete_project_tool`, `call_project_tool` | `write` |
+
+Member and token management (`/dashboard/settings`, `/dashboard/access`) are deliberately **not** exposed as tools — those grant access to humans, not to the things an agent should be managing.
 
 A token issued as **read only** is rejected on the `write` tools. A token pinned
 to a project can only see and act on that project. Tokens expire — 90 days by

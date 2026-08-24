@@ -39,6 +39,27 @@ function scopeError(): never {
 }
 
 /**
+ * Every mutation below is scoped by projects.owner_id, mirroring
+ * assertOwnsProject in src/app/actions.ts. A null/undefined ownerId (a token
+ * that predates created_by, or a caller that never carried one) fails closed
+ * rather than matching every row with a null owner_id.
+ */
+async function ownsProject(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  projectId: string,
+  ownerId: string | null | undefined,
+): Promise<boolean> {
+  if (!ownerId) return false;
+  const { data } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/**
  * Whether a caller's scopes permit a tool. Pure and exported so the
  * authorization boundary can be tested directly rather than only through a
  * live request — a token with no scopes, or an unknown scope, must be refused.
@@ -165,6 +186,209 @@ const registerProject = {
 
     if (error) throw dbError("register_project", error);
     return { project: data } as Json;
+  },
+};
+
+const updateProject = {
+  name: "update_project",
+  description: "Update an existing project's name, category, links, endpoint or status.",
+  requiredScope: "write" as const,
+  schema: z.object({
+    project_id: z.string().uuid(),
+    name: z.string().min(1).max(200),
+    category: z.string().max(100).optional(),
+    url: z.string().url().optional(),
+    repository_url: z.string().url().optional(),
+    mcp_endpoint: z.string().url().optional(),
+    status: z.enum(["active", "idle", "maintenance"]).default("active"),
+  }),
+  async execute(
+    args: {
+      project_id: string;
+      name: string;
+      category?: string;
+      url?: string;
+      repository_url?: string;
+      mcp_endpoint?: string;
+      status?: "active" | "idle" | "maintenance";
+    },
+    ctx: ToolContext,
+  ) {
+    if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
+    const supabase = getServiceSupabase();
+    if (!(await ownsProject(supabase, args.project_id, ctx.ownerId))) {
+      throw new Error("Project not found.");
+    }
+    // Validated before storage, same as register_project.
+    if (args.mcp_endpoint) await assertSafeEndpoint(args.mcp_endpoint);
+
+    const { data, error } = await supabase
+      .from("projects")
+      .update({
+        name: args.name,
+        category: args.category ?? null,
+        url: args.url ?? null,
+        repository_url: args.repository_url ?? null,
+        mcp_endpoint: args.mcp_endpoint ?? null,
+        status: (args.status ?? "active") as "active",
+      })
+      .eq("id", args.project_id)
+      .eq("owner_id", ctx.ownerId ?? "")
+      .select()
+      .single();
+
+    if (error) throw dbError("update_project", error);
+    return { project: data } as Json;
+  },
+};
+
+const deleteProject = {
+  name: "delete_project",
+  description:
+    "Delete a project. Cascades to its registered tools, live agent tokens and activity logs.",
+  requiredScope: "write" as const,
+  schema: z.object({ project_id: z.string().uuid() }),
+  async execute(args: { project_id: string }, ctx: ToolContext) {
+    if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
+    const supabase = getServiceSupabase();
+
+    // `count` distinguishes "not yours / not there" from a real delete —
+    // without it a no-op would report success.
+    const { error, count } = await supabase
+      .from("projects")
+      .delete({ count: "exact" })
+      .eq("id", args.project_id)
+      .eq("owner_id", ctx.ownerId ?? "");
+
+    if (error) throw dbError("delete_project", error);
+    if (!count) throw new Error("Project not found.");
+    return { deleted_project_id: args.project_id } as Json;
+  },
+};
+
+const addProjectTool = {
+  name: "add_project_tool",
+  description: "Register a new custom MCP tool endpoint on a project.",
+  requiredScope: "write" as const,
+  schema: z.object({
+    project_id: z.string().uuid(),
+    tool_name: z.string().min(1).max(200),
+    description: z.string().max(500).optional(),
+    endpoint: z.string().url().optional(),
+  }),
+  async execute(
+    args: {
+      project_id: string;
+      tool_name: string;
+      description?: string;
+      endpoint?: string;
+    },
+    ctx: ToolContext,
+  ) {
+    if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
+    const supabase = getServiceSupabase();
+    if (!(await ownsProject(supabase, args.project_id, ctx.ownerId))) {
+      throw new Error("Project not found.");
+    }
+    // This is what call_project_tool ends up POSTing to, so it is validated
+    // before it is ever stored.
+    if (args.endpoint) await assertSafeEndpoint(args.endpoint);
+
+    const { data, error } = await supabase
+      .from("project_tools")
+      .insert({
+        project_id: args.project_id,
+        tool_name: args.tool_name,
+        description: args.description ?? null,
+        endpoint: args.endpoint ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) throw dbError("add_project_tool", error);
+    return { tool: data } as Json;
+  },
+};
+
+const updateProjectTool = {
+  name: "update_project_tool",
+  description: "Update a project's registered tool (name, description or endpoint).",
+  requiredScope: "write" as const,
+  schema: z.object({
+    tool_id: z.string().uuid(),
+    tool_name: z.string().min(1).max(200),
+    description: z.string().max(500).optional(),
+    endpoint: z.string().url().optional(),
+  }),
+  async execute(
+    args: { tool_id: string; tool_name: string; description?: string; endpoint?: string },
+    ctx: ToolContext,
+  ) {
+    const supabase = getServiceSupabase();
+    const { data: existing } = await supabase
+      .from("project_tools")
+      .select("project_id")
+      .eq("id", args.tool_id)
+      .maybeSingle();
+    if (!existing) throw new Error("Tool not found.");
+    if (ctx.projectId && ctx.projectId !== existing.project_id) scopeError();
+    if (!(await ownsProject(supabase, existing.project_id, ctx.ownerId))) {
+      throw new Error("Tool not found.");
+    }
+    if (args.endpoint) await assertSafeEndpoint(args.endpoint);
+
+    const { data, error } = await supabase
+      .from("project_tools")
+      .update({
+        tool_name: args.tool_name,
+        description: args.description ?? null,
+        endpoint: args.endpoint ?? null,
+      })
+      .eq("id", args.tool_id)
+      .select()
+      .single();
+
+    if (error) throw dbError("update_project_tool", error);
+    return { tool: data } as Json;
+  },
+};
+
+const deleteProjectTool = {
+  name: "delete_project_tool",
+  description: "Delete a project's registered tool.",
+  requiredScope: "write" as const,
+  schema: z.object({ tool_id: z.string().uuid() }),
+  async execute(args: { tool_id: string }, ctx: ToolContext) {
+    const supabase = getServiceSupabase();
+    const { data: existing } = await supabase
+      .from("project_tools")
+      .select("project_id, tool_name")
+      .eq("id", args.tool_id)
+      .maybeSingle();
+    if (!existing) throw new Error("Tool not found.");
+    if (ctx.projectId && ctx.projectId !== existing.project_id) scopeError();
+    if (!(await ownsProject(supabase, existing.project_id, ctx.ownerId))) {
+      throw new Error("Tool not found.");
+    }
+
+    const { error } = await supabase.from("project_tools").delete().eq("id", args.tool_id);
+    if (error) throw dbError("delete_project_tool", error);
+    return { deleted_tool_id: args.tool_id, tool_name: existing.tool_name } as Json;
+  },
+};
+
+const listCategories = {
+  name: "list_categories",
+  description: "List the project categories configured for this console.",
+  requiredScope: "read" as const,
+  schema: z.object({}),
+  async execute() {
+    const { data, error } = await getServiceSupabase()
+      .from("project_categories")
+      .select("*")
+      .order("sort_order");
+    if (error) throw dbError("list_categories", error);
+    return { categories: data ?? [] } as Json;
   },
 };
 
@@ -300,6 +524,12 @@ export const TOOLS: ToolDefinition[] = [
   listProjects,
   getProject,
   registerProject,
+  updateProject,
+  deleteProject,
+  addProjectTool,
+  updateProjectTool,
+  deleteProjectTool,
+  listCategories,
   listRecentLogs,
   callProjectTool,
 ] as unknown as ToolDefinition[];

@@ -65,9 +65,19 @@ describe("scope enforcement", () => {
     expect(scopeDenialReason(tool("register_project"), ["admin", "root"])).not.toBeNull();
   });
 
-  it("every tool declares a scope, and only the two mutating tools need write", () => {
+  it("every tool declares a scope, and only the mutating tools need write", () => {
     const write = TOOLS.filter((t) => t.requiredScope === "write").map((t) => t.name);
-    expect(write.sort()).toEqual(["call_project_tool", "register_project"]);
+    expect(write.sort()).toEqual(
+      [
+        "add_project_tool",
+        "call_project_tool",
+        "delete_project",
+        "delete_project_tool",
+        "register_project",
+        "update_project",
+        "update_project_tool",
+      ].sort(),
+    );
     for (const t of TOOLS) {
       expect(["read", "write"], t.name).toContain(t.requiredScope);
     }
