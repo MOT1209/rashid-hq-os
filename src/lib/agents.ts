@@ -31,6 +31,20 @@ export type ProjectCategory = {
   sort_order: number;
 };
 
+/**
+ * A saved command/prompt template (migration 0010). Picking one fills the CEO
+ * console's input box — it does not run a model itself, so reading or listing
+ * a skill never starts a second agentic loop or an unexpected model call.
+ */
+export type AgentSkill = {
+  id: string;
+  name: string;
+  description: string | null;
+  prompt: string;
+  created_by: string | null;
+  created_at: string;
+};
+
 export function departmentName(department: Department, locale: Locale) {
   return locale === "ar" ? department.name_ar : department.name_en;
 }

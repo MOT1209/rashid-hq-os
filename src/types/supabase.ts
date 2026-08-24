@@ -143,6 +143,41 @@ export type Database = {
         };
         Relationships: [];
       };
+      agent_skills: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+          prompt: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name: string;
+          prompt: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          prompt?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_skills_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       agent_tokens: {
         Row: {
           agent_name: string;

@@ -392,6 +392,38 @@ const listCategories = {
   },
 };
 
+const listSkills = {
+  name: "list_skills",
+  description: "List saved command templates (skills) configured for this console.",
+  requiredScope: "read" as const,
+  schema: z.object({}),
+  async execute() {
+    const { data, error } = await getServiceSupabase()
+      .from("agent_skills")
+      .select("id, name, description, prompt, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw dbError("list_skills", error);
+    return { skills: data ?? [] } as Json;
+  },
+};
+
+const getSkill = {
+  name: "get_skill",
+  description: "Fetch one saved command template (skill) by id.",
+  requiredScope: "read" as const,
+  schema: z.object({ skill_id: z.string().uuid() }),
+  async execute(args: { skill_id: string }) {
+    const { data, error } = await getServiceSupabase()
+      .from("agent_skills")
+      .select("id, name, description, prompt, created_at")
+      .eq("id", args.skill_id)
+      .maybeSingle();
+    if (error) throw dbError("get_skill", error);
+    if (!data) throw new Error("Skill not found.");
+    return { skill: data } as Json;
+  },
+};
+
 const listRecentLogs = {
   name: "list_recent_logs",
   description: "Read the most recent agent activity, newest first.",
@@ -530,6 +562,8 @@ export const TOOLS: ToolDefinition[] = [
   updateProjectTool,
   deleteProjectTool,
   listCategories,
+  listSkills,
+  getSkill,
   listRecentLogs,
   callProjectTool,
 ] as unknown as ToolDefinition[];

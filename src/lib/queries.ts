@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { dbError } from "@/lib/errors";
-import type { Department, ProjectCategory } from "@/lib/agents";
+import type { AgentSkill, Department, ProjectCategory } from "@/lib/agents";
 import type { AgentLog, LogStatus, Project, ProjectTool } from "@/types/database";
 
 /**
@@ -27,6 +27,16 @@ export const fetchCategories = cache(async (): Promise<ProjectCategory[]> => {
     .order("sort_order");
   if (error) throw dbError("Loading categories", error);
   return (data ?? []) as ProjectCategory[];
+});
+
+/** Saved command templates for the CEO console (migration 0010). */
+export const fetchSkills = cache(async (): Promise<AgentSkill[]> => {
+  const { data, error } = await getServiceSupabase()
+    .from("agent_skills")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw dbError("Loading skills", error);
+  return (data ?? []) as AgentSkill[];
 });
 
 /** Registry pages need every column; pickers only need id + name. */

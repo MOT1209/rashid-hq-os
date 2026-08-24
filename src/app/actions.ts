@@ -379,6 +379,74 @@ export async function deleteCategoryAction(form: FormData) {
   return { ok: true };
 }
 
+/** Prompts run longer than every other text field this console stores. */
+const MAX_SKILL_PROMPT = 4000;
+
+/**
+ * Saved command templates for the CEO console (migration 0010). A skill only
+ * ever fills the console's input box — it never runs a model on its own, so
+ * saving or reading one carries none of the risk a self-executing tool would.
+ */
+export async function saveSkillAction(form: FormData) {
+  const session = await requireAdmin();
+
+  const name = text(form, "name");
+  const prompt = text(form, "prompt");
+  const description = text(form, "description");
+  if (!name) return { error: "Name is required." };
+  if (!prompt) return { error: "Prompt is required." };
+  if (name.length > MAX_FIELD) return { error: `"name" is longer than ${MAX_FIELD} characters.` };
+  if (description && description.length > MAX_FIELD) {
+    return { error: `"description" is longer than ${MAX_FIELD} characters.` };
+  }
+  if (prompt.length > MAX_SKILL_PROMPT) {
+    return { error: `"prompt" is longer than ${MAX_SKILL_PROMPT} characters.` };
+  }
+
+  const { error } = await getServiceSupabase().from("agent_skills").insert({
+    name,
+    description,
+    prompt,
+    created_by: session.user.id,
+  });
+
+  if (error) return { error: safeMessage("Saving the skill", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "save_skill",
+    payload: { name },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export async function deleteSkillAction(form: FormData) {
+  await requireAdmin();
+  const oversized = tooLong(form);
+  if (oversized) return { error: oversized };
+
+  const id = text(form, "id");
+  if (!id) return { error: "Skill is required." };
+
+  const { error } = await getServiceSupabase().from("agent_skills").delete().eq("id", id);
+  if (error) return { error: safeMessage("Deleting the skill", error) };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "delete_skill",
+    payload: { id },
+    status: "success",
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 /** Grants or changes someone's role. Admins only, by requireAdmin above. */
 export async function saveMemberAction(form: FormData) {
   const session = await requireAdmin();

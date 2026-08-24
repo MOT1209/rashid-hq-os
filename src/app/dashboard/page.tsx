@@ -11,6 +11,7 @@ import {
   fetchLogs,
   fetchProjectOptions,
   fetchProjects,
+  fetchSkills,
   fetchStats,
   projectNameMap,
 } from "@/lib/queries";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
  * waiting on the slowest Supabase round-trip.
  */
 export default async function DashboardPage() {
-  const [t, locale] = await Promise.all([getT(), getLocale()]);
+  const [t, locale, skills] = await Promise.all([getT(), getLocale(), fetchSkills()]);
 
   return (
     <div className="space-y-6">
@@ -36,7 +37,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted">{t.brand}</p>
       </header>
 
-      <CeoConsole />
+      <CeoConsole skills={skills} />
 
       <Suspense fallback={<StatCardsSkeleton />}>
         <Stats t={t} />

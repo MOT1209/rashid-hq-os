@@ -1,10 +1,11 @@
 import { CategoryManager } from "@/components/category-manager";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { MemberManager } from "@/components/member-manager";
+import { SkillManager } from "@/components/skill-manager";
 import { TwoFactorForm } from "@/components/two-factor-form";
 import { Panel } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
-import { fetchCategories, fetchDepartments } from "@/lib/queries";
+import { fetchCategories, fetchDepartments, fetchSkills } from "@/lib/queries";
 import { listMembers } from "@/lib/members";
 import { requireSession } from "@/lib/session";
 
@@ -16,9 +17,9 @@ export default async function SettingsPage() {
 
   // A viewer sees the page and can still change their own password; everything
   // that writes shared state is admin-only, enforced in the actions themselves.
-  const [categories, departments, members] = isAdmin
-    ? await Promise.all([fetchCategories(), fetchDepartments(), listMembers()])
-    : [[], [], []];
+  const [categories, departments, members, skills] = isAdmin
+    ? await Promise.all([fetchCategories(), fetchDepartments(), listMembers(), fetchSkills()])
+    : [[], [], [], []];
 
   return (
     <div className="space-y-6">
@@ -51,6 +52,10 @@ export default async function SettingsPage() {
 
           <Panel title={t.categories}>
             <CategoryManager categories={categories} departments={departments} />
+          </Panel>
+
+          <Panel title={t.skills}>
+            <SkillManager skills={skills} />
           </Panel>
         </>
       )}

@@ -10,6 +10,7 @@ import {
 import { Send, Sparkles } from "lucide-react";
 import { useLocale } from "@/components/providers";
 import { parseCommandHistory, pushCommandHistory } from "@/lib/client-storage";
+import type { AgentSkill } from "@/lib/agents";
 
 const HISTORY_KEY = "command-history";
 const MAX_HISTORY = 20;
@@ -18,7 +19,7 @@ const MAX_HISTORY = 20;
  * The single prompt box at the top of the dashboard. It talks to /api/console,
  * which runs the same registry tools the remote MCP endpoint exposes.
  */
-export function CeoConsole() {
+export function CeoConsole({ skills = [] }: { skills?: AgentSkill[] }) {
   const { t } = useLocale();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -101,6 +102,33 @@ export function CeoConsole() {
 
   return (
     <section className="rounded-2xl border border-accent/30 bg-panel p-5 shadow-sm">
+      {skills.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <label htmlFor="ceo-console-skill" className="sr-only">
+            {t.savedSkills}
+          </label>
+          <select
+            id="ceo-console-skill"
+            value=""
+            onChange={(event) => {
+              const skill = skills.find((s) => s.id === event.target.value);
+              if (skill) fill(skill.prompt);
+              event.target.value = "";
+            }}
+            className="rounded-lg border border-border bg-panel-2 px-2 py-1 text-xs text-muted outline-none focus:border-accent"
+          >
+            <option value="" disabled>
+              {t.pickASkill}
+            </option>
+            {skills.map((skill) => (
+              <option key={skill.id} value={skill.id}>
+                {skill.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <form
         method="post"
         onSubmit={(event) => {
