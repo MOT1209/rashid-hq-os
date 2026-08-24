@@ -1,0 +1,72 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# In the Render dashboard: New + -> Blueprint -> connect this repo/branch.
+# Render reads this file and provisions the service below. Any env var marked
+# `sync: false` has no value here on purpose (secrets never belong in git) —
+# fill it in from the Render dashboard once the service exists. See
+# .env.example in the repo root for what each one does and how to get it.
+#
+# The app defaults to port 7070 locally (see package.json), but Render assigns
+# its own port via $PORT — startCommand below overrides -p to use it.
+
+services:
+  - type: web
+    name: rashid-hq-os
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /sign-in
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20.18.1"
+
+      # --- Supabase ---
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+      # --- Better Auth ---
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # Set this to the Render service URL once you know it, e.g.
+      # https://rashid-hq-os.onrender.com — sign-in fails without it.
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: OWNER_EMAILS
+        sync: false
+
+      # --- CEO console (Vercel AI Gateway) ---
+      - key: AI_GATEWAY_API_KEY
+        sync: false
+      - key: CEO_CONSOLE_MODEL
+        value: anthropic/claude-sonnet-5
+
+      # --- Security hardening (optional but recommended) ---
+      - key: TOKEN_PEPPER
+        generateValue: true
+      - key: OUTBOUND_SIGNING_SECRET
+        generateValue: true
+
+      # --- Optional integrations ---
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+      # --- Nightly log pruning ---
+      # Vercel Cron (vercel.json) doesn't run on Render. Hit
+      # POST /api/maintenance/prune with this as a bearer token from a
+      # separate Render Cron Job (see README) or any external scheduler.
+      - key: CRON_SECRET
+        generateValue: true
+      - key: LOG_RETENTION
+        value: 90 days

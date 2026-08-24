@@ -176,3 +176,23 @@ change nothing when it does not.
 Set `BETTER_AUTH_URL` to the production origin (sessions break otherwise), set
 `OWNER_EMAILS`, and leave `ALLOW_PRIVATE_MCP_ENDPOINTS` unset — it disables the
 SSRF guard and exists only for local development.
+
+### Deploying to Render
+
+`render.yaml` at the repo root is a Render Blueprint. In the Render dashboard:
+**New +** → **Blueprint** → connect this repo and branch. Render provisions a
+web service from the file; every env var marked `sync: false` in it has to be
+filled in by hand afterward (Supabase keys, `DATABASE_URL`, `OWNER_EMAILS`,
+`AI_GATEWAY_API_KEY`, …) — see `.env.example` for what each does. `BETTER_AUTH_SECRET`,
+`TOKEN_PEPPER`, `OUTBOUND_SIGNING_SECRET` and `CRON_SECRET` are generated for you.
+
+Two things Render doesn't do for you, unlike Vercel:
+
+- **`BETTER_AUTH_URL`** isn't inferred from the platform — set it to the
+  service's `.onrender.com` URL (or your custom domain) once the first deploy
+  gives you one, then redeploy.
+- **The nightly log prune** (`vercel.json`'s cron) doesn't carry over — Render
+  crons are a separate service type. Add one (`New +` → `Cron Job`) that POSTs
+  `/api/maintenance/prune` with `Authorization: Bearer $CRON_SECRET` on the
+  same schedule (`0 4 * * *`), or hit that endpoint from any external
+  scheduler.
