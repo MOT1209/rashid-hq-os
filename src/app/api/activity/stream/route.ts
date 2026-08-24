@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export const maxDuration = 120;
 
-const POLL_MS = 3000;
+const POLL_MS = 8000;
 const HEARTBEAT_MS = 25_000;
 
 function isStatus(value: string | null): value is LogStatus {
