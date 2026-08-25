@@ -20,11 +20,18 @@ export function ProjectRow({
   project,
   categories,
   canEdit = true,
+  healthCheck,
 }: {
   project: Project;
   categories: ProjectCategory[];
   /** Presentation only — the server actions enforce the same rule. */
   canEdit?: boolean;
+  /**
+   * Result of the most recent scheduled health check for this project.
+   * Omitted on /dashboard/projects, where no such column exists; passed by
+   * the department page, which knows about `Scheduled Health Check` logs.
+   */
+  healthCheck?: { ok: boolean; at: string } | null;
 }) {
   const { t, locale } = useLocale();
   const id = useId();
@@ -47,7 +54,7 @@ export function ProjectRow({
   if (editing) {
     return (
       <tr>
-        <td colSpan={6} className="py-3">
+        <td colSpan={healthCheck !== undefined ? 7 : 6} className="py-3">
           <form action={action} className="grid gap-3 sm:grid-cols-2">
             <input type="hidden" name="id" value={project.id} />
 
@@ -165,6 +172,17 @@ export function ProjectRow({
       <td className="py-3">
         <StatusBadge status={project.status} label={statusLabel[project.status]} />
       </td>
+      {healthCheck !== undefined && (
+        <td className="py-3 text-xs">
+          {healthCheck ? (
+            <span className={healthCheck.ok ? "text-ok" : "text-err"}>
+              {new Date(healthCheck.at).toLocaleString(locale)}
+            </span>
+          ) : (
+            <span className="text-muted">{t.never}</span>
+          )}
+        </td>
+      )}
       <td className="py-3 text-xs text-muted">
         <time dateTime={project.created_at} suppressHydrationWarning>
           {new Date(project.created_at).toLocaleDateString(locale)}

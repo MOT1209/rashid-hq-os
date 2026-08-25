@@ -179,3 +179,39 @@ export async function fetchStats() {
     failureRate: calls ? Math.round(((failed.count ?? 0) / calls) * 100) : 0,
   };
 }
+
+/**
+ * Same shape as `fetchStats`, scoped to one department's agent instead of the
+ * whole console — `activeProjects` is the caller's job to count from the
+ * project list it already filtered, since that avoids a second query here.
+ */
+export async function fetchDepartmentStats(agentName: string) {
+  const supabase = getServiceSupabase();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [today, failed, pending] = await Promise.all([
+    supabase
+      .from("agent_logs")
+      .select("id", { count: "planned", head: true })
+      .eq("agent_name", agentName)
+      .gte("created_at", since),
+    supabase
+      .from("agent_logs")
+      .select("id", { count: "planned", head: true })
+      .eq("agent_name", agentName)
+      .gte("created_at", since)
+      .eq("status", "failed"),
+    supabase
+      .from("agent_logs")
+      .select("id", { count: "planned", head: true })
+      .eq("agent_name", agentName)
+      .eq("status", "pending"),
+  ]);
+
+  const calls = today.count ?? 0;
+  return {
+    callsToday: calls,
+    pending: pending.count ?? 0,
+    failureRate: calls ? Math.round(((failed.count ?? 0) / calls) * 100) : 0,
+  };
+}
