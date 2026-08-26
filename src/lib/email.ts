@@ -25,7 +25,8 @@ function sender() {
 }
 
 export async function sendEmail(input: {
-  to: string;
+  /** One address, or several for an alert that goes to every owner. */
+  to: string | string[];
   subject: string;
   html: string;
   text: string;
@@ -45,7 +46,7 @@ export async function sendEmail(input: {
       },
       body: JSON.stringify({
         from: sender(),
-        to: [input.to],
+        to: Array.isArray(input.to) ? input.to : [input.to],
         subject: input.subject,
         html: input.html,
         text: input.text,
@@ -63,6 +64,55 @@ export async function sendEmail(input: {
     console.error("[email] send threw:", error);
     return false;
   }
+}
+
+/**
+ * Health-check alert. Sent by the daily cron when a project's endpoint has
+ * failed several runs in a row — until now a dead integration only showed up
+ * in Live Activity, so nobody learned about it without opening the console.
+ *
+ * Sent once at the moment the streak crosses the threshold, not on every run
+ * after it, so a project that stays down does not mail every single day.
+ */
+export async function sendHealthAlert(
+  to: string[],
+  project: { name: string; endpoint: string; failures: number },
+) {
+  if (to.length === 0) return false;
+  const subject = `تعذّر الوصول إلى ${project.name} · ${project.name} is failing health checks`;
+
+  const text = [
+    `فشل الفحص الصحي لمشروع "${project.name}" ${project.failures} مرات متتالية.`,
+    `النقطة: ${project.endpoint}`,
+    "افتح مركز القيادة لمراجعة السجل.",
+    "",
+    `The health check for "${project.name}" has failed ${project.failures} times in a row.`,
+    `Endpoint: ${project.endpoint}`,
+    "Open the command center to review the log.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:system-ui,'Segoe UI',Tahoma,sans-serif;max-width:32rem;margin:0 auto;padding:1.5rem;color:#10151c">
+      <p style="color:#a8871d;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 1rem">
+        Alking Enterprises
+      </p>
+      <div dir="rtl" style="margin-bottom:1.5rem">
+        <h1 style="font-size:1.15rem;margin:0 0 .5rem">تعذّر الوصول إلى ${project.name}</h1>
+        <p style="margin:0 0 .5rem;line-height:1.7">
+          فشل الفحص الصحي ${project.failures} مرات متتالية.
+        </p>
+        <p style="margin:0;font-size:.8rem;color:#5b6675;word-break:break-all">${project.endpoint}</p>
+      </div>
+      <div>
+        <h2 style="font-size:1rem;margin:0 0 .5rem">${project.name} is failing health checks</h2>
+        <p style="margin:0;line-height:1.7">
+          The scheduled health check has failed ${project.failures} times in a row.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({ to, subject, html, text });
 }
 
 /**

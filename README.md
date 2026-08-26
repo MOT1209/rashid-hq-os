@@ -186,6 +186,13 @@ The ping carries no `Authorization` header, so `/api/mcp` dispatches the
 project, including this one if self-registered, would read as permanently
 down. Every other method still requires a token.
 
+Logging a failure is not the same as noticing it, so the cron also mails
+`OWNER_EMAILS` when a project's health check fails three runs in a row. It
+sends on the run that *reaches* three and stays quiet afterwards, so an outage
+that lasts a month is one email, not thirty (`src/lib/health-alert.ts`). Like
+every other mail here it needs `RESEND_API_KEY`; without it the alert is
+skipped and the cron carries on.
+
 ### Password recovery and error tracking
 
 Both are optional integrations that activate the moment their key exists, and

@@ -1,8 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getSession } from "@/lib/session";
-import { isOwnerEmail } from "@/lib/owners";
+import { isOwnerEmail, ownerEmails } from "@/lib/owners";
 import { logActivity } from "@/lib/activity";
+import { sendHealthAlert } from "@/lib/email";
+import { ALERT_AFTER, crossedFailureThreshold } from "@/lib/health-alert";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
 
 export const runtime = "nodejs";
@@ -12,6 +14,43 @@ export const maxDuration = 60;
 
 const AGENT_NAME = "Scheduled Health Check";
 const TIMEOUT_MS = 10_000;
+
+/**
+ * Reads the run this cron just recorded, so it must be called after
+ * logActivity. The decision itself lives in src/lib/health-alert.ts.
+ */
+async function justCrossedFailureThreshold(projectId: string) {
+  const { data, error } = await getServiceSupabase()
+    .from("agent_logs")
+    .select("status")
+    .eq("project_id", projectId)
+    .eq("agent_name", AGENT_NAME)
+    .eq("tool_name", "health_check")
+    .order("created_at", { ascending: false })
+    .limit(ALERT_AFTER + 1);
+
+  if (error || !data) return false;
+  return crossedFailureThreshold(data.map((row) => row.status as string));
+}
+
+/**
+ * Mails the owners once, on the run where the streak crosses the threshold.
+ * Never throws: an alert that cannot be sent must not fail the whole cron, and
+ * without RESEND_API_KEY sendHealthAlert simply logs and returns false.
+ */
+async function alertIfDown(projectId: string, name: string, endpoint: string) {
+  try {
+    if (!(await justCrossedFailureThreshold(projectId))) return false;
+    return await sendHealthAlert(ownerEmails(), {
+      name,
+      endpoint,
+      failures: ALERT_AFTER,
+    });
+  } catch (cause) {
+    console.error("[agent] daily-check: alert failed:", cause);
+    return false;
+  }
+}
 
 /** Compares two strings in constant time to prevent timing attacks. */
 function safeCompare(a: string, b: string): boolean {
@@ -87,7 +126,8 @@ export async function GET(request: Request) {
           result: { status: response.status },
           status: ok ? "success" : "failed",
         });
-        return { project: project.name, ok };
+        const alerted = ok ? false : await alertIfDown(project.id, project.name, endpoint);
+        return { project: project.name, ok, alerted };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Health check failed.";
         await logActivity({
@@ -98,7 +138,8 @@ export async function GET(request: Request) {
           result: { error: message },
           status: "failed",
         });
-        return { project: project.name, ok: false };
+        const alerted = await alertIfDown(project.id, project.name, endpoint);
+        return { project: project.name, ok: false, alerted };
       }
     }),
   );
