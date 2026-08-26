@@ -117,8 +117,8 @@ const listProjects = {
     "List every project in the Alking Enterprises registry, optionally filtered by category or status.",
   requiredScope: "read" as const,
   schema: z.object({
-    category: z.string().optional(),
-    status: z.enum(["active", "idle", "maintenance"]).optional(),
+    category: z.string().nullish(),
+    status: z.enum(["active", "idle", "maintenance"]).nullish(),
   }),
   async execute(args: { category?: string; status?: string }, ctx: ToolContext) {
     let query = getServiceSupabase()
@@ -166,11 +166,11 @@ const registerProject = {
   requiredScope: "write" as const,
   schema: z.object({
     name: z.string().min(1).max(200),
-    category: z.string().max(100).optional(),
-    url: z.string().url().optional(),
-    repository_url: z.string().url().optional(),
-    mcp_endpoint: z.string().url().optional(),
-    status: z.enum(["active", "idle", "maintenance"]).default("active"),
+    category: z.string().max(100).nullish(),
+    url: z.string().url().nullish(),
+    repository_url: z.string().url().nullish(),
+    mcp_endpoint: z.string().url().nullish(),
+    status: z.enum(["active", "idle", "maintenance"]).nullish().transform((v) => v ?? "active"),
   }),
   async execute(args: Record<string, string>, ctx: ToolContext) {
     // A project-scoped token must not be able to mint new, unscoped projects
@@ -205,11 +205,11 @@ const updateProject = {
   schema: z.object({
     project_id: z.string().uuid(),
     name: z.string().min(1).max(200),
-    category: z.string().max(100).optional(),
-    url: z.string().url().optional(),
-    repository_url: z.string().url().optional(),
-    mcp_endpoint: z.string().url().optional(),
-    status: z.enum(["active", "idle", "maintenance"]).default("active"),
+    category: z.string().max(100).nullish(),
+    url: z.string().url().nullish(),
+    repository_url: z.string().url().nullish(),
+    mcp_endpoint: z.string().url().nullish(),
+    status: z.enum(["active", "idle", "maintenance"]).nullish().transform((v) => v ?? "active"),
   }),
   async execute(
     args: {
@@ -282,8 +282,8 @@ const addProjectTool = {
   schema: z.object({
     project_id: z.string().uuid(),
     tool_name: z.string().min(1).max(200),
-    description: z.string().max(500).optional(),
-    endpoint: z.string().url().optional(),
+    description: z.string().max(500).nullish(),
+    endpoint: z.string().url().nullish(),
   }),
   async execute(
     args: {
@@ -326,8 +326,8 @@ const updateProjectTool = {
   schema: z.object({
     tool_id: z.string().uuid(),
     tool_name: z.string().min(1).max(200),
-    description: z.string().max(500).optional(),
-    endpoint: z.string().url().optional(),
+    description: z.string().max(500).nullish(),
+    endpoint: z.string().url().nullish(),
   }),
   async execute(
     args: { tool_id: string; tool_name: string; description?: string; endpoint?: string },
@@ -456,9 +456,9 @@ const listRecentLogs = {
   description: "Read the most recent agent activity, newest first.",
   requiredScope: "read" as const,
   schema: z.object({
-    project_id: z.string().uuid().optional(),
-    agent_name: z.string().optional(),
-    limit: z.number().int().min(1).max(100).default(20),
+    project_id: z.string().uuid().nullish(),
+    agent_name: z.string().nullish(),
+    limit: z.number().int().min(1).max(100).nullish().transform((v) => v ?? 20),
   }),
   async execute(
     args: { project_id?: string; agent_name?: string; limit?: number },
@@ -488,7 +488,7 @@ const callProjectTool = {
   schema: z.object({
     project_id: z.string().uuid(),
     tool_name: z.string().max(200),
-    input: z.record(z.string(), z.unknown()).default({}),
+    input: z.record(z.string(), z.unknown()).nullish().transform((v) => v ?? {}),
   }),
   async execute(
     args: { project_id: string; tool_name: string; input?: Record<string, unknown> },
