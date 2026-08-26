@@ -98,6 +98,37 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: 3600,
   },
   databaseHooks: {
+    session: {
+      create: {
+        /**
+         * A session row is only written once credentials (and the second
+         * factor, when enabled) have passed, so this is the sign-in itself.
+         *
+         * Until now the feed recorded what agents and the owner *did* but
+         * never who came in, which is the first thing anyone would want after
+         * suspecting a compromised password. Failed attempts are not visible
+         * here — Better Auth's Postgres rate limiter counts those — so this
+         * answers "when did this account last sign in", not "who is guessing".
+         */
+        after: async (session) => {
+          try {
+            const { logActivity } = await import("@/lib/activity");
+            await logActivity({
+              agentName: "Sign-in",
+              toolName: "sign_in",
+              // No IP or user agent: they would be the only personal data this
+              // console stores about a visitor, and the session row already
+              // carries them for Better Auth's own purposes.
+              payload: { user_id: session.userId },
+              status: "success",
+            });
+          } catch (cause) {
+            // An audit write must never be able to refuse a valid sign-in.
+            console.error("[auth] sign-in log failed:", cause);
+          }
+        },
+      },
+    },
     user: {
       create: {
         /**

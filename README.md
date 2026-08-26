@@ -162,6 +162,10 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
 - **Every legitimate origin is trusted, not just one.** Preview deployments and
   local development sign in without changing configuration; add a custom domain
   through `TRUSTED_ORIGINS`.
+- **Sign-ins are recorded.** A `session.create` hook writes a `sign_in` row to
+  the same feed as every other action, so "when did this account last get in"
+  has an answer. Failed attempts are not logged here — Better Auth's Postgres
+  rate limiter counts those — and no IP or user agent is stored.
 - Database errors are logged server-side and returned as generic messages, so
   schema details never reach a client.
 

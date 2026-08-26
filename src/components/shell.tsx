@@ -17,15 +17,19 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "@/components/providers";
+import { ProjectSearch } from "@/components/project-search";
 import { setLocaleAction, setThemeAction } from "@/app/actions";
 import { signOut } from "@/lib/auth-client";
 import { departmentName, type Department } from "@/lib/agents";
+import type { Project } from "@/types/database";
 
 export function Shell({
   departments,
+  projects,
   children,
 }: {
   departments: Department[];
+  projects: Pick<Project, "id" | "name">[];
   children: React.ReactNode;
 }) {
   const { t, locale, theme } = useLocale();
@@ -65,9 +69,13 @@ export function Shell({
 
   const sidebar = (
     <>
-      <div className="mb-6 px-2">
+      <div className="mb-4 px-2">
         <p className="text-sm font-semibold tracking-wide text-accent">{t.brand}</p>
         <p className="text-xs text-muted">{t.subtitle}</p>
+      </div>
+
+      <div className="mb-4 px-2">
+        <ProjectSearch projects={projects} />
       </div>
 
       <nav aria-label={t.dashboard} className="space-y-1">
