@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { resolveRole } from "@/lib/members";
 import { startActivity } from "@/lib/activity";
 import { TOOLS } from "@/lib/mcp/tools";
+import { languageModel, modelConfigured } from "@/lib/model";
 import type { Json } from "@/types/database";
 
 export const runtime = "nodejs";
@@ -34,11 +35,11 @@ export async function POST(request: Request) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  if (!process.env.AI_GATEWAY_API_KEY) {
+  if (!modelConfigured()) {
     return new Response(
       JSON.stringify({
         error:
-          "AI_GATEWAY_API_KEY is not set. Add it to .env.local (Vercel AI Gateway) to use the console.",
+          "GOOGLE_GENERATIVE_AI_API_KEY is not set. Get a free key at https://aistudio.google.com/apikey and add it to .env.local to use the console.",
       }),
       { status: 503, headers: { "content-type": "application/json" } },
     );
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
   );
 
   const result = streamText({
-    model: process.env.CEO_CONSOLE_MODEL ?? "anthropic/claude-sonnet-5",
+    model: languageModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools,

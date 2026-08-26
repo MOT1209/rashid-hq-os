@@ -4,6 +4,7 @@ import { generateText, stepCountIs, tool, type ToolSet } from "ai";
 import type { z } from "zod";
 import { startActivity } from "@/lib/activity";
 import { TOOLS, type ToolContext } from "@/lib/mcp/tools";
+import { languageModel } from "@/lib/model";
 import type { Department } from "@/lib/agents";
 import type { Json } from "@/types/database";
 
@@ -82,7 +83,7 @@ export async function runDepartmentAgent(input: {
   );
 
   const result = await generateText({
-    model: department.model ?? process.env.CEO_CONSOLE_MODEL ?? "anthropic/claude-sonnet-5",
+    model: languageModel(department.model),
     system: [
       department.system_prompt,
       "You were delegated this task by the CEO console. Do the work with the tools available to you, then report back in one short paragraph. Reply in the same language the task was written in.",
