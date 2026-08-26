@@ -14,6 +14,62 @@ export const maxDuration = 60;
 
 const AGENT_NAME = "Scheduled Health Check";
 const TIMEOUT_MS = 10_000;
+/** Total ping attempts per project, including the first. */
+const ATTEMPTS = 2;
+const RETRY_DELAY_MS = 2_000;
+
+type Probe = { ok: boolean; attempts: number; detail: Record<string, unknown> };
+
+/** One ping. Throws on a network-level failure; a non-2xx is a value, not a throw. */
+async function probe(endpoint: string) {
+  // Endpoints are validated on write, but a row could predate that check or be
+  // edited out of band — re-validate before every call.
+  const safeUrl = await assertSafeEndpoint(endpoint);
+  return fetch(safeUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    // A followed redirect would walk straight past assertSafeEndpoint.
+    redirect: "manual",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    dispatcher: pinnedDispatcher(safeUrl),
+  } as RequestInit & { dispatcher?: unknown });
+}
+
+/**
+ * Pings, and on failure tries once more after a short pause. A single dropped
+ * connection or cold start used to be recorded as an outage, which both
+ * overstated the failure rate and pushed projects toward the alert threshold
+ * for reasons that had nothing to do with them being down.
+ *
+ * Deliberately not a general backoff: this runs once a day, so a second
+ * attempt is enough to tell a blip from something actually broken.
+ */
+async function probeWithRetry(endpoint: string): Promise<Probe> {
+  let last: Probe = { ok: false, attempts: 0, detail: {} };
+
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      const response = await probe(endpoint);
+      last = {
+        ok: response.ok,
+        attempts: attempt,
+        detail: { status: response.status },
+      };
+    } catch (err) {
+      last = {
+        ok: false,
+        attempts: attempt,
+        detail: { error: err instanceof Error ? err.message : "Health check failed." },
+      };
+    }
+
+    if (last.ok) return last;
+    if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+  }
+
+  return last;
+}
 
 /**
  * Reads the run this cron just recorded, so it must be called after
@@ -103,44 +159,20 @@ export async function GET(request: Request) {
       const endpoint = project.mcp_endpoint;
       if (!endpoint) return { project: project.name, ok: false, skipped: true };
 
-      try {
-        // Endpoints are validated on write, but a row could predate that
-        // check or be edited out of band — re-validate before every call.
-        const safeUrl = await assertSafeEndpoint(endpoint);
-        const response = await fetch(safeUrl, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
-          // A followed redirect would walk straight past assertSafeEndpoint.
-          redirect: "manual",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-          dispatcher: pinnedDispatcher(safeUrl),
-        } as RequestInit & { dispatcher?: unknown });
+      const outcome = await probeWithRetry(endpoint);
+      await logActivity({
+        projectId: project.id,
+        agentName: AGENT_NAME,
+        toolName: "health_check",
+        payload: { endpoint },
+        result: { ...outcome.detail, attempts: outcome.attempts },
+        status: outcome.ok ? "success" : "failed",
+      });
 
-        const ok = response.ok;
-        await logActivity({
-          projectId: project.id,
-          agentName: AGENT_NAME,
-          toolName: "health_check",
-          payload: { endpoint },
-          result: { status: response.status },
-          status: ok ? "success" : "failed",
-        });
-        const alerted = ok ? false : await alertIfDown(project.id, project.name, endpoint);
-        return { project: project.name, ok, alerted };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Health check failed.";
-        await logActivity({
-          projectId: project.id,
-          agentName: AGENT_NAME,
-          toolName: "health_check",
-          payload: { endpoint },
-          result: { error: message },
-          status: "failed",
-        });
-        const alerted = await alertIfDown(project.id, project.name, endpoint);
-        return { project: project.name, ok: false, alerted };
-      }
+      const alerted = outcome.ok
+        ? false
+        : await alertIfDown(project.id, project.name, endpoint);
+      return { project: project.name, ok: outcome.ok, alerted };
     }),
   );
 

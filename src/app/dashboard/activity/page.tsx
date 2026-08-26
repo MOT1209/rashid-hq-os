@@ -1,3 +1,4 @@
+import { Download } from "lucide-react";
 import { ActivityFilters } from "@/components/activity-filters";
 import { ActivityStream } from "@/components/activity-stream";
 import { Panel } from "@/components/ui";
@@ -21,6 +22,11 @@ export default async function ActivityPage({
   const [t, filters] = await Promise.all([getT(), searchParams]);
   const status = isStatus(filters.status) ? filters.status : undefined;
 
+  // The export mirrors whatever the page is currently showing.
+  const exportParams = new URLSearchParams();
+  if (filters.projectId) exportParams.set("projectId", filters.projectId);
+  if (status) exportParams.set("status", status);
+
   const [projects, logs] = await Promise.all([
     fetchProjectOptions(),
     fetchLogs({ limit: PAGE_SIZE, projectId: filters.projectId, status }),
@@ -33,7 +39,21 @@ export default async function ActivityPage({
         <p className="text-sm text-muted">{t.brand}</p>
       </header>
 
-      <Panel title={t.filters}>
+      <Panel
+        title={t.filters}
+        action={
+          // A plain link, not fetch(): the browser's own download handles the
+          // Content-Disposition and streams a large file without buffering it
+          // into memory first.
+          <a
+            href={`/api/activity/export?${exportParams}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-text"
+          >
+            <Download size={14} aria-hidden />
+            {t.exportCsv}
+          </a>
+        }
+      >
         <ActivityFilters projects={projects} />
       </Panel>
 

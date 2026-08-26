@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 import { ActivityStream } from "@/components/activity-stream";
 import { CeoConsole } from "@/components/ceo-console";
 import { PanelSkeleton, StatCardsSkeleton } from "@/components/skeleton";
@@ -16,6 +17,8 @@ import {
   projectNameMap,
 } from "@/lib/queries";
 import { agentLabel, categoryLabel, departmentName } from "@/lib/agents";
+import { isOwnerEmail } from "@/lib/owners";
+import { requireSession } from "@/lib/session";
 import { getLocale } from "@/lib/locale-server";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectStatus } from "@/types/database";
@@ -28,7 +31,18 @@ export const dynamic = "force-dynamic";
  * waiting on the slowest Supabase round-trip.
  */
 export default async function DashboardPage() {
-  const [t, locale, skills] = await Promise.all([getT(), getLocale(), fetchSkills()]);
+  const [t, locale, skills, session] = await Promise.all([
+    getT(),
+    getLocale(),
+    fetchSkills(),
+    requireSession(),
+  ]);
+
+  // An owner account can reach every project and issue tokens for all of them,
+  // so leaving it on a password alone is the widest hole this console can have.
+  // A nudge rather than a block: forcing it could lock the only owner out.
+  const needsTwoFactor =
+    isOwnerEmail(session.user.email) && !session.user.twoFactorEnabled;
 
   return (
     <div className="space-y-6">
@@ -36,6 +50,16 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-semibold">{t.subtitle}</h1>
         <p className="text-sm text-muted">{t.brand}</p>
       </header>
+
+      {needsTwoFactor && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <ShieldAlert size={16} aria-hidden className="shrink-0" />
+          {t.twoFactorNudge}
+          <Link href="/dashboard/settings" className="font-medium underline">
+            {t.twoFactorNudgeAction}
+          </Link>
+        </p>
+      )}
 
       <CeoConsole skills={skills} />
 
