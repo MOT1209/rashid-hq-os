@@ -22,7 +22,7 @@ export type Department = {
   sort_order: number;
   /** Instructions this department's agent runs under (migration 0011). */
   system_prompt: string;
-  /** Null falls back to GEMINI_MODEL, then the default in src/lib/model.ts. */
+  /** Null falls back to GROQ_MODEL, then the default in src/lib/model.ts. */
   model: string | null;
 };
 

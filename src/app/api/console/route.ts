@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     return new Response(
       JSON.stringify({
         error:
-          "GOOGLE_GENERATIVE_AI_API_KEY is not set. Get a free key at https://aistudio.google.com/apikey and add it to .env.local to use the console.",
+          "GROQ_API_KEY is not set. Get a free key at https://console.groq.com/keys and add it to .env.local to use the console.",
       }),
       { status: 503, headers: { "content-type": "application/json" } },
     );

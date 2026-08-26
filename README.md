@@ -7,7 +7,7 @@ written to Supabase and streams to the dashboard live.
 - **Next.js 16** (App Router) + **TailwindCSS v4**
 - **Supabase** — Postgres, read and written only by the server
 - **Better Auth** — owner sign-in + bearer tokens for agents
-- **AI SDK v7** on Google Gemini — the CEO command console and the department agents
+- **AI SDK v7** on Groq — the CEO command console and the department agents
 - Arabic / English, dark / light
 
 ## Setup
@@ -18,9 +18,8 @@ written to Supabase and streams to the dashboard live.
    - `DATABASE_URL` — Supabase → Project Settings → Database (session pooler URI)
    - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
    - `OWNER_EMAILS` — your email. Nobody else can sign up or sign in.
-   - `GOOGLE_GENERATIVE_AI_API_KEY` — free key from
-     [Google AI Studio](https://aistudio.google.com/apikey), no card needed (the
-     console returns 503 without it)
+   - `GROQ_API_KEY` — free key from [Groq](https://console.groq.com/keys), no
+     card needed (the console returns 503 without it)
    - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — optional. Install the Upstash for
      Redis integration (`vercel integration add upstash/upstash-kv`) and
      `vercel env pull` to get these; without them, rate limiting falls back to
@@ -40,7 +39,7 @@ automatically in development, so changing the port means changing both.
 
 Each department in `departments` is a runnable agent, not a label. It carries
 its own `system_prompt` and an optional `model` (null falls back to
-`GEMINI_MODEL`), both added by migration `0011`.
+`GROQ_MODEL`), both added by migration `0011`.
 
 The CEO console delegates to one with the `delegate_to_department` tool. The
 department agent then runs the **same** tool registry under its own

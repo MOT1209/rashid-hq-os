@@ -1,25 +1,31 @@
 import "server-only";
 
-import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import type { LanguageModel } from "ai";
 
 /**
  * Which model the console and the department agents run on.
  *
- * This used to go through the Vercel AI Gateway, which refuses every request
- * until a credit card is on file — `customer_verification_required`, even for
- * the free credit. That made the whole agent system unreachable, so it calls
- * Google directly instead: an AI Studio key is free and needs no card.
+ * Two providers were tried and abandoned for reasons that had nothing to do
+ * with the code: the Vercel AI Gateway refuses every request until a credit
+ * card is on file (`customer_verification_required`), and the Gemini keys
+ * available here were short-lived Live-API tokens against a project with no
+ * free quota. Groq issues a long-lived key with no card and a usable free
+ * tier, which is what this deployment actually needs.
  *
  * One place rather than two, because the console and a department agent must
  * not silently end up on different models.
  */
 
-/** Gemini's newest flash generation; unrecognised gemini-* ids resolve upward. */
-const DEFAULT_MODEL = "gemini-3.7-flash";
+/**
+ * Chosen for tool calling specifically: the console drives 14 tools and a
+ * department agent 13, so instruction-following on tool schemas matters far
+ * more here than prose quality.
+ */
+const DEFAULT_MODEL = "openai/gpt-oss-120b";
 
 export function modelConfigured() {
-  return Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  return Boolean(process.env.GROQ_API_KEY);
 }
 
 /**
@@ -27,5 +33,5 @@ export function modelConfigured() {
  * environment, then to the default above.
  */
 export function languageModel(override?: string | null): LanguageModel {
-  return google(override || process.env.GEMINI_MODEL || DEFAULT_MODEL);
+  return groq(override || process.env.GROQ_MODEL || DEFAULT_MODEL);
 }
