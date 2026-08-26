@@ -71,6 +71,9 @@ describe("scope enforcement", () => {
       [
         "add_project_tool",
         "call_project_tool",
+        // Starts another model run on the caller's behalf, so it is a write
+        // even though it changes nothing in this database directly.
+        "delegate_to_department",
         "delete_project",
         "delete_project_tool",
         "register_project",

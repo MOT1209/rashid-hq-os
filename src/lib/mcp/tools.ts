@@ -23,6 +23,15 @@ export type ToolContext = {
    * un-editable and un-deletable from the UI.
    */
   ownerId?: string | null;
+  /**
+   * How many delegations deep this call already is. The console starts at 0; a
+   * department agent runs at 1 and `delegate_to_department` refuses from there.
+   *
+   * Without this an agent could delegate to an agent that delegates again,
+   * with no natural stopping point — a loop that burns model credit rather
+   * than failing loudly.
+   */
+  delegationDepth?: number;
 };
 
 export type ToolDefinition = {
@@ -392,6 +401,24 @@ const listCategories = {
   },
 };
 
+const listDepartments = {
+  name: "list_departments",
+  description:
+    "List the departments and their agents. Use this to find the department_key to delegate to.",
+  requiredScope: "read" as const,
+  schema: z.object({}),
+  async execute() {
+    const { data, error } = await getServiceSupabase()
+      .from("departments")
+      // Not select("*"): system_prompt is another agent's instructions, and
+      // feeding it to this one invites it to imitate rather than delegate.
+      .select("key, name_ar, name_en, agent_name, icon, is_fallback")
+      .order("sort_order");
+    if (error) throw dbError("list_departments", error);
+    return { departments: data ?? [] } as Json;
+  },
+};
+
 const listSkills = {
   name: "list_skills",
   description: "List saved command templates (skills) configured for this console.",
@@ -552,6 +579,53 @@ const callProjectTool = {
   },
 };
 
+/** Long enough for a real brief, short enough not to become the whole prompt. */
+const MAX_TASK_LENGTH = 2_000;
+
+const delegateToDepartment = {
+  name: "delegate_to_department",
+  description:
+    "Hand a task to a department's agent. It runs with the same tools under that department's own instructions and reports back. Use it for work that belongs to one department rather than doing it yourself.",
+  requiredScope: "write" as const,
+  schema: z.object({
+    department_key: z
+      .string()
+      .describe("The department key, e.g. dev, store, media. Use list_departments values."),
+    task: z
+      .string()
+      .max(MAX_TASK_LENGTH)
+      .describe("What the department agent should do, stated plainly and completely."),
+  }),
+  async execute(args: { department_key: string; task: string }, ctx: ToolContext) {
+    // A delegated agent must not delegate again: there is no natural stopping
+    // point, so the loop would burn model credit instead of failing loudly.
+    if ((ctx.delegationDepth ?? 0) >= 1) {
+      throw new Error(
+        "Delegation is one level deep. Do this work yourself with the tools you already have.",
+      );
+    }
+
+    const { data, error } = await getServiceSupabase()
+      .from("departments")
+      .select("*")
+      .eq("key", args.department_key)
+      .maybeSingle();
+
+    if (error) throw dbError("delegate_to_department", error);
+    if (!data) throw new Error(`No department with key "${args.department_key}".`);
+
+    // Imported here rather than at module scope: the runtime imports TOOLS from
+    // this file, so a static import would be a cycle.
+    const { runDepartmentAgent } = await import("@/lib/department-agent");
+    const run = await runDepartmentAgent({
+      department: data as never,
+      task: args.task,
+      ownerId: ctx.ownerId,
+    });
+    return run as unknown as Json;
+  },
+};
+
 export const TOOLS: ToolDefinition[] = [
   listProjects,
   getProject,
@@ -562,10 +636,12 @@ export const TOOLS: ToolDefinition[] = [
   updateProjectTool,
   deleteProjectTool,
   listCategories,
+  listDepartments,
   listSkills,
   getSkill,
   listRecentLogs,
   callProjectTool,
+  delegateToDepartment,
 ] as unknown as ToolDefinition[];
 
 export function findTool(name: string) {

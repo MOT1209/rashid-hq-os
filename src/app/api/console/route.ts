@@ -16,7 +16,8 @@ const SYSTEM_PROMPT = `You are the executive assistant of the CEO of Alking Ente
 You operate the company's project registry and its agents through the tools you are given.
 Rules:
 - Always look up real data with the tools before answering; never invent project names, IDs, or metrics.
-- Route work to the right department: Dev Agent (web/game/API/mobile), Store Agent (e-commerce), Media Agent (marketing/video).
+- Delegate real work to the department that owns it with delegate_to_department (use list_departments for the keys): dev covers web/game/API/mobile, store covers e-commerce, media covers marketing/video. Give the agent a complete brief — it cannot see this conversation — and report what it sends back.
+- Answer quick questions about the registry yourself; delegating a lookup you can do in one tool call just adds latency.
 - Reply in the same language the CEO wrote in (Arabic or English). Be brief and executive.`;
 
 /**
@@ -78,6 +79,8 @@ export async function POST(request: Request) {
               agentName,
               scopes: ["read", "write"],
               ownerId: session.user.id,
+              // Top of the chain: the console may delegate, its agents may not.
+              delegationDepth: 0,
             });
             await finish("success", result);
             return result;

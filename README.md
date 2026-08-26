@@ -34,6 +34,29 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Department agents
+
+Each department in `departments` is a runnable agent, not a label. It carries
+its own `system_prompt` and an optional `model` (null falls back to
+`CEO_CONSOLE_MODEL`), both added by migration `0011`.
+
+The CEO console delegates to one with the `delegate_to_department` tool. The
+department agent then runs the **same** tool registry under its own
+instructions, and every call it makes is logged under its own `agent_name` —
+which is exactly what each department page filters Live Activity by, so the
+work shows up there as it happens rather than only in the console reply.
+
+Delegation is **one level deep**. `ToolContext.delegationDepth` is 0 for the
+console and 1 for a department agent, and the tool refuses at 1: an agent that
+can delegate to an agent that delegates again has no natural stopping point,
+and that failure shows up as a bill rather than an error. Sub-runs are capped
+at 6 steps and the task at 2,000 characters.
+
+Because it is an ordinary tool, an external agent holding a `write` token can
+delegate too — and spend model credit doing so, the same way `call_project_tool`
+can spend on a remote service. The caps above are the guard; scoping it to the
+console only is a one-line change in `src/lib/mcp/tools.ts`.
+
 ## Universal MCP endpoint
 
 Two transports onto the same server — same tool registry

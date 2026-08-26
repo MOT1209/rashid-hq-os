@@ -20,6 +20,10 @@ export type Department = {
   /** Exactly one row is the catch-all for categories that match nothing. */
   is_fallback: boolean;
   sort_order: number;
+  /** Instructions this department's agent runs under (migration 0011). */
+  system_prompt: string;
+  /** Null falls back to CEO_CONSOLE_MODEL. */
+  model: string | null;
 };
 
 export type ProjectCategory = {

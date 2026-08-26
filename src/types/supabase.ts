@@ -86,9 +86,11 @@ export type Database = {
           icon: string;
           is_fallback: boolean;
           key: string;
+          model: string | null;
           name_ar: string;
           name_en: string;
           sort_order: number;
+          system_prompt: string;
         };
         Insert: {
           agent_label_ar: string;
@@ -98,9 +100,11 @@ export type Database = {
           icon?: string;
           is_fallback?: boolean;
           key: string;
+          model?: string | null;
           name_ar: string;
           name_en: string;
           sort_order?: number;
+          system_prompt?: string;
         };
         Update: {
           agent_label_ar?: string;
@@ -110,9 +114,11 @@ export type Database = {
           icon?: string;
           is_fallback?: boolean;
           key?: string;
+          model?: string | null;
           name_ar?: string;
           name_en?: string;
           sort_order?: number;
+          system_prompt?: string;
         };
         Relationships: [];
       };
