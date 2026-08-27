@@ -78,7 +78,7 @@
 - ~~حذف `Demo Project`~~ ✅ (2026-08-27)
 - ~~ضبط `OUTBOUND_SIGNING_SECRET` + `CRON_SECRET` + `TOKEN_PEPPER` في Vercel~~ ✅ (2026-08-27)
 - ~~إلغاء مفتاح Groq القديم~~ ✅ (2026-08-27)
-- **Sentry**: الكود جاهز ومُحدّث لنقطة `/envelope/` (القديمة `/store/` أُزيلت — سبب التعثّر السابق على الأرجح) مع stacktrace مُحلّل. لا يحتاج تكامل Vercel. يبقى: أنشئ مشروعًا مجانيًا في sentry.io وضع `SENTRY_DSN` في Vercel
+- **Sentry**: `@sentry/nextjs@10` مُثبّت ومُوصّل بالكامل (`instrumentation.ts` · `instrumentation-client.ts` · `sentry.server/edge.config.ts` · `withSentryConfig` · `onRequestError` · `global-error.tsx` · `errors.ts` صار يستدعي `Sentry.captureException`). أخطاء + tracing، بلا Replay (كونسول داخلي بـ CSP صارم). البناء يمر على Next 16 + Turbopack. `/monitoring` مستثنى من `proxy.ts`. **يبقى (يحتاجك):** أنشئ مشروع Next.js في sentry.io وضع `SENTRY_DSN` · `NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` · `SENTRY_PROJECT` · `SENTRY_AUTH_TOKEN` في Vercel
 
 ---
 

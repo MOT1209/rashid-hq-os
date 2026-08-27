@@ -8,6 +8,9 @@ export default defineConfig({
       // `server-only` throws when imported outside a React Server Component.
       // Under Vitest these modules are plain Node, so stub it out.
       "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
+      // The real @sentry/nextjs drags in the OTel instrumentation stack; unit
+      // tests that assert on reporting mock it explicitly.
+      "@sentry/nextjs": fileURLToPath(new URL("./tests/stubs/sentry.ts", import.meta.url)),
     },
   },
   test: {

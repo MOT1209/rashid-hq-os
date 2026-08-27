@@ -195,7 +195,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Everything except Next's own static output, which is immutable and
-    // served without needing a per-request nonce.
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    // served without needing a per-request nonce, and the Sentry tunnel
+    // (next.config.ts `tunnelRoute`), which proxies error reports to Sentry
+    // and must not be throttled or wrapped in HTML security headers.
+    "/((?!_next/static|_next/image|favicon.ico|monitoring).*)",
   ],
 };
