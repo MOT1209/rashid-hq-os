@@ -1,4 +1,5 @@
 import { CategoryManager } from "@/components/category-manager";
+import { DepartmentAgentManager } from "@/components/department-agent-manager";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { MemberManager } from "@/components/member-manager";
 import { SkillManager } from "@/components/skill-manager";
@@ -48,6 +49,10 @@ export default async function SettingsPage() {
         <>
           <Panel title={t.members}>
             <MemberManager members={members} />
+          </Panel>
+
+          <Panel title={t.departmentAgents}>
+            <DepartmentAgentManager departments={departments} />
           </Panel>
 
           <Panel title={t.categories}>

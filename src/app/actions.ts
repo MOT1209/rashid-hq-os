@@ -447,6 +447,56 @@ export async function deleteSkillAction(form: FormData) {
   return { ok: true };
 }
 
+/** Agent instructions run longer than every other text field this console stores. */
+const MAX_AGENT_PROMPT = 4000;
+
+/**
+ * Edits a department agent's instructions and model (migration 0011). Until now
+ * `system_prompt` and `model` could only be changed with SQL against the
+ * production database — customisable agents with no way to customise them.
+ * Admins only; logged in the same feed as every other owner action.
+ */
+export async function updateDepartmentAgentAction(form: FormData) {
+  await requireAdmin();
+
+  const key = text(form, "key");
+  if (!key) return { error: "Department is required." };
+
+  // Empty is valid — it means "no instructions beyond the runtime defaults" —
+  // so this is read raw rather than through text(), which would return null.
+  const raw = form.get("system_prompt");
+  const systemPrompt = typeof raw === "string" ? raw.trim() : "";
+  if (systemPrompt.length > MAX_AGENT_PROMPT) {
+    return { error: `"system_prompt" is longer than ${MAX_AGENT_PROMPT} characters.` };
+  }
+
+  const model = text(form, "model");
+  if (model && model.length > MAX_FIELD) {
+    return { error: `"model" is longer than ${MAX_FIELD} characters.` };
+  }
+
+  const { data, error } = await getServiceSupabase()
+    .from("departments")
+    .update({ system_prompt: systemPrompt, model })
+    .eq("key", key)
+    .select("key")
+    .maybeSingle();
+
+  if (error) return { error: safeMessage("Updating the agent", error) };
+  if (!data) return { error: "Department not found." };
+
+  await logActivity({
+    agentName: OWNER_ACTOR,
+    toolName: "update_department_agent",
+    payload: { key, model, prompt_chars: systemPrompt.length },
+    status: "success",
+  });
+
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard/settings");
+  return { ok: true };
+}
+
 /** Grants or changes someone's role. Admins only, by requireAdmin above. */
 export async function saveMemberAction(form: FormData) {
   const session = await requireAdmin();

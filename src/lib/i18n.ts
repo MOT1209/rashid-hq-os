@@ -174,6 +174,14 @@ export const dictionaries = {
     noSkills: "لا توجد مهارات محفوظة بعد.",
     savedSkills: "مهارات محفوظة",
     pickASkill: "اختر مهارة…",
+    departmentAgents: "وكلاء الأقسام",
+    departmentAgentsHint:
+      "لكل قسم وكيل ينفّذ المهام المفوَّضة إليه من الكونسول. عدّل تعليماته والنموذج الذي يشغّله. اترك النموذج فارغًا لاستخدام الافتراضي.",
+    systemPrompt: "تعليمات الوكيل",
+    model: "النموذج",
+    modelPlaceholder: "افتراضي (openai/gpt-oss-120b)",
+    saveAgent: "حفظ الوكيل",
+    agentSaved: "حُفظ.",
   },
   en: {
     brand: "Alking Enterprises",
@@ -346,6 +354,14 @@ export const dictionaries = {
     noSkills: "No saved skills yet.",
     savedSkills: "Saved skills",
     pickASkill: "Pick a skill…",
+    departmentAgents: "Department agents",
+    departmentAgentsHint:
+      "Each department has an agent that runs the work the console delegates to it. Edit its instructions and the model it runs on. Leave the model blank to use the default.",
+    systemPrompt: "Agent instructions",
+    model: "Model",
+    modelPlaceholder: "Default (openai/gpt-oss-120b)",
+    saveAgent: "Save agent",
+    agentSaved: "Saved.",
   },
 } as const;
 
