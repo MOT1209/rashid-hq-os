@@ -78,7 +78,10 @@
 - ~~حذف `Demo Project`~~ ✅ (2026-08-27)
 - ~~ضبط `OUTBOUND_SIGNING_SECRET` + `CRON_SECRET` + `TOKEN_PEPPER` في Vercel~~ ✅ (2026-08-27)
 - ~~إلغاء مفتاح Groq القديم~~ ✅ (2026-08-27)
-- **Sentry**: `@sentry/nextjs@10` مُثبّت ومُوصّل بالكامل (`instrumentation.ts` · `instrumentation-client.ts` · `sentry.server/edge.config.ts` · `withSentryConfig` · `onRequestError` · `global-error.tsx` · `errors.ts` صار يستدعي `Sentry.captureException`). أخطاء + tracing، بلا Replay (كونسول داخلي بـ CSP صارم). البناء يمر على Next 16 + Turbopack. `/monitoring` مستثنى من `proxy.ts`. **يبقى (يحتاجك):** أنشئ مشروع Next.js في sentry.io وضع `SENTRY_DSN` · `NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` · `SENTRY_PROJECT` · `SENTRY_AUTH_TOKEN` في Vercel
+- **Sentry**: `@sentry/nextjs@10` مُثبّت ومُوصّل بالكامل (`instrumentation.ts` · `instrumentation-client.ts` · `sentry.server/edge.config.ts` · `withSentryConfig` · `onRequestError` · `global-error.tsx` · `errors.ts` صار يستدعي `Sentry.captureException`). أخطاء + tracing، بلا Replay (كونسول داخلي بـ CSP صارم). البناء يمر على Next 16 + Turbopack. `/monitoring` مستثنى من `proxy.ts`.
+  - مشروع Sentry: `alking-enterprises/javascript-nextjs` (منطقة US)
+  - `SENTRY_DSN` · `NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` · `SENTRY_PROJECT` مضبوطة في Vercel (Production + Preview) — 2026-08-27
+  - يبقى: `SENTRY_AUTH_TOKEN` لرفع source maps (اختياري، بعد تأكيد أول خطأ)
 
 ---
 
