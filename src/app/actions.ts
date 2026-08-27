@@ -450,11 +450,15 @@ export async function deleteSkillAction(form: FormData) {
 /** Agent instructions run longer than every other text field this console stores. */
 const MAX_AGENT_PROMPT = 4000;
 
+/** A standing task is a brief, not a document — same cap as delegate_to_department. */
+const MAX_STANDING_TASK = 2000;
+
 /**
- * Edits a department agent's instructions and model (migration 0011). Until now
- * `system_prompt` and `model` could only be changed with SQL against the
- * production database — customisable agents with no way to customise them.
- * Admins only; logged in the same feed as every other owner action.
+ * Edits a department agent's instructions, model, and standing task
+ * (migrations 0011 and 0012). Until now all of these could only be changed
+ * with SQL against the production database — customisable agents with no way
+ * to customise them. Admins only; logged in the same feed as every other
+ * owner action.
  */
 export async function updateDepartmentAgentAction(form: FormData) {
   await requireAdmin();
@@ -475,9 +479,23 @@ export async function updateDepartmentAgentAction(form: FormData) {
     return { error: `"model" is longer than ${MAX_FIELD} characters.` };
   }
 
+  const standingRaw = form.get("standing_task");
+  const standingTask = typeof standingRaw === "string" ? standingRaw.trim() : "";
+  if (standingTask.length > MAX_STANDING_TASK) {
+    return { error: `"standing_task" is longer than ${MAX_STANDING_TASK} characters.` };
+  }
+  // A brief that runs a model daily on its own is off unless explicitly turned
+  // on, so the checkbox must be present and checked — not merely non-empty text.
+  const standingTaskEnabled = form.get("standing_task_enabled") === "on";
+
   const { data, error } = await getServiceSupabase()
     .from("departments")
-    .update({ system_prompt: systemPrompt, model })
+    .update({
+      system_prompt: systemPrompt,
+      model,
+      standing_task: standingTask || null,
+      standing_task_enabled: standingTaskEnabled,
+    })
     .eq("key", key)
     .select("key")
     .maybeSingle();
@@ -488,7 +506,13 @@ export async function updateDepartmentAgentAction(form: FormData) {
   await logActivity({
     agentName: OWNER_ACTOR,
     toolName: "update_department_agent",
-    payload: { key, model, prompt_chars: systemPrompt.length },
+    payload: {
+      key,
+      model,
+      prompt_chars: systemPrompt.length,
+      standing_task: standingTask ? `${standingTask.length} chars` : null,
+      standing_task_enabled: standingTaskEnabled,
+    },
     status: "success",
   });
 

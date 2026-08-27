@@ -90,6 +90,8 @@ export type Database = {
           name_ar: string;
           name_en: string;
           sort_order: number;
+          standing_task: string | null;
+          standing_task_enabled: boolean;
           system_prompt: string;
         };
         Insert: {
@@ -104,6 +106,8 @@ export type Database = {
           name_ar: string;
           name_en: string;
           sort_order?: number;
+          standing_task?: string | null;
+          standing_task_enabled?: boolean;
           system_prompt?: string;
         };
         Update: {
@@ -118,6 +122,8 @@ export type Database = {
           name_ar?: string;
           name_en?: string;
           sort_order?: number;
+          standing_task?: string | null;
+          standing_task_enabled?: boolean;
           system_prompt?: string;
         };
         Relationships: [];

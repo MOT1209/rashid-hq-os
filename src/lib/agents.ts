@@ -24,6 +24,13 @@ export type Department = {
   system_prompt: string;
   /** Null falls back to GROQ_MODEL, then the default in src/lib/model.ts. */
   model: string | null;
+  /**
+   * A brief the agent runs once a day on its own (migration 0012). Null or
+   * empty means nothing is scheduled.
+   */
+  standing_task: string | null;
+  /** Per-department off switch for the standing task, keeping the brief text. */
+  standing_task_enabled: boolean;
 };
 
 export type ProjectCategory = {

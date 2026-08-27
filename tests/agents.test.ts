@@ -28,9 +28,11 @@ function department(key: string, overrides: Partial<Department> = {}): Departmen
     icon: "📁",
     is_fallback: false,
     sort_order: 0,
-    // Routing does not read these, but a Department carries them since 0011.
+    // Routing does not read these, but a Department carries them since 0011/0012.
     system_prompt: "",
     model: null,
+    standing_task: null,
+    standing_task_enabled: true,
     ...overrides,
   };
 }

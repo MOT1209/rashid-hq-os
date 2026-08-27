@@ -182,6 +182,11 @@ export const dictionaries = {
     modelPlaceholder: "افتراضي (openai/gpt-oss-120b)",
     saveAgent: "حفظ الوكيل",
     agentSaved: "حُفظ.",
+    standingTask: "مهمة يومية دائمة",
+    standingTaskPlaceholder: "مثال: افحص كل مشاريع القسم وبلّغ عن أي انقطاع أو تراجع.",
+    standingTaskEnabled: "مُفعّلة — تعمل تلقائيًا كل يوم",
+    standingTaskHint:
+      "تُشغّل نموذجًا يوميًا بلا إشراف وتصرف رصيدًا. اتركها فارغة أو ألغِ التفعيل لإيقافها.",
   },
   en: {
     brand: "Alking Enterprises",
@@ -362,6 +367,11 @@ export const dictionaries = {
     modelPlaceholder: "Default (openai/gpt-oss-120b)",
     saveAgent: "Save agent",
     agentSaved: "Saved.",
+    standingTask: "Daily standing task",
+    standingTaskPlaceholder: "e.g. Check every project in this department and report any outage or regression.",
+    standingTaskEnabled: "Enabled — runs automatically every day",
+    standingTaskHint:
+      "Runs a model daily, unsupervised, and spends credit. Leave blank or disable to stop it.",
   },
 } as const;
 

@@ -8,6 +8,10 @@
     {
       "path": "/api/agent/daily-check",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/agent/standing-tasks",
+      "schedule": "0 7 * * *"
     }
   ]
 }

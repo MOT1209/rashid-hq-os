@@ -73,6 +73,26 @@ function AgentEditor({ department }: { department: Department }) {
         />
       </Field>
 
+      <Field id={`${id}-standing`} label={t.standingTask}>
+        <textarea
+          id={`${id}-standing`}
+          name="standing_task"
+          rows={2}
+          defaultValue={department.standing_task ?? ""}
+          placeholder={t.standingTaskPlaceholder}
+          className={`${fieldClass} resize-y`}
+        />
+      </Field>
+      <label className="flex items-center gap-2 text-xs text-muted">
+        <input
+          type="checkbox"
+          name="standing_task_enabled"
+          defaultChecked={department.standing_task_enabled}
+        />
+        {t.standingTaskEnabled}
+      </label>
+      <p className="text-[11px] text-warn">{t.standingTaskHint}</p>
+
       <div className="flex items-center gap-3">
         <button
           type="submit"
