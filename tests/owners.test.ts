@@ -24,6 +24,15 @@ describe("isOwnerEmail", () => {
     expect(isOwnerEmail("second@example.com")).toBe(true);
   });
 
+  it("tolerates a value pasted from an .env line, quotes and all", () => {
+    process.env.OWNER_EMAILS = '"owner@example.com"';
+    expect(ownerEmails()).toEqual(["owner@example.com"]);
+    expect(isOwnerEmail("owner@example.com")).toBe(true);
+
+    process.env.OWNER_EMAILS = "'a@example.com','b@example.com'";
+    expect(isOwnerEmail("b@example.com")).toBe(true);
+  });
+
   it("denies addresses outside the list", () => {
     process.env.OWNER_EMAILS = "owner@example.com";
     expect(isOwnerEmail("attacker@evil.test")).toBe(false);

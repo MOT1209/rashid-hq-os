@@ -9,10 +9,17 @@ import "server-only";
  * Fails closed: an unset or empty OWNER_EMAILS locks everyone out rather than
  * letting everyone in.
  */
+/** Trims whitespace and any surrounding quote characters. An email never has one. */
+function clean(value: string): string {
+  return value.trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
 export function ownerEmails(): string[] {
+  // A value pasted straight from an `.env` line arrives here wrapped in quotes
+  // (`"me@example.com"`), which then matches nothing and locks the owner out.
   return (process.env.OWNER_EMAILS ?? "")
     .split(",")
-    .map((email) => email.trim().toLowerCase())
+    .map((email) => clean(email).toLowerCase())
     .filter(Boolean);
 }
 
