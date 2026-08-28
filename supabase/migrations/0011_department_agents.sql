@@ -12,8 +12,8 @@ alter table public.departments
   -- What this agent is for. Empty means "no instructions beyond the defaults
   -- the runtime supplies", which still runs — it just has no specialism.
   add column if not exists system_prompt text not null default '',
-  -- Null falls back to CEO_CONSOLE_MODEL, so an existing deployment needs no
-  -- configuration for delegation to start working.
+  -- Null falls back to GROQ_MODEL, then the default in src/lib/model.ts, so an
+  -- existing deployment needs no configuration for delegation to start working.
   add column if not exists model text;
 
 -- Seed each existing department with its own scope. Written in English because

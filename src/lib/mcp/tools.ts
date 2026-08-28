@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
@@ -521,6 +522,16 @@ const callProjectTool = {
     // predate that check or be edited out of band.
     const safeUrl = await assertSafeEndpoint(endpoint);
 
+    // assertSafeEndpoint just vetted this host and cached the address it
+    // resolved to. If pinnedDispatcher can't produce that pin now (a DNS name
+    // whose vetted entry is somehow missing or stale), connecting anyway would
+    // let fetch re-resolve — the exact DNS-rebinding window the pin closes.
+    // A literal IP legitimately returns undefined and is safe to connect to.
+    const dispatcher = pinnedDispatcher(safeUrl);
+    if (!dispatcher && !isIP(safeUrl.hostname.replace(/^\[|\]$/g, ""))) {
+      throw new Error("Endpoint could not be pinned; refusing to connect.");
+    }
+
     // Bound the input payload before it hits the wire — unbounded JSON would
     // be forwarded as-is and logged to agent_logs (truncated to 32 KB there,
     // but the outbound request itself is not capped without this check).
@@ -554,7 +565,7 @@ const callProjectTool = {
       // Connect to the address the guard actually vetted, so a name that
       // changes answers between the check and the request cannot be used to
       // reach an internal host. TLS still validates against the hostname.
-      dispatcher: pinnedDispatcher(safeUrl),
+      dispatcher,
     } as RequestInit & { dispatcher?: unknown });
 
     if (response.status >= 300 && response.status < 400) {

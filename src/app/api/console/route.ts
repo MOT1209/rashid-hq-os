@@ -34,6 +34,14 @@ export async function POST(request: Request) {
   if (!session || role !== "admin") {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
+  // Same gate as requireAdmin (src/lib/session.ts) — the console drives every
+  // write tool, so REQUIRE_2FA covers it too.
+  if (process.env.REQUIRE_2FA && !session.user.twoFactorEnabled) {
+    return new Response(
+      JSON.stringify({ error: "Two-factor authentication is required. Enable it in Settings." }),
+      { status: 403, headers: { "content-type": "application/json" } },
+    );
+  }
 
   if (!modelConfigured()) {
     return new Response(

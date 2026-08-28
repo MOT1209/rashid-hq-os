@@ -1,7 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { getSession } from "@/lib/session";
-import { isOwnerEmail } from "@/lib/owners";
+import { authorizeCron } from "@/lib/cron-auth";
 import { resolveOwnerId } from "@/lib/owner";
 import { logActivity } from "@/lib/activity";
 import { runDepartmentAgent } from "@/lib/department-agent";
@@ -13,36 +11,20 @@ export const dynamic = "force-dynamic";
 /** Each department is a full agent run; give the batch room but bound it. */
 export const maxDuration = 300;
 
-/** Compares two strings in constant time. */
-function safeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
 /**
- * Runs each department's standing task once a day (vercel.json). This is the
- * second autonomous agent in the console after the health check — but where
- * that one only reads, this one runs the department agent with every write
- * tool, so its cost and blast radius are bounded on three sides: the
- * per-department enabled flag, the one-run-per-day guard below, and MAX_STEPS
- * inside runDepartmentAgent.
+ * Runs each department's standing task once a day (vercel.json). The second
+ * autonomous agent in the console after the health check — and it runs the
+ * department agent, so its cost and blast radius are bounded four ways: the
+ * per-department enabled flag, the one-run-per-day guard below, MAX_STEPS
+ * inside runDepartmentAgent, and the read-only tool allowlist that "autonomous"
+ * mode imposes.
  *
- * Auth mirrors /api/agent/daily-check: the Vercel cron secret, or a signed-in
- * owner running it by hand to check a brief without waiting for 07:00 UTC.
+ * Auth mirrors /api/agent/daily-check via authorizeCron: the Vercel cron
+ * secret, or a same-origin request from the signed-in owner running it by hand.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const authorized =
-    secret && authHeader ? safeCompare(authHeader, `Bearer ${secret}`) : false;
-
-  if (!authorized) {
-    const session = await getSession();
-    if (!session || !isOwnerEmail(session.user.email)) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await authorizeCron(request))) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const departments = scheduledDepartments(await fetchDepartments());

@@ -29,7 +29,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/net/safe-endpoint", () => ({
   assertSafeEndpoint: async (v: string) => new URL(v),
-  pinnedDispatcher: () => undefined,
+  // A truthy stand-in: call_project_tool now refuses to connect a DNS name
+  // that could not be pinned.
+  pinnedDispatcher: () => ({}),
   UnsafeEndpointError: class extends Error {},
 }));
 

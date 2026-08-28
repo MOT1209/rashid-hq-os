@@ -71,6 +71,29 @@ describe("assertSafeEndpoint", () => {
     }
   });
 
+  it("rejects numeric / hex / octal host forms glibc parses as loopback", async () => {
+    for (const url of [
+      "https://2130706433/mcp", // decimal 127.0.0.1
+      "https://0x7f000001/mcp", // hex
+      "https://017700000001/mcp", // octal
+      "https://intranet/mcp", // single-label internal name
+    ]) {
+      await expect(assertSafeEndpoint(url), url).rejects.toThrow(
+        /private|fully-qualified/i,
+      );
+    }
+  });
+
+  it("rejects an IPv4-mapped IPv6 loopback in hex-group form", async () => {
+    for (const url of [
+      "https://[::ffff:7f00:0001]/mcp", // 127.0.0.1
+      "https://[::ffff:127.0.0.1]/mcp",
+      "https://[::ffff:0:7f00:1]/mcp",
+    ]) {
+      await expect(assertSafeEndpoint(url), url).rejects.toThrow(/private/i);
+    }
+  });
+
   it("rejects a public hostname that resolves to a private address", async () => {
     await expect(assertSafeEndpoint("https://localtest.me/mcp")).rejects.toThrow(
       /private/i,

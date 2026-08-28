@@ -32,15 +32,32 @@ function isPrivateIPv4(address: string): boolean {
   return false;
 }
 
+/**
+ * The v4 address inside an IPv4-mapped IPv6 literal, in any of the forms Node's
+ * `isIP` accepts: `::ffff:127.0.0.1`, `::ffff:7f00:1`, `::ffff:0:7f00:1`.
+ * Returning it lets the v4 private-range rules apply — otherwise
+ * `::ffff:7f00:0001` (which is 127.0.0.1) reads as a public v6 address.
+ */
+function mappedV4(v6: string): string | null {
+  const m = v6.match(/^::ffff:(?:0:)?([0-9a-f.:]+)$/);
+  if (!m) return null;
+  const tail = m[1];
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(tail)) return tail;
+  const hx = tail.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hx) return null;
+  const hi = parseInt(hx[1], 16);
+  const lo = parseInt(hx[2], 16);
+  return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+}
+
 function isPrivateIPv6(address: string): boolean {
   const value = address.toLowerCase().split("%")[0];
   if (value === "::" || value === "::1") return true;
   if (value.startsWith("fe80")) return true; // link-local
   if (/^f[cd]/.test(value)) return true; // unique local
   if (value.startsWith("ff")) return true; // multicast
-  // IPv4-mapped (::ffff:10.0.0.1) tunnels straight back to the v4 rules.
-  const mapped = value.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivateIPv4(mapped[1]);
+  const mapped = mappedV4(value);
+  if (mapped) return isPrivateIPv4(mapped);
   return false;
 }
 
@@ -87,6 +104,16 @@ export async function assertSafeEndpoint(value: string): Promise<URL> {
       throw new UnsafeEndpointError("Endpoint resolves to a private address.");
     }
     return url;
+  }
+
+  // Not an IP literal, so it must be a real DNS name. A host with no dot
+  // ("intranet") is only reachable inside a network; a bare number
+  // ("2130706433"), a hex form ("0x7f000001") or an octal form
+  // ("017700000001") is not a hostname at all — but glibc's getaddrinfo, which
+  // Node's dns.lookup uses, happily parses each of those into 127.0.0.1. Reject
+  // anything that is not a dotted, letter-bearing name before it reaches DNS.
+  if (!host.includes(".") || !/[a-z]/.test(host) || /\s/.test(host)) {
+    throw new UnsafeEndpointError("Endpoint must be a fully-qualified public hostname.");
   }
 
   let addresses: { address: string; family: number }[];

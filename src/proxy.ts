@@ -35,6 +35,12 @@ const RULES: [prefix: string, rule: Rule][] = [
   ["/api/auth", { windowMs: 60_000, max: 20 }],
   ["/api/mcp", { windowMs: 60_000, max: 120 }],
   ["/api/console", { windowMs: 60_000, max: 20 }],
+  // The cron routes fall back to an owner-session check when CRON_SECRET auth
+  // fails, and /api/activity/export returns up to 5,000 rows with both jsonb
+  // columns. Cron traffic is a handful of hits a day; anything more is abuse.
+  ["/api/agent", { windowMs: 60_000, max: 10 }],
+  ["/api/maintenance", { windowMs: 60_000, max: 10 }],
+  ["/api/activity/export", { windowMs: 60_000, max: 10 }],
   // Server Actions POST to page URLs, not /api/*, so they bypass the rules
   // above. Scoped to POST on purpose: this prefix also covers every page load
   // and every <Link> prefetch, and the sidebar alone fans out one RSC request

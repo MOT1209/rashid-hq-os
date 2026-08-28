@@ -1,18 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { getSession } from "@/lib/session";
-import { isOwnerEmail } from "@/lib/owners";
+import { authorizeCron } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** Compares two strings in constant time to prevent timing attacks. */
-function safeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
 
 /**
  * Deletes activity older than the retention window.
@@ -26,17 +16,8 @@ function safeCompare(a: string, b: string): boolean {
  *   { "crons": [{ "path": "/api/maintenance/prune", "schedule": "0 4 * * *" }] }
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const authorized = secret && authHeader
-    ? safeCompare(authHeader, `Bearer ${secret}`)
-    : false;
-
-  if (!authorized) {
-    const session = await getSession();
-    if (!session || !isOwnerEmail(session.user.email)) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await authorizeCron(request))) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

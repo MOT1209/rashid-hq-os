@@ -1,7 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { getSession } from "@/lib/session";
-import { isOwnerEmail, ownerEmails } from "@/lib/owners";
+import { authorizeCron } from "@/lib/cron-auth";
+import { ownerEmails } from "@/lib/owners";
 import { logActivity } from "@/lib/activity";
 import { sendHealthAlert } from "@/lib/email";
 import { ALERT_AFTER, crossedFailureThreshold } from "@/lib/health-alert";
@@ -108,14 +107,6 @@ async function alertIfDown(projectId: string, name: string, endpoint: string) {
   }
 }
 
-/** Compares two strings in constant time to prevent timing attacks. */
-function safeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
 /**
  * The first genuinely autonomous agent in this console — nothing about it
  * runs because a human typed a command. Once a day (vercel.json), it pings
@@ -128,19 +119,8 @@ function safeCompare(a: string, b: string): boolean {
  * by a clock instead of a caller.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const authorized =
-    secret && authHeader ? safeCompare(authHeader, `Bearer ${secret}`) : false;
-
-  // Same fallback as /api/maintenance/prune: the cron is the real trigger,
-  // but the signed-in owner can run it by hand too — useful to confirm an
-  // endpoint is actually broken without waiting for the next scheduled run.
-  if (!authorized) {
-    const session = await getSession();
-    if (!session || !isOwnerEmail(session.user.email)) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!(await authorizeCron(request))) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { data: projects, error } = await getServiceSupabase()

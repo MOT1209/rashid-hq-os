@@ -28,11 +28,20 @@ export async function requireSession() {
  * Guards anything that writes. A viewer can read the whole dashboard but every
  * mutation is refused — the check lives here rather than in the UI, so hiding a
  * button is presentation and this is the boundary.
+ *
+ * With REQUIRE_2FA set, an admin without a second factor can still read the
+ * dashboard but cannot write until they enable it on /dashboard/settings (which
+ * only needs requireSession). Break-glass: unset REQUIRE_2FA.
  */
 export async function requireAdmin() {
   const session = await requireSession();
   if (session.role !== "admin") {
     throw new Error("This account does not have permission to make changes.");
+  }
+  if (process.env.REQUIRE_2FA && !session.user.twoFactorEnabled) {
+    throw new Error(
+      "Two-factor authentication is required for changes. Enable it in Settings first.",
+    );
   }
   return session;
 }
