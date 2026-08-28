@@ -78,10 +78,11 @@
 - ~~حذف `Demo Project`~~ ✅ (2026-08-27)
 - ~~ضبط `OUTBOUND_SIGNING_SECRET` + `CRON_SECRET` + `TOKEN_PEPPER` في Vercel~~ ✅ (2026-08-27)
 - ~~إلغاء مفتاح Groq القديم~~ ✅ (2026-08-27)
-- **Sentry**: `@sentry/nextjs@10` مُثبّت ومُوصّل بالكامل (`instrumentation.ts` · `instrumentation-client.ts` · `sentry.server/edge.config.ts` · `withSentryConfig` · `onRequestError` · `global-error.tsx` · `errors.ts` صار يستدعي `Sentry.captureException`). أخطاء + tracing، بلا Replay (كونسول داخلي بـ CSP صارم). البناء يمر على Next 16 + Turbopack. `/monitoring` مستثنى من `proxy.ts`.
-  - مشروع Sentry: `alking-enterprises/javascript-nextjs` (منطقة US)
-  - `SENTRY_DSN` · `NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` · `SENTRY_PROJECT` مضبوطة في Vercel (Production + Preview) — 2026-08-27
-  - يبقى: `SENTRY_AUTH_TOKEN` لرفع source maps (اختياري، بعد تأكيد أول خطأ)
+- **Sentry**: ✅ يعمل ومُثبت بالدليل. `@sentry/nextjs@10` مُوصّل بالكامل (`instrumentation.ts` · `instrumentation-client.ts` · `sentry.server/edge.config.ts` · `withSentryConfig` · `onRequestError` · `global-error.tsx` · `errors.ts` → `Sentry.captureException`). أخطاء + tracing + وسم الإصدارات (release = commit SHA)، بلا Replay (كونسول داخلي بـ CSP صارم). Next 16 + Turbopack. `/monitoring` مستثنى من `proxy.ts`.
+  - مشروع Sentry: `alking-enterprises/javascript-nextjs` (US) · `SENTRY_DSN` · `NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` · `SENTRY_PROJECT` في Vercel (Production + Preview)
+  - **الدليل**: خطأ حقيقي من الإنتاج وصل Sentry (`JAVASCRIPT-NEXTJS-1`، وُسم بالإصدار والـ trace، ثم حُلّ). مسار التحقق المؤقت `/api/sentry-check` حُذف
+  - **فخ Turbopack**: مُعالِج route عادي لا يُغسَل تلقائيًا — `Sentry.captureException` في route handler يحتاج `await Sentry.flush()` صراحةً وإلا تُفقد الأحداث قبل تجميد الـ lambda. المسار التلقائي (`onRequestError` للأخطاء غير المُلتقَطة) يغسل من نفسه
+  - **يبقى (harden، اختياري):** `SENTRY_AUTH_TOKEN` لرفع source maps — بدونه الـ stacktrace في الإنتاج مُصغَّر. من Sentry → Settings → Auth Tokens
 
 ---
 

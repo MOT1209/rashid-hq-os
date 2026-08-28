@@ -9,6 +9,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const captureException = vi.fn();
 vi.mock("@sentry/nextjs", () => ({
   captureException: (...args: unknown[]) => captureException(...args),
+  flush: async () => true,
+}));
+
+// `after` only runs inside a request scope; in tests, run the callback inline.
+vi.mock("next/server", () => ({
+  after: (fn: () => unknown) => {
+    void fn();
+  },
 }));
 
 const { captureError, dbError, safeMessage } = await import("@/lib/errors");

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 
 /**
@@ -53,6 +54,17 @@ export function captureError(context: string, error: unknown, extra: Extra = {})
     tags: { context },
     extra: { ref, ...extra },
   });
+
+  // A plain route handler or server action is not auto-flushed under Turbopack,
+  // so the event is queued but the serverless function can freeze before it is
+  // sent. `after` runs the flush once the response is out, while Vercel keeps
+  // the invocation alive. Outside a request scope (rare here) `after` throws —
+  // fall back to a best-effort detached flush.
+  try {
+    after(() => Sentry.flush(2000));
+  } catch {
+    void Sentry.flush(2000);
+  }
 
   return ref;
 }
