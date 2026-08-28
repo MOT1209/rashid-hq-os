@@ -1,6 +1,6 @@
 # خطة العمل — Alking HQ OS
 
-> آخر تحديث: 2026-08-27 · آخر commit: `6783e2a` · الإنتاج: https://rashid-hq-os.vercel.app
+> آخر تحديث: 2026-08-28 · آخر commit: `9c06030` · الإنتاج: https://rashid-hq-os.vercel.app
 
 هذه الوثيقة نقطة الاستئناف. تقرأها وتعرف: أين وصلنا، ما الذي يعمل فعلاً، ما الذي ما زال مكسورًا، وما الخطوة التالية ولماذا.
 
@@ -84,6 +84,13 @@
   - **الدليل**: خطأ حقيقي من الإنتاج وصل Sentry (`JAVASCRIPT-NEXTJS-1`، وُسم بالإصدار والـ trace، ثم حُلّ). مسار التحقق المؤقت `/api/sentry-check` حُذف
   - **فخ Turbopack**: مُعالِج route عادي لا يُغسَل تلقائيًا — `Sentry.captureException` في route handler يحتاج `await Sentry.flush()` صراحةً وإلا تُفقد الأحداث قبل تجميد الـ lambda. المسار التلقائي (`onRequestError` للأخطاء غير المُلتقَطة) يغسل من نفسه
   - **يبقى (harden، اختياري):** `SENTRY_AUTH_TOKEN` لرفع source maps — بدونه الـ stacktrace في الإنتاج مُصغَّر. من Sentry → Settings → Auth Tokens
+
+### مراجعة شاملة + تقوية (2026-08-28)
+مراجعة ٣ محاور (أمن، اختبارات، منتج). التقرير الكامل في `.claude/plans/robust-puzzling-flurry.md`. المُنفَّذ:
+- **`45f5888`** — **ثغرة أمنية مُصلَحة**: الوكيل المجدول كان يعمل يوميًا بلا إشراف بصلاحيات كتابة كاملة (حذف مشاريع، حقن نقاط نهاية). الآن `mode: "autonomous"` يقيّده على أدوات القراءة + `call_project_tool` فقط؛ التفويض من الكونسول يبقى كاملًا. + اختبار `tool-schemas` يقفل انحدار `null` من Groq + أخطاء `activity.ts`/MCP تذهب لـ Sentry
+- **`a552623`** — تقوية SSRF (صيغ IP الرقمية، mapped-v6 hex، رفض الاتصال غير المثبَّت) · CSRF على مسارات cron عبر `Sec-Fetch-Site` (`src/lib/cron-auth.ts` موحَّد) · `REQUIRE_2FA` (بوابة اختيارية للكتابة) · قواعد rate-limit لـ `/api/agent`·`/api/maintenance`·`/api/activity/export`
+- **`9c06030`** — اختبارات أفعال المالك الأساسية (تفويض، ملكية، SSRF، تسجيل)
+- **متبقٍّ من التقرير:** `ToolDefinition` عام (0.4) · `buildToolSet` (1.2) · جدول `agent_runs` وتتبّع التكلفة (1.4) · `/dashboard/insights` · بريد ملخّص المهام الدائمة · تنظيف `.env.local`/Vercel (`AI_GATEWAY_API_KEY`, `CEO_CONSOLE_MODEL`)
 
 ---
 
