@@ -13,10 +13,15 @@ import { getServiceSupabase } from "@/lib/supabase/server";
  * standing task to act on anyway.
  */
 export async function resolveOwnerId(): Promise<string | null> {
+  // Ordered so the choice is deterministic while this is single-owner. Once a
+  // second owner exists, an autonomous run must instead carry the id of the
+  // user who configured that department's standing task (a
+  // standing_task_created_by column) rather than "whichever project is oldest".
   const { data } = await getServiceSupabase()
     .from("projects")
     .select("owner_id")
     .not("owner_id", "is", null)
+    .order("created_at", { ascending: true })
     .limit(1);
 
   return data?.[0]?.owner_id ?? null;

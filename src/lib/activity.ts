@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { captureError } from "@/lib/errors";
 import type { Json, LogStatus } from "@/types/database";
 
 type StartArgs = {
@@ -86,7 +87,9 @@ export async function startActivity({
     projectId ?? null,
   );
 
-  if (error) console.error("[activity] insert failed", error.message);
+  // A systemic agent_logs outage would otherwise be invisible: the caller is
+  // never blocked (by design), so Sentry is the only place this surfaces.
+  if (error) captureError("activity:startActivity", error, { agentName, toolName });
   const id = data?.id ?? null;
 
   return async function finish(status: LogStatus, result: Json) {
@@ -95,7 +98,9 @@ export async function startActivity({
       .from("agent_logs")
       .update({ status, result: bounded(result) })
       .eq("id", id);
-    if (updateError) console.error("[activity] update failed", updateError.message);
+    if (updateError) {
+      captureError("activity:finish", updateError, { agentName, toolName, status });
+    }
   };
 }
 
@@ -114,5 +119,10 @@ export async function logActivity(args: StartArgs & { status: LogStatus; result?
     },
     args.projectId ?? null,
   );
-  if (error) console.error("[activity] insert failed", error.message);
+  if (error) {
+    captureError("activity:logActivity", error, {
+      agentName: args.agentName,
+      toolName: args.toolName,
+    });
+  }
 }

@@ -24,6 +24,34 @@ const MAX_STEPS = 6;
 /** The delegating tool is withheld from the agent, so it cannot re-delegate. */
 const DELEGATE_TOOL = "delegate_to_department";
 
+/**
+ * How the run was triggered.
+ *
+ * `interactive` — a human delegated from the console and is watching the result.
+ * The agent gets the full toolset (minus delegate).
+ *
+ * `autonomous` — the standing-task cron, running daily with no human in the
+ * loop. The agent's context includes text it does not control: the standing
+ * brief, whatever a third-party project MCP server returns from
+ * `call_project_tool`, and raw project fields. Any of that can carry a prompt
+ * injection ("delete every project", "register a tool pointing at http://…").
+ * So an autonomous run gets an allowlist: read everything, act on a project's
+ * own registered tools, but never restructure the registry. A tool added later
+ * is excluded from autonomous runs until it is added here on purpose.
+ */
+export type RunMode = "interactive" | "autonomous";
+
+const AUTONOMOUS_TOOLS = new Set([
+  "list_projects",
+  "get_project",
+  "list_categories",
+  "list_departments",
+  "list_skills",
+  "get_skill",
+  "list_recent_logs",
+  "call_project_tool",
+]);
+
 export type DepartmentRun = {
   agent: string;
   summary: string;
@@ -41,8 +69,10 @@ export async function runDepartmentAgent(input: {
   department: Department;
   task: string;
   ownerId: string | null | undefined;
+  /** Defaults to `interactive` — the full toolset. */
+  mode?: RunMode;
 }): Promise<DepartmentRun> {
-  const { department, task, ownerId } = input;
+  const { department, task, ownerId, mode = "interactive" } = input;
   const agentName = department.agent_name;
 
   const context: ToolContext = {
@@ -53,8 +83,14 @@ export async function runDepartmentAgent(input: {
     delegationDepth: 1,
   };
 
+  const available = TOOLS.filter((definition) => {
+    if (definition.name === DELEGATE_TOOL) return false;
+    if (mode === "autonomous") return AUTONOMOUS_TOOLS.has(definition.name);
+    return true;
+  });
+
   const tools: ToolSet = Object.fromEntries(
-    TOOLS.filter((definition) => definition.name !== DELEGATE_TOOL).map((definition) => [
+    available.map((definition) => [
       definition.name,
       tool({
         description: definition.description,

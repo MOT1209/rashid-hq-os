@@ -72,7 +72,10 @@ export async function GET(request: Request) {
 
     const task = (department.standing_task ?? "").trim();
     try {
-      const run = await runDepartmentAgent({ department, task, ownerId });
+      // Autonomous: no human is watching, and the agent's context includes
+      // third-party MCP output and raw project fields — so it runs on a
+      // read + call_project_tool allowlist, never the registry-mutation tools.
+      const run = await runDepartmentAgent({ department, task, ownerId, mode: "autonomous" });
       await logActivity({
         agentName: department.agent_name,
         toolName: STANDING_TASK_TOOL,

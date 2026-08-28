@@ -1,6 +1,7 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { verifyAgentToken } from "@/lib/agent-tokens";
 import { startActivity } from "@/lib/activity";
+import { captureError } from "@/lib/errors";
 import { TOOLS, scopeDenialReason } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
@@ -62,11 +63,17 @@ const mcpHandler = createMcpHandler(
               structuredContent: result,
             };
           } catch (error) {
-            // Tool errors are already sanitised (see src/lib/errors.ts);
-            // anything else is logged in full and reported generically.
+            // A dbError is already sanitised and carries a ref; anything else
+            // is an unexpected crash — track it in Sentry, report generically.
+            const known =
+              error instanceof Error && /Reference: [0-9a-f-]{36}$/.test(error.message);
             const message =
               error instanceof Error ? error.message : "The tool failed unexpectedly.";
-            console.error(`[mcp-server] ${tool.name} failed:`, error);
+            if (!known) {
+              captureError(`mcp-server:${tool.name}`, error, {
+                agentName: extra.agentName ?? "unknown",
+              });
+            }
             await finish("failed", { error: message });
             return { content: [{ type: "text", text: message }], isError: true };
           }

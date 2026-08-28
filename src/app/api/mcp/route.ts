@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAgentToken } from "@/lib/agent-tokens";
 import { startActivity } from "@/lib/activity";
+import { captureError } from "@/lib/errors";
 import { findTool, scopeDenialReason, TOOLS } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
@@ -133,11 +134,12 @@ export async function POST(request: Request) {
         structuredContent: result,
       });
     } catch (error) {
-      // Tool errors are already sanitised (see src/lib/errors.ts); anything
-      // else is logged in full and reported generically.
-      const message =
-        error instanceof Error ? error.message : "The tool failed unexpectedly.";
-      console.error(`[mcp] ${toolName} failed:`, error);
+      // A dbError is already sanitised and carries its own ref; anything else
+      // is an unexpected crash (a bug in the tool) — track it in Sentry, not
+      // just the server log, and still report generically.
+      const known = error instanceof Error && /Reference: [0-9a-f-]{36}$/.test(error.message);
+      const message = error instanceof Error ? error.message : "The tool failed unexpectedly.";
+      if (!known) captureError(`mcp:${toolName}`, error, { agentName: agent.agent_name });
       await finish("failed", { error: message });
       return rpcResult(id, {
         content: [{ type: "text", text: message }],

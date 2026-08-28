@@ -1,0 +1,476 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tool input JSON Schema is stable > 'add_project_tool' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "endpoint": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "project_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+    "tool_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string",
+    },
+  },
+  "required": [
+    "project_id",
+    "tool_name",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'call_project_tool' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "input": {
+      "anyOf": [
+        {
+          "additionalProperties": {},
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "project_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+    "tool_name": {
+      "maxLength": 200,
+      "type": "string",
+    },
+  },
+  "required": [
+    "project_id",
+    "tool_name",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'delegate_to_department' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "department_key": {
+      "description": "The department key, e.g. dev, store, media. Use list_departments values.",
+      "type": "string",
+    },
+    "task": {
+      "description": "What the department agent should do, stated plainly and completely.",
+      "maxLength": 2000,
+      "type": "string",
+    },
+  },
+  "required": [
+    "department_key",
+    "task",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'delete_project' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+  },
+  "required": [
+    "project_id",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'delete_project_tool' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "tool_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+  },
+  "required": [
+    "tool_id",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'get_project' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+  },
+  "required": [
+    "project_id",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'get_skill' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "skill_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+  },
+  "required": [
+    "skill_id",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'list_categories' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {},
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'list_departments' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {},
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'list_projects' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "category": {
+      "anyOf": [
+        {
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "status": {
+      "anyOf": [
+        {
+          "enum": [
+            "active",
+            "idle",
+            "maintenance",
+          ],
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'list_recent_logs' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "agent_name": {
+      "anyOf": [
+        {
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "limit": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'list_skills' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {},
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'register_project' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "category": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "mcp_endpoint": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string",
+    },
+    "repository_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "status": {
+      "anyOf": [
+        {
+          "enum": [
+            "active",
+            "idle",
+            "maintenance",
+          ],
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+  },
+  "required": [
+    "name",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'update_project' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "category": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "mcp_endpoint": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string",
+    },
+    "project_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+    "repository_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "status": {
+      "anyOf": [
+        {
+          "enum": [
+            "active",
+            "idle",
+            "maintenance",
+          ],
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+  },
+  "required": [
+    "project_id",
+    "name",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool input JSON Schema is stable > 'update_project_tool' 1`] = `
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "endpoint": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "tool_id": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string",
+    },
+    "tool_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string",
+    },
+  },
+  "required": [
+    "tool_id",
+    "tool_name",
+  ],
+  "type": "object",
+}
+`;

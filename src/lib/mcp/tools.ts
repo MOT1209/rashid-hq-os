@@ -621,6 +621,10 @@ const delegateToDepartment = {
       department: data as never,
       task: args.task,
       ownerId: ctx.ownerId,
+      // Delegated from the console: a human is watching the result, so the
+      // department agent keeps the full toolset. The autonomous cron path
+      // (src/app/api/agent/standing-tasks) passes "autonomous" instead.
+      mode: "interactive",
     });
     return run as unknown as Json;
   },
