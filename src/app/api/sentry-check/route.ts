@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { captureError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -14,5 +15,7 @@ export async function GET() {
     new Error("Sentry wiring verification — safe to ignore"),
     { deliberate: true },
   );
-  return Response.json({ ok: true, ref, note: "Check Sentry for this event, then delete this route." });
+  // A serverless function can freeze before the event is sent; force it out.
+  const flushed = await Sentry.flush(3000);
+  return Response.json({ ok: true, ref, flushed, dsn: Boolean(process.env.SENTRY_DSN) });
 }
