@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  Plug,
   Settings,
   Sun,
   X,
@@ -52,6 +53,7 @@ export function Shell({
     { href: "/dashboard/activity", label: t.activity, icon: Activity },
     { href: "/dashboard/projects", label: t.projects, icon: Boxes },
     { href: "/dashboard/access", label: t.access, icon: KeyRound },
+    { href: "/dashboard/settings/integrations", label: t.integrations, icon: Plug },
     { href: "/dashboard/settings", label: t.settings, icon: Settings },
   ];
 

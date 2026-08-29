@@ -48,6 +48,7 @@ const AUTONOMOUS_TOOLS = new Set([
   "list_departments",
   "list_skills",
   "get_skill",
+  "list_integrations",
   "list_recent_logs",
   "call_project_tool",
 ]);

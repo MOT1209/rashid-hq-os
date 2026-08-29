@@ -452,6 +452,29 @@ const getSkill = {
   },
 };
 
+const listIntegrations = {
+  name: "list_integrations",
+  description:
+    "List the owner's third-party integrations (Google, GitHub, OpenAI, …) and whether each is connected. Never returns credentials.",
+  requiredScope: "read" as const,
+  schema: z.object({}),
+  async execute(_args: Record<string, never>, ctx: ToolContext) {
+    if (!ctx.ownerId) return { integrations: [] } as Json;
+    const { integrationsForOwner } = await import("@/lib/integrations/service");
+    const rows = await integrationsForOwner(ctx.ownerId);
+    return {
+      integrations: rows.map((r) => ({
+        provider: r.id,
+        name: r.name,
+        auth_method: r.authMethod,
+        readiness: r.readiness,
+        status: r.connection?.status ?? "disconnected",
+        account: r.connection?.accountLabel ?? null,
+      })),
+    } as Json;
+  },
+};
+
 const listRecentLogs = {
   name: "list_recent_logs",
   description: "Read the most recent agent activity, newest first.",
@@ -654,6 +677,7 @@ export const TOOLS: ToolDefinition[] = [
   listDepartments,
   listSkills,
   getSkill,
+  listIntegrations,
   listRecentLogs,
   callProjectTool,
   delegateToDepartment,

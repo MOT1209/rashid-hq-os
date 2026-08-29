@@ -278,6 +278,111 @@ export type Database = {
           },
         ];
       };
+      integration_connections: {
+        Row: {
+          id: string;
+          owner_id: string;
+          provider: string;
+          status: string;
+          secret_ciphertext: string | null;
+          metadata: Json;
+          expires_at: string | null;
+          last_connected_at: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          provider: string;
+          status?: string;
+          secret_ciphertext?: string | null;
+          metadata?: Json;
+          expires_at?: string | null;
+          last_connected_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          provider?: string;
+          status?: string;
+          secret_ciphertext?: string | null;
+          metadata?: Json;
+          expires_at?: string | null;
+          last_connected_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      integration_oauth_states: {
+        Row: {
+          state: string;
+          owner_id: string;
+          provider: string;
+          code_verifier: string | null;
+          redirect_to: string | null;
+          scopes: string[];
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          state: string;
+          owner_id: string;
+          provider: string;
+          code_verifier?: string | null;
+          redirect_to?: string | null;
+          scopes?: string[];
+          created_at?: string;
+          expires_at?: string;
+        };
+        Update: {
+          state?: string;
+          owner_id?: string;
+          provider?: string;
+          code_verifier?: string | null;
+          redirect_to?: string | null;
+          scopes?: string[];
+          created_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
+      webhook_events: {
+        Row: {
+          id: string;
+          provider: string;
+          event_id: string | null;
+          event_type: string | null;
+          status: string;
+          payload: Json | null;
+          received_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider: string;
+          event_id?: string | null;
+          event_type?: string | null;
+          status?: string;
+          payload?: Json | null;
+          received_at?: string;
+        };
+        Update: {
+          id?: string;
+          provider?: string;
+          event_id?: string | null;
+          event_type?: string | null;
+          status?: string;
+          payload?: Json | null;
+          received_at?: string;
+        };
+        Relationships: [];
+      };
       projects: {
         Row: {
           category: string | null;

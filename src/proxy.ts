@@ -41,6 +41,12 @@ const RULES: [prefix: string, rule: Rule][] = [
   ["/api/agent", { windowMs: 60_000, max: 10 }],
   ["/api/maintenance", { windowMs: 60_000, max: 10 }],
   ["/api/activity/export", { windowMs: 60_000, max: 10 }],
+  // OAuth connect/callback/test plus API-key saves. A handful per session; a
+  // burst is either a retry loop or someone probing the state store.
+  ["/api/integrations", { windowMs: 60_000, max: 30 }],
+  // Inbound provider webhooks are unauthenticated (signature-verified instead),
+  // so cap the volume a forged-signature flood can push through the verifier.
+  ["/api/webhooks", { windowMs: 60_000, max: 120, format: "json" }],
   // Server Actions POST to page URLs, not /api/*, so they bypass the rules
   // above. Scoped to POST on purpose: this prefix also covers every page load
   // and every <Link> prefetch, and the sidebar alone fans out one RSC request

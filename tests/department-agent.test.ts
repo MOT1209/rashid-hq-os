@@ -100,6 +100,7 @@ describe("runDepartmentAgent tool exposure", () => {
         "get_skill",
         "list_categories",
         "list_departments",
+        "list_integrations",
         "list_projects",
         "list_recent_logs",
         "list_skills",
