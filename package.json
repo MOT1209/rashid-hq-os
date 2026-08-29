@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 7070",
     "build": "next build",
-    "start": "next start -p 7070",
+    "start": "next start -p ${PORT:-7070}",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
