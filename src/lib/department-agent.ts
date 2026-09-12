@@ -2,11 +2,10 @@ import "server-only";
 
 import { generateText, stepCountIs, tool, type ToolSet } from "ai";
 import type { z } from "zod";
-import { startActivity } from "@/lib/activity";
+import { runTool } from "@/lib/mcp/executor";
 import { TOOLS, type ToolContext } from "@/lib/mcp/tools";
 import { languageModel } from "@/lib/model";
 import type { Department } from "@/lib/agents";
-import type { Json } from "@/types/database";
 
 /**
  * The executor behind a department agent.
@@ -62,9 +61,9 @@ export type DepartmentRun = {
 /**
  * Runs `task` as `department`'s agent and returns what it reports back.
  *
- * Every tool call is bracketed by startActivity/finish exactly as in the
- * console route, which is what puts the work in Live Activity in real time
- * rather than only when the run finishes.
+ * Every tool call goes through runTool (src/lib/mcp/executor.ts), exactly as
+ * in the console route, which is what puts the work in Live Activity in real
+ * time rather than only when the run finishes.
  */
 export async function runDepartmentAgent(input: {
   department: Department;
@@ -82,6 +81,9 @@ export async function runDepartmentAgent(input: {
     ownerId,
     // Already one delegation deep: delegate_to_department refuses from here.
     delegationDepth: 1,
+    // The policy gate (src/lib/policy.ts) singles out the unattended cron —
+    // this is the only place that distinction is made.
+    actorType: mode === "autonomous" ? "standing_task_routine" : "department_agent",
   };
 
   const available = TOOLS.filter((definition) => {
@@ -97,22 +99,19 @@ export async function runDepartmentAgent(input: {
         description: definition.description,
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
-          const finish = await startActivity({
-            projectId: typeof args.project_id === "string" ? args.project_id : null,
-            agentName,
-            toolName: definition.name,
-            payload: args as Json,
-          });
-          try {
-            const result = await definition.execute(args as never, context);
-            await finish("success", result);
-            return result;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            await finish("failed", { error: message });
-            // Returned, not thrown: a failed tool call is information the agent
-            // can act on, and throwing would abort the whole delegated run.
-            return { error: message };
+          const outcome = await runTool(definition, args, context);
+          // Always returned, never thrown: a denied/failed/queued tool call is
+          // information the agent can act on, and throwing would abort the
+          // whole delegated run.
+          switch (outcome.status) {
+            case "success":
+              return outcome.result;
+            case "queued":
+              return { queued: true, approval_id: outcome.approvalId };
+            case "denied":
+              return { error: outcome.reason };
+            case "failed":
+              return { error: outcome.error };
           }
         },
       }),

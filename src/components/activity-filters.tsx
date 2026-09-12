@@ -97,6 +97,7 @@ export function ActivityFilters({
         <option value="success">{t.success}</option>
         <option value="failed">{t.failed}</option>
         <option value="pending">{t.pending}</option>
+        <option value="awaiting_approval">{t.awaitingApproval}</option>
       </select>
 
       {hasFilters && (

@@ -2,13 +2,22 @@ import "server-only";
 
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { captureError } from "@/lib/errors";
-import type { Json, LogStatus } from "@/types/database";
+import type { ActorType, Json, LogStatus, PolicyDecision } from "@/types/database";
 
 type StartArgs = {
   projectId?: string | null;
   agentName: string;
   toolName: string;
   payload?: Json;
+  /**
+   * Defaults to "pending". A require_approval call starts life as
+   * "awaiting_approval" instead, since nothing will call finish() on it until
+   * an admin decides — possibly in a different request entirely.
+   */
+  status?: LogStatus;
+  decision?: PolicyDecision | null;
+  decisionReason?: string | null;
+  actorType?: ActorType | null;
 };
 
 /** Postgres foreign-key violation. */
@@ -64,25 +73,45 @@ async function insertLog(
 }
 
 /**
- * Writes a `pending` row so the dashboard sees the call the moment it starts,
- * and returns a finish() that flips it to success/failed with the result.
+ * Flips a row to success/failed with its result. Split out from
+ * startActivity so a decision made in a later, unrelated request — an admin
+ * approving or rejecting a queued call — can finish a row it did not start.
  * Logging must never break the caller, so failures here are swallowed.
+ */
+export async function finishActivity(id: string, status: LogStatus, result: Json) {
+  const { error } = await getServiceSupabase()
+    .from("agent_logs")
+    .update({ status, result: bounded(result) })
+    .eq("id", id);
+  if (error) captureError("activity:finish", error, { id, status });
+}
+
+/**
+ * Writes a row (`pending` unless `status` overrides it) so the dashboard sees
+ * the call the moment it starts, and returns the row id plus a finish() bound
+ * to it. Logging must never break the caller, so failures here are swallowed.
  */
 export async function startActivity({
   projectId,
   agentName,
   toolName,
   payload,
+  status,
+  decision,
+  decisionReason,
+  actorType,
 }: StartArgs) {
-  const supabase = getServiceSupabase();
   const { data, error } = await insertLog(
-    supabase,
+    getServiceSupabase(),
     {
       project_id: projectId ?? null,
       agent_name: agentName,
       tool_name: toolName,
       payload: bounded(payload),
-      status: "pending",
+      status: status ?? "pending",
+      decision: decision ?? null,
+      decision_reason: decisionReason ?? null,
+      actor_type: actorType ?? null,
     },
     projectId ?? null,
   );
@@ -90,17 +119,14 @@ export async function startActivity({
   // A systemic agent_logs outage would otherwise be invisible: the caller is
   // never blocked (by design), so Sentry is the only place this surfaces.
   if (error) captureError("activity:startActivity", error, { agentName, toolName });
-  const id = data?.id ?? null;
+  const id = (data?.id as string | undefined) ?? null;
 
-  return async function finish(status: LogStatus, result: Json) {
-    if (!id) return;
-    const { error: updateError } = await supabase
-      .from("agent_logs")
-      .update({ status, result: bounded(result) })
-      .eq("id", id);
-    if (updateError) {
-      captureError("activity:finish", updateError, { agentName, toolName, status });
-    }
+  return {
+    id,
+    finish: async (finishStatus: LogStatus, result: Json) => {
+      if (!id) return;
+      await finishActivity(id, finishStatus, result);
+    },
   };
 }
 

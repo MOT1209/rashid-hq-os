@@ -16,7 +16,12 @@ const POLL_MS = 8000;
 const HEARTBEAT_MS = 25_000;
 
 function isStatus(value: string | null): value is LogStatus {
-  return value === "success" || value === "failed" || value === "pending";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "pending" ||
+    value === "awaiting_approval"
+  );
 }
 
 /**

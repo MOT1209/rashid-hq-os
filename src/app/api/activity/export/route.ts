@@ -14,7 +14,12 @@ export const dynamic = "force-dynamic";
 const MAX_ROWS = 5_000;
 
 function isStatus(value: string | null): value is LogStatus {
-  return value === "success" || value === "failed" || value === "pending";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "pending" ||
+    value === "awaiting_approval"
+  );
 }
 
 /**

@@ -1,9 +1,7 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { verifyAgentToken } from "@/lib/agent-tokens";
-import { startActivity } from "@/lib/activity";
-import { captureError } from "@/lib/errors";
-import { TOOLS, scopeDenialReason } from "@/lib/mcp/tools";
-import type { Json } from "@/types/database";
+import { runTool } from "@/lib/mcp/executor";
+import { TOOLS } from "@/lib/mcp/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,49 +31,31 @@ const mcpHandler = createMcpHandler(
           const authInfo = ctx.http?.authInfo;
           const extra = (authInfo?.extra ?? {}) as AgentContext;
 
-          // A token's scopes are the authorization decision, not decoration —
-          // same check the JSON-RPC endpoint makes.
-          const denied = scopeDenialReason(tool, authInfo?.scopes);
-          if (denied) {
-            return { content: [{ type: "text", text: denied }], isError: true };
-          }
-
-          const argsRecord = (args ?? {}) as Record<string, unknown>;
-          const finish = await startActivity({
-            projectId:
-              extra.projectId ??
-              (typeof argsRecord.project_id === "string" ? argsRecord.project_id : null),
+          const outcome = await runTool(tool, args, {
             agentName: extra.agentName ?? "unknown",
-            toolName: tool.name,
-            payload: argsRecord as Json,
+            projectId: extra.projectId,
+            scopes: authInfo?.scopes,
+            ownerId: extra.ownerId,
+            actorType: "agent_token",
           });
 
-          try {
-            const result = await tool.execute(args as never, {
-              agentName: extra.agentName ?? "unknown",
-              projectId: extra.projectId,
-              scopes: authInfo?.scopes,
-              ownerId: extra.ownerId,
-            });
-            await finish("success", result);
-            return {
-              content: [{ type: "text", text: JSON.stringify(result) }],
-              structuredContent: result,
-            };
-          } catch (error) {
-            // A dbError is already sanitised and carries a ref; anything else
-            // is an unexpected crash — track it in Sentry, report generically.
-            const known =
-              error instanceof Error && /Reference: [0-9a-f-]{36}$/.test(error.message);
-            const message =
-              error instanceof Error ? error.message : "The tool failed unexpectedly.";
-            if (!known) {
-              captureError(`mcp-server:${tool.name}`, error, {
-                agentName: extra.agentName ?? "unknown",
-              });
-            }
-            await finish("failed", { error: message });
-            return { content: [{ type: "text", text: message }], isError: true };
+          switch (outcome.status) {
+            case "denied":
+              // A token's scopes (or the policy gate) are the authorization
+              // decision, not decoration — same check the JSON-RPC endpoint makes.
+              return { content: [{ type: "text", text: outcome.reason }], isError: true };
+            case "queued":
+              return {
+                content: [{ type: "text", text: "Queued for admin approval." }],
+                structuredContent: { queued: true, approval_id: outcome.approvalId },
+              };
+            case "success":
+              return {
+                content: [{ type: "text", text: JSON.stringify(outcome.result) }],
+                structuredContent: outcome.result,
+              };
+            case "failed":
+              return { content: [{ type: "text", text: outcome.error }], isError: true };
           }
         },
       );

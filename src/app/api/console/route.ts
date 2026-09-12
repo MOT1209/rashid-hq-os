@@ -2,10 +2,9 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { resolveRole } from "@/lib/members";
-import { startActivity } from "@/lib/activity";
+import { runTool } from "@/lib/mcp/executor";
 import { TOOLS } from "@/lib/mcp/tools";
 import { languageModel, modelConfigured } from "@/lib/model";
-import type { Json } from "@/types/database";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -75,28 +74,25 @@ export async function POST(request: Request) {
         description: definition.description,
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
-          const finish = await startActivity({
-            projectId: typeof args.project_id === "string" ? args.project_id : null,
+          // The console runs as the owner, so it carries both scopes and
+          // anything it registers is owned by the signed-in user. Top of the
+          // chain: the console may delegate, its agents may not.
+          const outcome = await runTool(definition, args, {
             agentName,
-            toolName: definition.name,
-            payload: args as Json,
+            scopes: ["read", "write"],
+            ownerId: session.user.id,
+            delegationDepth: 0,
+            actorType: "person",
           });
-          try {
-            // The console runs as the owner, so it carries both scopes and
-            // anything it registers is owned by the signed-in user.
-            const result = await definition.execute(args as never, {
-              agentName,
-              scopes: ["read", "write"],
-              ownerId: session.user.id,
-              // Top of the chain: the console may delegate, its agents may not.
-              delegationDepth: 0,
-            });
-            await finish("success", result);
-            return result;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            await finish("failed", { error: message });
-            return { error: message };
+          switch (outcome.status) {
+            case "success":
+              return outcome.result;
+            case "queued":
+              return { queued: true, approval_id: outcome.approvalId };
+            case "denied":
+              return { error: outcome.reason };
+            case "failed":
+              return { error: outcome.error };
           }
         },
       }),

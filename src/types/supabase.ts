@@ -17,8 +17,11 @@ export type Database = {
     Tables: {
       agent_logs: {
         Row: {
+          actor_type: string | null;
           agent_name: string | null;
           created_at: string;
+          decision: string | null;
+          decision_reason: string | null;
           id: string;
           payload: Json | null;
           project_id: string | null;
@@ -27,8 +30,11 @@ export type Database = {
           tool_name: string | null;
         };
         Insert: {
+          actor_type?: string | null;
           agent_name?: string | null;
           created_at?: string;
+          decision?: string | null;
+          decision_reason?: string | null;
           id?: string;
           payload?: Json | null;
           project_id?: string | null;
@@ -37,8 +43,11 @@ export type Database = {
           tool_name?: string | null;
         };
         Update: {
+          actor_type?: string | null;
           agent_name?: string | null;
           created_at?: string;
+          decision?: string | null;
+          decision_reason?: string | null;
           id?: string;
           payload?: Json | null;
           project_id?: string | null;
@@ -52,6 +61,50 @@ export type Database = {
             columns: ["project_id"];
             isOneToOne: false;
             referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tool_approvals: {
+        Row: {
+          id: string;
+          log_id: string;
+          tool_name: string;
+          args: Json;
+          ctx: Json;
+          status: string;
+          decided_by: string | null;
+          decided_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          log_id: string;
+          tool_name: string;
+          args: Json;
+          ctx: Json;
+          status?: string;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          log_id?: string;
+          tool_name?: string;
+          args?: Json;
+          ctx?: Json;
+          status?: string;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tool_approvals_log_id_fkey";
+            columns: ["log_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_logs";
             referencedColumns: ["id"];
           },
         ];

@@ -9,7 +9,12 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
 
 function isStatus(value: string | null): value is LogStatus {
-  return value === "success" || value === "failed" || value === "pending";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "pending" ||
+    value === "awaiting_approval"
+  );
 }
 
 /**

@@ -23,7 +23,12 @@ export const dynamic = "force-dynamic";
 const HEALTH_CHECK_AGENT = "Scheduled Health Check";
 
 function isStatus(value: string | undefined): value is LogStatus {
-  return value === "success" || value === "failed" || value === "pending";
+  return (
+    value === "success" ||
+    value === "failed" ||
+    value === "pending" ||
+    value === "awaiting_approval"
+  );
 }
 
 // Departments are rows now, so their routes are only known at request time —

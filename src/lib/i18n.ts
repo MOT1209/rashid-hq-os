@@ -208,6 +208,14 @@ export const dictionaries = {
     integrationTest: "اختبار",
     integrationDisconnect: "فصل",
     integrationDocs: "الوثائق",
+    awaitingApproval: "بانتظار الموافقة",
+    pendingApprovals: "طلبات بانتظار الموافقة",
+    pendingApprovalsHint:
+      "بعض الإجراءات — مثل حذف مشروع — تتطلب موافقة مشرف قبل تنفيذها فعليًا.",
+    noPendingApprovals: "لا توجد طلبات بانتظار الموافقة.",
+    approve: "موافقة",
+    reject: "رفض",
+    approvalDecided: "تم اتخاذ القرار.",
   },
   en: {
     brand: "Alking Enterprises",
@@ -414,6 +422,14 @@ export const dictionaries = {
     integrationTest: "Test",
     integrationDisconnect: "Disconnect",
     integrationDocs: "Docs",
+    awaitingApproval: "Awaiting approval",
+    pendingApprovals: "Pending approvals",
+    pendingApprovalsHint:
+      "Some actions — like deleting a project — need an admin's sign-off before they actually run.",
+    noPendingApprovals: "No requests waiting for approval.",
+    approve: "Approve",
+    reject: "Reject",
+    approvalDecided: "Decision recorded.",
   },
 } as const;
 

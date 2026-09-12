@@ -6,6 +6,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/session";
 import { logActivity, startActivity } from "@/lib/activity";
 import { canRevokeToken, issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
+import { approveToolCall, rejectToolCall } from "@/lib/approvals";
 import { findTool } from "@/lib/mcp/tools";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
@@ -622,6 +623,52 @@ export async function revokeTokenAction(form: FormData) {
   revalidatePath("/dashboard/access");
 }
 
+/**
+ * The other half of the policy gate (src/lib/policy.ts): a call it marked
+ * require_approval sits in tool_approvals until an admin decides. Approving
+ * runs the tool's own execute() for real — the policy already made the
+ * authorization call by queuing it, so this does not re-check it. Mirrors
+ * revokeTokenAction above: a plain form action, failure logged rather than
+ * surfaced inline.
+ */
+export async function approveToolCallAction(form: FormData) {
+  const session = await requireAdmin();
+  const id = text(form, "id");
+  if (!id) return;
+
+  try {
+    await approveToolCall(id, session.user.id);
+  } catch (error) {
+    await logActivity({
+      agentName: OWNER_ACTOR,
+      toolName: "approve_tool_call",
+      payload: { approval_id: id },
+      status: "failed",
+      result: { error: safeMessage("Approving the call", error) },
+    });
+  }
+  revalidatePath("/dashboard/access");
+}
+
+export async function rejectToolCallAction(form: FormData) {
+  const session = await requireAdmin();
+  const id = text(form, "id");
+  if (!id) return;
+
+  try {
+    await rejectToolCall(id, session.user.id);
+  } catch (error) {
+    await logActivity({
+      agentName: OWNER_ACTOR,
+      toolName: "reject_tool_call",
+      payload: { approval_id: id },
+      status: "failed",
+      result: { error: safeMessage("Rejecting the call", error) },
+    });
+  }
+  revalidatePath("/dashboard/access");
+}
+
 /** Tools could only ever be added — a typo'd endpoint was permanent. */
 export async function updateProjectToolAction(form: FormData) {
   const session = await requireAdmin();
@@ -731,7 +778,7 @@ export async function testProjectToolAction(form: FormData) {
   const tool = findTool("call_project_tool");
   if (!tool) return { error: "Tool unavailable." };
 
-  const finish = await startActivity({
+  const { finish } = await startActivity({
     projectId,
     agentName: OWNER_ACTOR,
     toolName: "call_project_tool",

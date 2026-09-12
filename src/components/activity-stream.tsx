@@ -183,6 +183,7 @@ export function ActivityStream({
     success: t.success,
     failed: t.failed,
     pending: t.pending,
+    awaiting_approval: t.awaitingApproval,
   };
 
   // The dashboard panel is a fixed-height preview; the full page is unbounded.

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyAgentToken } from "@/lib/agent-tokens";
-import { startActivity } from "@/lib/activity";
-import { captureError } from "@/lib/errors";
-import { findTool, scopeDenialReason, TOOLS } from "@/lib/mcp/tools";
-import type { Json } from "@/types/database";
+import { runTool } from "@/lib/mcp/executor";
+import { findTool, TOOLS } from "@/lib/mcp/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,52 +97,40 @@ export async function POST(request: Request) {
     const tool = findTool(toolName);
     if (!tool) return rpcError(id, -32602, `Unknown tool: ${toolName}`);
 
-    // A token's scopes are the authorization decision, not decoration.
-    const denied = scopeDenialReason(tool, agent.scopes);
-    if (denied) return rpcError(id, -32003, denied);
-
     const parsed = tool.schema.safeParse(rawArgs);
     if (!parsed.success) {
       return rpcError(id, -32602, `Invalid arguments: ${parsed.error.message}`);
     }
 
-    // Read project_id from the validated args — the raw value is an arbitrary
-    // string that would silently fail the uuid column on insert.
-    const args = parsed.data as Record<string, unknown>;
-    const finish = await startActivity({
-      projectId:
-        agent.project_id ??
-        (typeof args.project_id === "string" ? args.project_id : null),
+    const outcome = await runTool(tool, parsed.data, {
       agentName: agent.agent_name,
-      toolName,
-      payload: parsed.data as Json,
+      projectId: agent.project_id,
+      scopes: agent.scopes,
+      // Anything this token creates belongs to the owner who issued it.
+      ownerId: agent.created_by,
+      actorType: "agent_token",
     });
 
-    try {
-      const result = await tool.execute(parsed.data as never, {
-        agentName: agent.agent_name,
-        projectId: agent.project_id,
-        scopes: agent.scopes,
-        // Anything this token creates belongs to the owner who issued it.
-        ownerId: agent.created_by,
-      });
-      await finish("success", result);
-      return rpcResult(id, {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        structuredContent: result,
-      });
-    } catch (error) {
-      // A dbError is already sanitised and carries its own ref; anything else
-      // is an unexpected crash (a bug in the tool) — track it in Sentry, not
-      // just the server log, and still report generically.
-      const known = error instanceof Error && /Reference: [0-9a-f-]{36}$/.test(error.message);
-      const message = error instanceof Error ? error.message : "The tool failed unexpectedly.";
-      if (!known) captureError(`mcp:${toolName}`, error, { agentName: agent.agent_name });
-      await finish("failed", { error: message });
-      return rpcResult(id, {
-        content: [{ type: "text", text: message }],
-        isError: true,
-      });
+    switch (outcome.status) {
+      case "denied":
+        // A token's scopes (or the policy gate) are the authorization
+        // decision, not decoration.
+        return rpcError(id, -32003, outcome.reason);
+      case "queued":
+        return rpcResult(id, {
+          content: [{ type: "text", text: "Queued for admin approval." }],
+          structuredContent: { queued: true, approval_id: outcome.approvalId },
+        });
+      case "success":
+        return rpcResult(id, {
+          content: [{ type: "text", text: JSON.stringify(outcome.result) }],
+          structuredContent: outcome.result,
+        });
+      case "failed":
+        return rpcResult(id, {
+          content: [{ type: "text", text: outcome.error }],
+          isError: true,
+        });
     }
   }
 

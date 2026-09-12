@@ -168,7 +168,9 @@ export async function fetchStats() {
     supabase
       .from("agent_logs")
       .select("id", { count: "planned", head: true })
-      .eq("status", "pending"),
+      // Both are "in flight": a plain call mid-execution, and a call the
+      // policy gate (src/lib/policy.ts) parked for admin approval.
+      .in("status", ["pending", "awaiting_approval"]),
   ]);
 
   const calls = today.count ?? 0;
@@ -205,7 +207,7 @@ export async function fetchDepartmentStats(agentName: string) {
       .from("agent_logs")
       .select("id", { count: "planned", head: true })
       .eq("agent_name", agentName)
-      .eq("status", "pending"),
+      .in("status", ["pending", "awaiting_approval"]),
   ]);
 
   const calls = today.count ?? 0;

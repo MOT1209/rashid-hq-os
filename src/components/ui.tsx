@@ -4,6 +4,7 @@ const LOG_LED: Record<LogStatus, string> = {
   success: "bg-ok shadow-[0_0_8px_var(--ok)]",
   failed: "bg-err shadow-[0_0_8px_var(--err)]",
   pending: "bg-warn shadow-[0_0_8px_var(--warn)] led-pending",
+  awaiting_approval: "bg-accent shadow-[0_0_8px_var(--accent)] led-pending",
 };
 
 /**

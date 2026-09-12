@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
 import { dbError } from "@/lib/errors";
-import type { Json } from "@/types/database";
+import type { ActorType, Json } from "@/types/database";
 
 export type Scope = "read" | "write";
 
@@ -33,13 +33,21 @@ export type ToolContext = {
    * than failing loudly.
    */
   delegationDepth?: number;
+  /**
+   * Who is actually driving this call — distinct from agentName, which is a
+   * display label. Read by the policy gate (src/lib/policy.ts) so a rule can
+   * single out the unattended standing-task cron. Optional so a caller that
+   * predates this (or a test) still type-checks; evaluatePolicy treats a
+   * missing actorType the same as any actor other than the ones it matches on.
+   */
+  actorType?: ActorType;
 };
 
 export type ToolDefinition = {
   name: string;
   description: string;
   schema: z.ZodTypeAny;
-  /** Least privilege a caller needs. Enforced in src/app/api/mcp/route.ts. */
+  /** Least privilege a caller needs. Enforced in src/lib/mcp/executor.ts. */
   requiredScope: Scope;
   execute: (args: never, ctx: ToolContext) => Promise<Json>;
 };
