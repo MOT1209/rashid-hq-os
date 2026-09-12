@@ -113,6 +113,29 @@ curl -X POST http://localhost:7070/api/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}'
 ```
 
+### Policy gate and approval queue
+
+All four ways into the tool registry — the console, a delegated department
+agent, and both MCP transports — run through one `runTool()`
+(`src/lib/mcp/executor.ts`), which checks a token's scope and then a
+declarative policy (`src/lib/policy.ts`) before `execute()` is ever called.
+Every decision is written to `agent_logs` (`decision`, `decision_reason`,
+`actor_type`) — including a denial, which used to leave no trace at all on
+either MCP transport.
+
+A rule can mark a tool `require_approval` instead of allowing or denying it
+outright; `delete_project` always does, since it cascades to a project's
+tools, tokens and logs. A call like that never runs — it's queued
+(`tool_approvals`, migrations `0014`/`0015`) and shown on
+`/dashboard/access` under **Pending approvals**, where an admin approves
+(runs the call for real) or rejects it. A rule nobody wrote yet doesn't
+inherit full access either: an unrecognised write tool queues by default,
+an unrecognised read tool is allowed (it has nothing to leak).
+
+The unattended daily standing-task cron gets an extra rule of its own: no
+write beyond calling a project's own registered tool, on top of the
+existing `AUTONOMOUS_TOOLS` allowlist in `department-agent.ts`.
+
 ## Layout
 
 | Path | Purpose |
