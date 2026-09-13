@@ -58,6 +58,13 @@ delegate too — and spend model credit doing so, the same way `call_project_too
 can spend on a remote service. The caps above are the guard; scoping it to the
 console only is a one-line change in `src/lib/mcp/tools.ts`.
 
+**Every model run has a cost row.** `agent_runs` (migration `0016`) gets one
+entry per console turn, delegated run, or standing-task run — `kind`,
+`tokens_in`/`tokens_out`, `duration_ms`, `step_count`, `status` — written by
+`recordAgentRun()` (`src/lib/agent-run.ts`) regardless of whether the run
+succeeded or failed. `agent_logs` says what a tool did; this says what a
+model run cost.
+
 ## Universal MCP endpoint
 
 Two transports onto the same server — same tool registry
