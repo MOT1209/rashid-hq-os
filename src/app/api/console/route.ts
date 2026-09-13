@@ -2,6 +2,7 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { resolveRole } from "@/lib/members";
+import { recordAgentRun } from "@/lib/agent-run";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS } from "@/lib/mcp/tools";
 import { languageModel, modelConfigured } from "@/lib/model";
@@ -99,12 +100,39 @@ export async function POST(request: Request) {
     ]),
   );
 
+  const startedAt = Date.now();
+  let stepCount = 0;
+
   const result = streamText({
     model: languageModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(8),
+    onStepFinish: () => {
+      stepCount += 1;
+    },
+    onFinish: async ({ usage }) => {
+      await recordAgentRun({
+        agentName,
+        kind: "console",
+        tokensIn: usage.inputTokens ?? null,
+        tokensOut: usage.outputTokens ?? null,
+        durationMs: Date.now() - startedAt,
+        stepCount,
+        status: "success",
+      });
+    },
+    onError: async ({ error }) => {
+      console.error("[console] streamText failed:", error);
+      await recordAgentRun({
+        agentName,
+        kind: "console",
+        durationMs: Date.now() - startedAt,
+        stepCount,
+        status: "failed",
+      });
+    },
   });
 
   return result.toUIMessageStreamResponse();

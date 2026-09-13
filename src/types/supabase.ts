@@ -65,6 +65,42 @@ export type Database = {
           },
         ];
       };
+      agent_runs: {
+        Row: {
+          id: string;
+          agent_name: string;
+          kind: string;
+          tokens_in: number | null;
+          tokens_out: number | null;
+          duration_ms: number;
+          step_count: number;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          agent_name: string;
+          kind: string;
+          tokens_in?: number | null;
+          tokens_out?: number | null;
+          duration_ms: number;
+          step_count: number;
+          status: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          agent_name?: string;
+          kind?: string;
+          tokens_in?: number | null;
+          tokens_out?: number | null;
+          duration_ms?: number;
+          step_count?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       tool_approvals: {
         Row: {
           id: string;

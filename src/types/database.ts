@@ -33,3 +33,11 @@ export type AgentLog = Omit<Row<"agent_logs">, "status"> & { status: LogStatus }
 export type ProjectTool = Row<"project_tools">;
 export type ToolApprovalStatus = "pending" | "approved" | "rejected";
 export type ToolApprovalRow = Row<"tool_approvals">;
+
+/** The three places a generateText/streamText call happens (src/lib/agent-run.ts). */
+export type RunKind = "console" | "delegation" | "standing_task";
+export type RunStatus = "success" | "failed";
+export type AgentRun = Omit<Row<"agent_runs">, "kind" | "status"> & {
+  kind: RunKind;
+  status: RunStatus;
+};

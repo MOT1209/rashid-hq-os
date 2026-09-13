@@ -2,6 +2,7 @@ import "server-only";
 
 import { generateText, stepCountIs, tool, type ToolSet } from "ai";
 import type { z } from "zod";
+import { recordAgentRun } from "@/lib/agent-run";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS, type ToolContext } from "@/lib/mcp/tools";
 import { languageModel } from "@/lib/model";
@@ -118,17 +119,41 @@ export async function runDepartmentAgent(input: {
     ]),
   );
 
-  const result = await generateText({
-    model: languageModel(department.model),
-    system: [
-      department.system_prompt,
-      "You were delegated this task by the CEO console. Do the work with the tools available to you, then report back in one short paragraph. Reply in the same language the task was written in.",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    prompt: task,
-    tools,
-    stopWhen: stepCountIs(MAX_STEPS),
+  const kind = mode === "autonomous" ? "standing_task" : "delegation";
+  const startedAt = Date.now();
+  let result;
+  try {
+    result = await generateText({
+      model: languageModel(department.model),
+      system: [
+        department.system_prompt,
+        "You were delegated this task by the CEO console. Do the work with the tools available to you, then report back in one short paragraph. Reply in the same language the task was written in.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      prompt: task,
+      tools,
+      stopWhen: stepCountIs(MAX_STEPS),
+    });
+  } catch (error) {
+    await recordAgentRun({
+      agentName,
+      kind,
+      durationMs: Date.now() - startedAt,
+      stepCount: 0,
+      status: "failed",
+    });
+    throw error;
+  }
+
+  await recordAgentRun({
+    agentName,
+    kind,
+    tokensIn: result.usage.inputTokens ?? null,
+    tokensOut: result.usage.outputTokens ?? null,
+    durationMs: Date.now() - startedAt,
+    stepCount: result.steps.length,
+    status: "success",
   });
 
   return {

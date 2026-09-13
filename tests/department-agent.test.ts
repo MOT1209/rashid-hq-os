@@ -9,9 +9,11 @@ import type { Department } from "@/lib/agents";
  * prompt injection could turn destructive.
  */
 
-const generateText = vi.fn(
-  async (_opts: { tools: Record<string, unknown> }) => ({ text: "reported back", steps: [1, 2] }),
-);
+const generateText = vi.fn(async (_opts: { tools: Record<string, unknown> }) => ({
+  text: "reported back",
+  steps: [1, 2],
+  usage: { inputTokens: 120, outputTokens: 40 },
+}));
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
   return {
@@ -21,7 +23,12 @@ vi.mock("ai", async (importOriginal) => {
 });
 vi.mock("@/lib/model", () => ({ languageModel: () => "mock-model" }));
 vi.mock("@/lib/activity", () => ({
-  startActivity: async () => async () => {},
+  startActivity: async () => ({ id: "log-1", finish: async () => {} }),
+}));
+
+const recordAgentRun = vi.fn(async (_input: Record<string, unknown>) => {});
+vi.mock("@/lib/agent-run", () => ({
+  recordAgentRun: (input: Record<string, unknown>) => recordAgentRun(input),
 }));
 
 const { runDepartmentAgent } = await import("@/lib/department-agent");
@@ -62,6 +69,7 @@ const REGISTRY_MUTATION = [
 
 beforeEach(() => {
   generateText.mockClear();
+  recordAgentRun.mockClear();
 });
 
 describe("runDepartmentAgent tool exposure", () => {
@@ -111,5 +119,47 @@ describe("runDepartmentAgent tool exposure", () => {
   it("returns the model's text as the summary and the step count", async () => {
     const run = await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
     expect(run).toEqual({ agent: "Dev Agent", summary: "reported back", steps: 2 });
+  });
+});
+
+describe("runDepartmentAgent cost tracking (agent_runs)", () => {
+  it("records a 'delegation' run for an interactive call, with tokens and steps from the model result", async () => {
+    await runDepartmentAgent({ department: dept(), task: "do it", ownerId: "o1" });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "Dev Agent",
+        kind: "delegation",
+        tokensIn: 120,
+        tokensOut: 40,
+        stepCount: 2,
+        status: "success",
+      }),
+    );
+  });
+
+  it("records a 'standing_task' run for an autonomous call", async () => {
+    await runDepartmentAgent({
+      department: dept(),
+      task: "check the projects",
+      ownerId: "o1",
+      mode: "autonomous",
+    });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "standing_task", status: "success" }),
+    );
+  });
+
+  it("records a failed run and rethrows when the model call itself throws", async () => {
+    generateText.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(
+      runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" }),
+    ).rejects.toThrow("provider unavailable");
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "delegation", status: "failed", stepCount: 0 }),
+    );
   });
 });
