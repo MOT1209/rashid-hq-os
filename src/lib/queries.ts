@@ -3,6 +3,8 @@ import "server-only";
 import { cache } from "react";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { dbError } from "@/lib/errors";
+import { summariseRuns, type RunInsights, type RunRow } from "@/lib/insights";
+import { STANDING_TASK_TOOL } from "@/lib/standing-tasks";
 import type { AgentSkill, Department, ProjectCategory } from "@/lib/agents";
 import type { AgentLog, LogStatus, Project, ProjectTool } from "@/types/database";
 
@@ -216,4 +218,49 @@ export async function fetchDepartmentStats(agentName: string) {
     pending: pending.count ?? 0,
     failureRate: calls ? Math.round(((failed.count ?? 0) / calls) * 100) : 0,
   };
+}
+
+/** The window /dashboard/insights reports on. */
+export const INSIGHTS_WINDOW_DAYS = 30;
+
+/** A ceiling so a busy month cannot pull an unbounded result set into memory. */
+const INSIGHTS_MAX_ROWS = 5000;
+
+/**
+ * What every model run in the window cost (migration 0016). The first thing in
+ * this console to read agent_runs rather than only write it.
+ */
+export async function fetchRunInsights(
+  days = INSIGHTS_WINDOW_DAYS,
+): Promise<RunInsights> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await getServiceSupabase()
+    .from("agent_runs")
+    .select("agent_name, kind, tokens_in, tokens_out, duration_ms, status, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(INSIGHTS_MAX_ROWS);
+
+  if (error) throw dbError("Loading insights", error);
+  return summariseRuns((data ?? []) as RunRow[], days);
+}
+
+/**
+ * The latest standing-task run for one department's agent. Its summary used to
+ * be readable only as raw JSON inside the activity stream.
+ */
+export async function fetchLatestStandingTask(
+  agentName: string,
+): Promise<AgentLog | null> {
+  const { data, error } = await getServiceSupabase()
+    .from("agent_logs")
+    .select("*")
+    .eq("agent_name", agentName)
+    .eq("tool_name", STANDING_TASK_TOOL)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw dbError("Loading the standing task", error);
+  return (data as AgentLog | null) ?? null;
 }

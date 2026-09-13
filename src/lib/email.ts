@@ -116,6 +116,58 @@ export async function sendHealthAlert(
 }
 
 /**
+ * Daily digest for the standing-task cron. Those runs happen at 07:00 UTC with
+ * nobody watching, and until now the only trace was a JSON blob in the
+ * activity stream — so a department agent could report a real problem and no
+ * one would read it for days.
+ *
+ * One mail for the whole batch, not one per department: a console with five
+ * departments should not produce five emails every morning.
+ */
+export async function sendStandingTaskDigest(
+  to: string[],
+  runs: { department: string; ok: boolean; summary: string }[],
+) {
+  if (to.length === 0 || runs.length === 0) return false;
+
+  const failures = runs.filter((run) => !run.ok).length;
+  const subject = failures
+    ? `المهام الدائمة: ${failures} فشل · Standing tasks: ${failures} failed`
+    : `المهام الدائمة: ${runs.length} تشغيلة · Standing tasks: ${runs.length} run`;
+
+  const text = runs
+    .map((run) => `${run.ok ? "✓" : "✗"} ${run.department}\n${run.summary}`)
+    .join("\n\n");
+
+  const items = runs
+    .map(
+      (run) => `
+      <li style="margin-bottom:1rem;list-style:none">
+        <p style="margin:0 0 .25rem;font-weight:600">
+          <span style="color:${run.ok ? "#17924a" : "#d13b3b"}">${run.ok ? "✓" : "✗"}</span>
+          ${run.department}
+        </p>
+        <p style="margin:0;line-height:1.7;color:#5b6675;white-space:pre-wrap">${run.summary}</p>
+      </li>`,
+    )
+    .join("");
+
+  const html = `
+    <div style="font-family:system-ui,'Segoe UI',Tahoma,sans-serif;max-width:32rem;margin:0 auto;padding:1.5rem;color:#10151c">
+      <p style="color:#a8871d;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 1rem">
+        Alking Enterprises
+      </p>
+      <h1 style="font-size:1.15rem;margin:0 0 1rem">
+        المهام الدائمة · Standing tasks
+      </h1>
+      <ul style="margin:0;padding:0">${items}</ul>
+    </div>
+  `;
+
+  return sendEmail({ to, subject, html, text });
+}
+
+/**
  * Password reset. Bilingual because the console is, and the recipient's locale
  * is not known at send time.
  */

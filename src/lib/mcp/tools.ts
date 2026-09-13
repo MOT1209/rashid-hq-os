@@ -49,8 +49,40 @@ export type ToolDefinition = {
   schema: z.ZodTypeAny;
   /** Least privilege a caller needs. Enforced in src/lib/mcp/executor.ts. */
   requiredScope: Scope;
+  /**
+   * `never` because the registry is heterogeneous — every tool has its own
+   * argument type, and a list of them can only agree on the bottom type.
+   * Tools are written through defineTool() below, which keeps the real,
+   * schema-inferred type inside each definition; this erasure exists only at
+   * the registry boundary, where callers pass already-validated args.
+   */
   execute: (args: never, ctx: ToolContext) => Promise<Json>;
 };
+
+/**
+ * Declares a tool with its arguments inferred from its own Zod schema.
+ *
+ * Writing the definitions as bare object literals meant `execute` took
+ * whatever type the author typed by hand next to the schema, and nothing
+ * checked the two against each other — at exactly the boundary where the
+ * Groq `null`-for-optional bug lived (every `.optional()` had to become
+ * `.nullish()`, and no test caught it because mocks never run the provider's
+ * validation). Inferring instead means a schema change that outgrows its
+ * handler is a compile error.
+ *
+ * `z.output` and not `z.input`: callers hand `execute` the *parsed* value, so
+ * a schema with a `.transform()` (several here default a nullish field) is
+ * seen as what the transform returns.
+ */
+export function defineTool<S extends z.ZodTypeAny>(definition: {
+  name: string;
+  description: string;
+  schema: S;
+  requiredScope: Scope;
+  execute: (args: z.output<S>, ctx: ToolContext) => Promise<Json>;
+}): ToolDefinition {
+  return definition as unknown as ToolDefinition;
+}
 
 function scopeError(): never {
   throw new Error("This token is scoped to a different project.");
@@ -120,7 +152,7 @@ function outboundAuthHeaders(body: string): Record<string, string> {
   };
 }
 
-const listProjects = {
+const listProjects = defineTool({
   name: "list_projects",
   description:
     "List every project in the Alking Enterprises registry, optionally filtered by category or status.",
@@ -129,7 +161,7 @@ const listProjects = {
     category: z.string().nullish(),
     status: z.enum(["active", "idle", "maintenance"]).nullish(),
   }),
-  async execute(args: { category?: string; status?: string }, ctx: ToolContext) {
+  async execute(args, ctx) {
     let query = getServiceSupabase()
       .from("projects")
       .select("id, name, category, url, repository_url, mcp_endpoint, status, created_at")
@@ -143,14 +175,14 @@ const listProjects = {
     if (error) throw dbError("list_projects", error);
     return { projects: data ?? [] } as Json;
   },
-};
+});
 
-const getProject = {
+const getProject = defineTool({
   name: "get_project",
   description: "Fetch one project with the custom MCP tools registered against it.",
   requiredScope: "read" as const,
   schema: z.object({ project_id: z.string().uuid() }),
-  async execute(args: { project_id: string }, ctx: ToolContext) {
+  async execute(args, ctx) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
     const supabase = getServiceSupabase();
 
@@ -166,9 +198,9 @@ const getProject = {
     if (!project) throw new Error("Project not found.");
     return { project, tools: tools ?? [] } as Json;
   },
-};
+});
 
-const registerProject = {
+const registerProject = defineTool({
   name: "register_project",
   description:
     "Register a new project in the enterprise registry so it appears on the CEO dashboard.",
@@ -181,7 +213,7 @@ const registerProject = {
     mcp_endpoint: z.string().url().nullish(),
     status: z.enum(["active", "idle", "maintenance"]).nullish().transform((v) => v ?? "active"),
   }),
-  async execute(args: Record<string, string>, ctx: ToolContext) {
+  async execute(args, ctx) {
     // A project-scoped token must not be able to mint new, unscoped projects
     // (which would also be new outbound endpoints for call_project_tool).
     if (ctx.projectId) scopeError();
@@ -205,9 +237,9 @@ const registerProject = {
     if (error) throw dbError("register_project", error);
     return { project: data } as Json;
   },
-};
+});
 
-const updateProject = {
+const updateProject = defineTool({
   name: "update_project",
   description: "Update an existing project's name, category, links, endpoint or status.",
   requiredScope: "write" as const,
@@ -220,18 +252,7 @@ const updateProject = {
     mcp_endpoint: z.string().url().nullish(),
     status: z.enum(["active", "idle", "maintenance"]).nullish().transform((v) => v ?? "active"),
   }),
-  async execute(
-    args: {
-      project_id: string;
-      name: string;
-      category?: string;
-      url?: string;
-      repository_url?: string;
-      mcp_endpoint?: string;
-      status?: "active" | "idle" | "maintenance";
-    },
-    ctx: ToolContext,
-  ) {
+  async execute(args, ctx) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
     const supabase = getServiceSupabase();
     if (!(await ownsProject(supabase, args.project_id, ctx.ownerId))) {
@@ -258,15 +279,15 @@ const updateProject = {
     if (error) throw dbError("update_project", error);
     return { project: data } as Json;
   },
-};
+});
 
-const deleteProject = {
+const deleteProject = defineTool({
   name: "delete_project",
   description:
     "Delete a project. Cascades to its registered tools, live agent tokens and activity logs.",
   requiredScope: "write" as const,
   schema: z.object({ project_id: z.string().uuid() }),
-  async execute(args: { project_id: string }, ctx: ToolContext) {
+  async execute(args, ctx) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
     const supabase = getServiceSupabase();
 
@@ -282,9 +303,9 @@ const deleteProject = {
     if (!count) throw new Error("Project not found.");
     return { deleted_project_id: args.project_id } as Json;
   },
-};
+});
 
-const addProjectTool = {
+const addProjectTool = defineTool({
   name: "add_project_tool",
   description: "Register a new custom MCP tool endpoint on a project.",
   requiredScope: "write" as const,
@@ -294,15 +315,7 @@ const addProjectTool = {
     description: z.string().max(500).nullish(),
     endpoint: z.string().url().nullish(),
   }),
-  async execute(
-    args: {
-      project_id: string;
-      tool_name: string;
-      description?: string;
-      endpoint?: string;
-    },
-    ctx: ToolContext,
-  ) {
+  async execute(args, ctx) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
     const supabase = getServiceSupabase();
     if (!(await ownsProject(supabase, args.project_id, ctx.ownerId))) {
@@ -326,9 +339,9 @@ const addProjectTool = {
     if (error) throw dbError("add_project_tool", error);
     return { tool: data } as Json;
   },
-};
+});
 
-const updateProjectTool = {
+const updateProjectTool = defineTool({
   name: "update_project_tool",
   description: "Update a project's registered tool (name, description or endpoint).",
   requiredScope: "write" as const,
@@ -338,10 +351,7 @@ const updateProjectTool = {
     description: z.string().max(500).nullish(),
     endpoint: z.string().url().nullish(),
   }),
-  async execute(
-    args: { tool_id: string; tool_name: string; description?: string; endpoint?: string },
-    ctx: ToolContext,
-  ) {
+  async execute(args, ctx) {
     const supabase = getServiceSupabase();
     const { data: existing } = await supabase
       .from("project_tools")
@@ -369,14 +379,14 @@ const updateProjectTool = {
     if (error) throw dbError("update_project_tool", error);
     return { tool: data } as Json;
   },
-};
+});
 
-const deleteProjectTool = {
+const deleteProjectTool = defineTool({
   name: "delete_project_tool",
   description: "Delete a project's registered tool.",
   requiredScope: "write" as const,
   schema: z.object({ tool_id: z.string().uuid() }),
-  async execute(args: { tool_id: string }, ctx: ToolContext) {
+  async execute(args, ctx) {
     const supabase = getServiceSupabase();
     const { data: existing } = await supabase
       .from("project_tools")
@@ -393,9 +403,9 @@ const deleteProjectTool = {
     if (error) throw dbError("delete_project_tool", error);
     return { deleted_tool_id: args.tool_id, tool_name: existing.tool_name } as Json;
   },
-};
+});
 
-const listCategories = {
+const listCategories = defineTool({
   name: "list_categories",
   description: "List the project categories configured for this console.",
   requiredScope: "read" as const,
@@ -408,9 +418,9 @@ const listCategories = {
     if (error) throw dbError("list_categories", error);
     return { categories: data ?? [] } as Json;
   },
-};
+});
 
-const listDepartments = {
+const listDepartments = defineTool({
   name: "list_departments",
   description:
     "List the departments and their agents. Use this to find the department_key to delegate to.",
@@ -426,9 +436,9 @@ const listDepartments = {
     if (error) throw dbError("list_departments", error);
     return { departments: data ?? [] } as Json;
   },
-};
+});
 
-const listSkills = {
+const listSkills = defineTool({
   name: "list_skills",
   description: "List saved command templates (skills) configured for this console.",
   requiredScope: "read" as const,
@@ -441,14 +451,14 @@ const listSkills = {
     if (error) throw dbError("list_skills", error);
     return { skills: data ?? [] } as Json;
   },
-};
+});
 
-const getSkill = {
+const getSkill = defineTool({
   name: "get_skill",
   description: "Fetch one saved command template (skill) by id.",
   requiredScope: "read" as const,
   schema: z.object({ skill_id: z.string().uuid() }),
-  async execute(args: { skill_id: string }) {
+  async execute(args) {
     const { data, error } = await getServiceSupabase()
       .from("agent_skills")
       .select("id, name, description, prompt, created_at")
@@ -458,15 +468,15 @@ const getSkill = {
     if (!data) throw new Error("Skill not found.");
     return { skill: data } as Json;
   },
-};
+});
 
-const listIntegrations = {
+const listIntegrations = defineTool({
   name: "list_integrations",
   description:
     "List the owner's third-party integrations (Google, GitHub, OpenAI, …) and whether each is connected. Never returns credentials.",
   requiredScope: "read" as const,
   schema: z.object({}),
-  async execute(_args: Record<string, never>, ctx: ToolContext) {
+  async execute(_args, ctx) {
     if (!ctx.ownerId) return { integrations: [] } as Json;
     const { integrationsForOwner } = await import("@/lib/integrations/service");
     const rows = await integrationsForOwner(ctx.ownerId);
@@ -481,9 +491,9 @@ const listIntegrations = {
       })),
     } as Json;
   },
-};
+});
 
-const listRecentLogs = {
+const listRecentLogs = defineTool({
   name: "list_recent_logs",
   description: "Read the most recent agent activity, newest first.",
   requiredScope: "read" as const,
@@ -492,10 +502,7 @@ const listRecentLogs = {
     agent_name: z.string().nullish(),
     limit: z.number().int().min(1).max(100).nullish().transform((v) => v ?? 20),
   }),
-  async execute(
-    args: { project_id?: string; agent_name?: string; limit?: number },
-    ctx: ToolContext,
-  ) {
+  async execute(args, ctx) {
     let query = getServiceSupabase()
       .from("agent_logs")
       .select("id, project_id, agent_name, tool_name, status, created_at, result")
@@ -510,9 +517,9 @@ const listRecentLogs = {
     if (error) throw dbError("list_recent_logs", error);
     return { logs: data ?? [] } as Json;
   },
-};
+});
 
-const callProjectTool = {
+const callProjectTool = defineTool({
   name: "call_project_tool",
   description:
     "Invoke a custom tool registered on a project, proxied to that project's own MCP endpoint.",
@@ -522,10 +529,7 @@ const callProjectTool = {
     tool_name: z.string().max(200),
     input: z.record(z.string(), z.unknown()).nullish().transform((v) => v ?? {}),
   }),
-  async execute(
-    args: { project_id: string; tool_name: string; input?: Record<string, unknown> },
-    ctx: ToolContext,
-  ) {
+  async execute(args, ctx) {
     if (ctx.projectId && ctx.projectId !== args.project_id) scopeError();
     const supabase = getServiceSupabase();
 
@@ -619,12 +623,12 @@ const callProjectTool = {
     }
     return { endpoint: safeUrl.toString(), status: response.status, response: body } as Json;
   },
-};
+});
 
 /** Long enough for a real brief, short enough not to become the whole prompt. */
 const MAX_TASK_LENGTH = 2_000;
 
-const delegateToDepartment = {
+const delegateToDepartment = defineTool({
   name: "delegate_to_department",
   description:
     "Hand a task to a department's agent. It runs with the same tools under that department's own instructions and reports back. Use it for work that belongs to one department rather than doing it yourself.",
@@ -638,7 +642,7 @@ const delegateToDepartment = {
       .max(MAX_TASK_LENGTH)
       .describe("What the department agent should do, stated plainly and completely."),
   }),
-  async execute(args: { department_key: string; task: string }, ctx: ToolContext) {
+  async execute(args, ctx) {
     // A delegated agent must not delegate again: there is no natural stopping
     // point, so the loop would burn model credit instead of failing loudly.
     if ((ctx.delegationDepth ?? 0) >= 1) {
@@ -670,7 +674,7 @@ const delegateToDepartment = {
     });
     return run as unknown as Json;
   },
-};
+});
 
 export const TOOLS: ToolDefinition[] = [
   listProjects,
@@ -689,7 +693,7 @@ export const TOOLS: ToolDefinition[] = [
   listRecentLogs,
   callProjectTool,
   delegateToDepartment,
-] as unknown as ToolDefinition[];
+];
 
 export function findTool(name: string) {
   return TOOLS.find((t) => t.name === name);

@@ -11,11 +11,14 @@ import {
   fetchCategories,
   fetchDepartments,
   fetchDepartmentStats,
+  fetchLatestStandingTask,
   fetchLogs,
   fetchProjects,
   projectNameMap,
 } from "@/lib/queries";
 import { agentLabel, departmentForCategory, departmentName, getDepartment } from "@/lib/agents";
+import { isScheduled } from "@/lib/standing-tasks";
+import { standingTaskSummary } from "@/lib/standing-task-summary";
 import type { AgentLog, LogStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -88,12 +91,15 @@ export default async function DepartmentPage({
 
   const isAdmin = session.role === "admin";
 
-  const [allProjects, logs, healthLogs, stats] = await Promise.all([
+  const [allProjects, logs, healthLogs, stats, lastStandingTask] = await Promise.all([
     fetchProjects(),
     fetchLogs({ limit: 50, agentNames: [department.agent_name], status, projectId }),
     fetchLogs({ agentNames: [HEALTH_CHECK_AGENT], limit: 200 }),
     fetchDepartmentStats(department.agent_name),
+    fetchLatestStandingTask(department.agent_name),
   ]);
+
+  const standingTask = standingTaskSummary(lastStandingTask);
 
   const projects = allProjects.filter(
     (p) => departmentForCategory(departments, categories, p.category)?.key === department.key,
@@ -135,6 +141,36 @@ export default async function DepartmentPage({
         <StatCard label={t.failureRate} value={`${stats.failureRate}%`} />
         <StatCard label={t.pendingCalls} value={stats.pending} />
       </div>
+
+      {(isScheduled(department) || standingTask) && (
+        <Panel title={t.standingTaskLatest}>
+          {!isScheduled(department) && (
+            <p className="mb-2 text-xs text-warn">{t.standingTaskDisabled}</p>
+          )}
+          {!standingTask ? (
+            <EmptyState>{t.standingTaskNever}</EmptyState>
+          ) : (
+            <div className="space-y-2">
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <time dateTime={standingTask.ranAt} suppressHydrationWarning>
+                  {new Date(standingTask.ranAt).toLocaleString(locale)}
+                </time>
+                {standingTask.steps !== null && (
+                  <span>
+                    {standingTask.steps} {t.steps}
+                  </span>
+                )}
+                <span className={standingTask.status === "failed" ? "text-err" : "text-ok"}>
+                  {standingTask.status === "failed" ? t.failed : t.success}
+                </span>
+              </p>
+              <p className="whitespace-pre-wrap text-sm leading-7">
+                {standingTask.error ?? standingTask.summary ?? "—"}
+              </p>
+            </div>
+          )}
+        </Panel>
+      )}
 
       {isAdmin && (
         <Panel title={t.newProject}>

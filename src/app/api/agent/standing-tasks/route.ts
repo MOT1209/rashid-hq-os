@@ -1,8 +1,10 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { authorizeCron } from "@/lib/cron-auth";
+import { ownerEmails } from "@/lib/owners";
 import { resolveOwnerId } from "@/lib/owner";
 import { logActivity } from "@/lib/activity";
 import { runDepartmentAgent } from "@/lib/department-agent";
+import { sendStandingTaskDigest } from "@/lib/email";
 import { fetchDepartments } from "@/lib/queries";
 import { ranOnDay, scheduledDepartments, STANDING_TASK_TOOL } from "@/lib/standing-tasks";
 
@@ -45,6 +47,8 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const results: Array<Record<string, unknown>> = [];
+  /** What the digest mail reports — skipped departments are not in it. */
+  const digest: { department: string; ok: boolean; summary: string }[] = [];
 
   for (const department of departments) {
     if (ranOnDay(recent ?? [], department.agent_name, now)) {
@@ -66,6 +70,7 @@ export async function GET(request: Request) {
         status: "success",
       });
       results.push({ department: department.key, ok: true, steps: run.steps });
+      digest.push({ department: department.agent_name, ok: true, summary: run.summary });
     } catch (error) {
       const message = error instanceof Error ? error.message : "The standing task failed.";
       await logActivity({
@@ -76,7 +81,17 @@ export async function GET(request: Request) {
         status: "failed",
       });
       results.push({ department: department.key, ok: false, error: message });
+      digest.push({ department: department.agent_name, ok: false, summary: message });
     }
+  }
+
+  // One mail for the whole batch. Like every other alert here it needs
+  // RESEND_API_KEY; without it sendStandingTaskDigest logs and returns false,
+  // and a mail failure must not fail the cron that already did its work.
+  try {
+    await sendStandingTaskDigest(ownerEmails(), digest);
+  } catch (error) {
+    console.error("[standing-tasks] digest mail threw:", error);
   }
 
   return Response.json({ ran: results.length, results });

@@ -15,6 +15,7 @@ import {
   Plug,
   Settings,
   Sun,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { useLocale } from "@/components/providers";
@@ -51,6 +52,7 @@ export function Shell({
   const nav = [
     { href: "/dashboard", label: t.dashboard, icon: LayoutDashboard },
     { href: "/dashboard/activity", label: t.activity, icon: Activity },
+    { href: "/dashboard/insights", label: t.insights, icon: TrendingUp },
     { href: "/dashboard/projects", label: t.projects, icon: Boxes },
     { href: "/dashboard/access", label: t.access, icon: KeyRound },
     { href: "/dashboard/settings/integrations", label: t.integrations, icon: Plug },
