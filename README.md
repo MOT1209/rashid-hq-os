@@ -63,7 +63,13 @@ entry per console turn, delegated run, or standing-task run — `kind`,
 `tokens_in`/`tokens_out`, `duration_ms`, `step_count`, `status` — written by
 `recordAgentRun()` (`src/lib/agent-run.ts`) regardless of whether the run
 succeeded or failed. `agent_logs` says what a tool did; this says what a
-model run cost.
+model run cost. `/dashboard/insights` reads it: tokens per day, runs,
+failure rate and average duration over 30 days, broken down by kind and by
+agent.
+
+A department with a **standing task** also gets a card on its page showing
+what the last unattended run reported, and the cron mails the owners one
+digest per batch when it finishes.
 
 ## Universal MCP endpoint
 
