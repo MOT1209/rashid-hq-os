@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
-import { approveToolCallAction, rejectToolCallAction, revokeTokenAction } from "@/app/actions";
+import { approveToolCallAction, rejectToolCallAction, revokeTokenAction, togglePolicyAction } from "@/app/actions";
 import { IssueTokenForm } from "@/components/access-manager";
 import { EmptyState, Panel } from "@/components/ui";
 import { getLocale, getT } from "@/lib/locale-server";
 import { fetchProjectOptions } from "@/lib/queries";
 import { canRevokeToken, listAgentTokens } from "@/lib/agent-tokens";
 import { listPendingApprovals } from "@/lib/approvals";
+import { listPolicies } from "@/lib/policy";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,13 @@ export const dynamic = "force-dynamic";
 export default async function AccessPage() {
   const [t, locale, session] = await Promise.all([getT(), getLocale(), requireSession()]);
   const isAdmin = session.role === "admin";
-  const [projects, tokens, approvals, headerList] = await Promise.all([
+  const [projects, tokens, approvals, policies, headerList] = await Promise.all([
     fetchProjectOptions(),
     listAgentTokens(),
     isAdmin ? listPendingApprovals() : Promise.resolve([]),
+    // Empty when migration 0017 is not applied yet — the gate falls back to
+    // the hard-coded rules, so the page must not crash on a missing table.
+    isAdmin ? listPolicies().catch(() => []) : Promise.resolve([]),
     headers(),
   ]);
 
@@ -104,9 +108,53 @@ export default async function AccessPage() {
         </Panel>
       )}
 
+      {isAdmin && policies.length > 0 && (
+        <Panel title={t.policies}>
+          <p className="mb-3 text-sm text-muted">{t.policiesHint}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">{t.policies}</caption>
+              <thead className="text-xs uppercase tracking-wider text-muted">
+                <tr className="border-b border-border">
+                  <th scope="col" className="py-2 text-start">{t.policies}</th>
+                  <th scope="col" className="py-2 text-start">{t.tool}</th>
+                  <th scope="col" className="py-2 text-start">{t.actions}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {policies.map((policy) => (
+                  <tr key={policy.id} className={policy.enabled ? "" : "opacity-50"}>
+                    <td className="py-3">
+                      <code className="rounded bg-panel-2 px-1.5 py-0.5 text-xs text-accent">
+                        {policy.id}
+                      </code>
+                      <span className="ms-2 text-xs text-muted">{policy.decision}</span>
+                    </td>
+                    <td className="py-3 text-xs text-muted">
+                      {policy.enabled ? t.policyEnabled : t.policyDisabled}
+                    </td>
+                    <td className="py-3 text-end">
+                      <form action={togglePolicyAction}>
+                        <input type="hidden" name="id" value={policy.id} />
+                        <button
+                          type="submit"
+                          aria-label={`${policy.id}: ${policy.enabled ? t.policyDisabled : t.policyEnabled}`}
+                          className="text-xs text-accent"
+                        >
+                          {policy.enabled ? t.policyDisabled : t.policyEnabled}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
+
       <Panel title={t.access}>
-        {tokens.length === 0 ? (
-          <EmptyState>{t.noTokens}</EmptyState>
+        {tokens.length === 0 ? (          <EmptyState>{t.noTokens}</EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

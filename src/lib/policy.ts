@@ -1,7 +1,9 @@
 import "server-only";
 
+import { captureError } from "@/lib/errors";
 import type { ToolContext, ToolDefinition } from "@/lib/mcp/tools";
-import type { PolicyDecision } from "@/types/database";
+import { getServiceSupabase } from "@/lib/supabase/server";
+import type { PolicyDecision, PolicyRow } from "@/types/database";
 
 export type PolicyRule = {
   id: string;
@@ -80,4 +82,84 @@ export function evaluatePolicy(
     decision: tool.requiredScope === "read" ? "allow" : "require_approval",
     ruleId: null,
   };
+}
+
+/**
+ * DB-backed evaluation (migration 0017). Reads enabled rows ordered by
+ * priority — first match wins, same fail-safe default as above when nothing
+ * matches. The table is cached briefly in-process; any DB error falls back
+ * to the hard-coded POLICY so the gate never fails open or closed.
+ *
+ * This is the path src/lib/mcp/executor.ts and approveToolCall take. The
+ * sync evaluatePolicy() above stays as the fallback and the unit-test seam.
+ */
+let policyCache: { rows: PolicyRow[]; at: number } | null = null;
+const POLICY_CACHE_MS = 30_000;
+
+export function matchDbPolicy(
+  row: PolicyRow,
+  tool: ToolDefinition,
+  ctx: ToolContext,
+): boolean {
+  if (row.tool_names.length > 0 && !row.tool_names.includes(tool.name)) return false;
+  if (row.actor_type !== null && ctx.actorType !== row.actor_type) return false;
+  if (row.required_scope !== null && tool.requiredScope !== row.required_scope) return false;
+  if (row.exclude_tool !== null && tool.name === row.exclude_tool) return false;
+  return true;
+}
+
+export async function listEnabledPolicies(): Promise<PolicyRow[]> {
+  const now = Date.now();
+  if (policyCache && now - policyCache.at < POLICY_CACHE_MS) return policyCache.rows;
+  const { data, error } = await getServiceSupabase()
+    .from("policies")
+    .select("*")
+    .eq("enabled", true)
+    .order("priority", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as PolicyRow[];
+  policyCache = { rows, at: now };
+  return rows;
+}
+
+export async function evaluatePolicyAsync(
+  tool: ToolDefinition,
+  ctx: ToolContext,
+  args: unknown,
+): Promise<{ decision: PolicyDecision; ruleId: string | null }> {
+  void args;
+  try {
+    for (const row of await listEnabledPolicies()) {
+      if (matchDbPolicy(row, tool, ctx)) return { decision: row.decision, ruleId: row.id };
+    }
+    return {
+      decision: tool.requiredScope === "read" ? "allow" : "require_approval",
+      ruleId: null,
+    };
+  } catch (error) {
+    captureError("policy:db-fallback", error);
+    return evaluatePolicy(tool, ctx, args);
+  }
+}
+
+/** For tests and cache invalidation after an admin edit. */
+export function clearPolicyCache(): void {
+  policyCache = null;
+}
+
+/** Dashboard read — all rows, enabled or not, for /dashboard/access. */
+export async function listPolicies(): Promise<PolicyRow[]> {
+  const { data, error } = await getServiceSupabase()
+    .from("policies")
+    .select("*")
+    .order("priority", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as PolicyRow[];
+}
+
+/** Dashboard write — admin-only callers (see togglePolicyAction). */
+export async function setPolicyEnabled(id: string, enabled: boolean): Promise<void> {
+  const { error } = await getServiceSupabase().from("policies").update({ enabled }).eq("id", id);
+  if (error) throw error;
+  clearPolicyCache();
 }

@@ -88,7 +88,7 @@ describe("scope enforcement", () => {
 });
 
 describe("project pinning", () => {
-  const ctx = { agentName: "pinned", projectId: "11111111-1111-4111-8111-111111111111" };
+  const ctx = { agentName: "pinned", projectId: "11111111-1111-4111-8111-111111111111", actorType: "agent_token" as const };
 
   it("refuses get_project for another project", async () => {
     await expect(
@@ -138,6 +138,7 @@ describe("ownership propagation", () => {
     await tool("register_project").execute({ name: "owned" } as never, {
       agentName: "agent",
       ownerId: "owner-123",
+      actorType: "agent_token",
     });
 
     expect(insert).toHaveBeenCalledWith(

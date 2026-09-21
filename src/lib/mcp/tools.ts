@@ -36,11 +36,12 @@ export type ToolContext = {
   /**
    * Who is actually driving this call — distinct from agentName, which is a
    * display label. Read by the policy gate (src/lib/policy.ts) so a rule can
-   * single out the unattended standing-task cron. Optional so a caller that
-   * predates this (or a test) still type-checks; evaluatePolicy treats a
-   * missing actorType the same as any actor other than the ones it matches on.
+   * single out the unattended standing-task cron. Required since 1.1: every
+   * construction site (console, department-agent, both MCP transports) sets
+   * it, and a new call site that forgets it fails type-check instead of
+   * silently bypassing the standing-task write guard.
    */
-  actorType?: ActorType;
+  actorType: ActorType;
 };
 
 export type ToolDefinition = {

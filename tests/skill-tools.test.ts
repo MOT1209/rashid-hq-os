@@ -41,6 +41,7 @@ describe("list_skills", () => {
     const result = await tool("list_skills").execute({} as never, {
       agentName: "agent",
       ownerId: "owner-1",
+      actorType: "agent_token",
     });
 
     expect(result).toEqual({ skills: rows });
@@ -52,6 +53,7 @@ describe("list_skills", () => {
     const result = await tool("list_skills").execute({} as never, {
       agentName: "agent",
       ownerId: "owner-1",
+      actorType: "agent_token",
     });
 
     expect(result).toEqual({ skills: [] });
@@ -61,7 +63,7 @@ describe("list_skills", () => {
     from.mockImplementationOnce(() => stubQuery({ data: null, error: { message: "boom" } }));
 
     await expect(
-      tool("list_skills").execute({} as never, { agentName: "agent", ownerId: "owner-1" }),
+      tool("list_skills").execute({} as never, { agentName: "agent", ownerId: "owner-1", actorType: "agent_token" }),
     ).rejects.toThrow();
   });
 });
@@ -73,7 +75,7 @@ describe("get_skill", () => {
 
     const result = await tool("get_skill").execute(
       { skill_id: SKILL_ID } as never,
-      { agentName: "agent", ownerId: "owner-1" },
+      { agentName: "agent", ownerId: "owner-1", actorType: "agent_token" },
     );
 
     expect(result).toEqual({ skill: row });
@@ -86,6 +88,7 @@ describe("get_skill", () => {
       tool("get_skill").execute({ skill_id: SKILL_ID } as never, {
         agentName: "agent",
         ownerId: "owner-1",
+        actorType: "agent_token",
       }),
     ).rejects.toThrow(/not found/i);
   });

@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/session";
 import { logActivity, startActivity } from "@/lib/activity";
 import { canRevokeToken, issueAgentToken, revokeAgentToken } from "@/lib/agent-tokens";
 import { approveToolCall, rejectToolCall } from "@/lib/approvals";
+import { listPolicies, setPolicyEnabled } from "@/lib/policy";
 import { findTool } from "@/lib/mcp/tools";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
@@ -626,8 +627,9 @@ export async function revokeTokenAction(form: FormData) {
 /**
  * The other half of the policy gate (src/lib/policy.ts): a call it marked
  * require_approval sits in tool_approvals until an admin decides. Approving
- * runs the tool's own execute() for real — the policy already made the
- * authorization call by queuing it, so this does not re-check it. Mirrors
+ * runs the tool's own execute() for real — and re-checks the scope and the
+ * *current* policy first, so a permission revoked since queueing blocks
+ * instead of executing (src/lib/approvals.ts). Mirrors
  * revokeTokenAction above: a plain form action, failure logged rather than
  * surfaced inline.
  */
@@ -664,6 +666,40 @@ export async function rejectToolCallAction(form: FormData) {
       payload: { approval_id: id },
       status: "failed",
       result: { error: safeMessage("Rejecting the call", error) },
+    });
+  }
+  revalidatePath("/dashboard/access");
+}
+
+/**
+ * Toggles one DB policy rule (migration 0017). Reads the current rows so the
+ * form carries no trusted state — the id must exist, and the flip is against
+ * what is stored, not what the browser sent. Logged like every owner action.
+ */
+export async function togglePolicyAction(form: FormData) {
+  const session = await requireAdmin();
+  void session;
+  const id = text(form, "id");
+  if (!id) return;
+
+  try {
+    const rows = await listPolicies();
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    await setPolicyEnabled(id, !row.enabled);
+    await logActivity({
+      agentName: OWNER_ACTOR,
+      toolName: "toggle_policy",
+      payload: { policy_id: id, enabled: !row.enabled },
+      status: "success",
+    });
+  } catch (error) {
+    await logActivity({
+      agentName: OWNER_ACTOR,
+      toolName: "toggle_policy",
+      payload: { policy_id: id },
+      status: "failed",
+      result: { error: safeMessage("Toggling the policy", error) },
     });
   }
   revalidatePath("/dashboard/access");
@@ -788,7 +824,7 @@ export async function testProjectToolAction(form: FormData) {
   try {
     const result = await tool.execute(
       { project_id: projectId, tool_name: toolName, input: {} } as never,
-      { agentName: OWNER_ACTOR, scopes: ["read", "write"], ownerId: session.user.id },
+      { agentName: OWNER_ACTOR, scopes: ["read", "write"], ownerId: session.user.id, actorType: "person" },
     );
     await finish("success", result);
     revalidatePath("/dashboard/projects");

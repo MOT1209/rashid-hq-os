@@ -3,7 +3,7 @@ import "server-only";
 import { startActivity } from "@/lib/activity";
 import { captureError } from "@/lib/errors";
 import { queueApproval } from "@/lib/approvals";
-import { evaluatePolicy } from "@/lib/policy";
+import { evaluatePolicyAsync } from "@/lib/policy";
 import { scopeDenialReason, type ToolContext, type ToolDefinition } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
@@ -57,7 +57,7 @@ export async function runTool(
     return { status: "denied", reason: scopeReason };
   }
 
-  const policy = evaluatePolicy(tool, ctx, args);
+  const policy = await evaluatePolicyAsync(tool, ctx, args);
 
   if (policy.decision === "deny") {
     const reason = `Denied by policy${policy.ruleId ? ` (${policy.ruleId})` : ""}.`;

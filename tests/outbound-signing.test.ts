@@ -42,7 +42,7 @@ const PROJECT = "11111111-1111-4111-8111-111111111111";
 function call() {
   return findTool("call_project_tool")!.execute(
     { project_id: PROJECT, tool_name: "deploy", input: { ref: "main" } } as never,
-    { agentName: "agent", scopes: ["read", "write"] },
+    { agentName: "agent", scopes: ["read", "write"], actorType: "agent_token" },
   );
 }
 

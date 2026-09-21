@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The approval queue is the human half of the policy gate: a call the policy
- * marked require_approval sits here until an admin decides. Approving must
- * run the tool for real without re-checking the policy (a human already made
- * the call); rejecting must never touch execute() at all.
+ * marked require_approval sits here until an admin decides. Approving
+ * re-checks the scope and the *current* policy first — a permission revoked
+ * between queueing and the click must not execute on a stale context; only a
+ * `deny` blocks, while `require_approval`/`allow` proceed. Rejecting must
+ * never touch execute() at all.
  */
 
 type Result = { data?: unknown; error?: unknown };
@@ -49,7 +51,19 @@ const execute = vi.fn(async () => ({ ok: true }));
 const findTool = vi.fn((name: string) =>
   name === "delete_project" ? { name: "delete_project", execute } : undefined,
 );
-vi.mock("@/lib/mcp/tools", () => ({ findTool: (name: string) => findTool(name) }));
+const scopeDenialReason = vi.fn((_tool: unknown, _scopes: unknown): string | null => null);
+const evaluatePolicyAsync = vi.fn(async (_tool: unknown, _ctx: unknown, _args: unknown) => ({
+  decision: "require_approval" as const,
+  ruleId: "delete-project-needs-approval",
+}));
+vi.mock("@/lib/mcp/tools", () => ({
+  findTool: (name: string) => findTool(name),
+  scopeDenialReason: (tool: unknown, scopes: unknown) => scopeDenialReason(tool, scopes),
+}));
+vi.mock("@/lib/policy", () => ({
+  evaluatePolicyAsync: (tool: unknown, ctx: unknown, args: unknown) =>
+    evaluatePolicyAsync(tool, ctx, args),
+}));
 
 const { queueApproval, listPendingApprovals, approveToolCall, rejectToolCall } = await import(
   "@/lib/approvals"
@@ -62,6 +76,8 @@ beforeEach(() => {
   finishActivity.mockClear();
   execute.mockClear();
   findTool.mockClear();
+  scopeDenialReason.mockClear();
+  evaluatePolicyAsync.mockClear();
   updates.length = 0;
   insertResult = { data: { id: "approval-1" }, error: null };
   approvalRow = {
@@ -109,10 +125,34 @@ describe("approveToolCall", () => {
     expect(decision).toMatchObject({ status: "approved", decided_by: "admin-1" });
   });
 
-  it("does not re-run the policy — an unknown-scope ctx still executes, because a human already decided", async () => {
+  it("executes when scope and policy still allow — the admin click satisfies require_approval", async () => {
     await approveToolCall("approval-1", "admin-1");
-    // No scope on CTX at all; a normal runTool() call would deny this outright.
     expect(execute).toHaveBeenCalled();
+  });
+
+  it("re-checks scope at approve time — a scope failure blocks and records a rejection", async () => {
+    scopeDenialReason.mockReturnValueOnce("This token cannot use this tool.");
+
+    await expect(approveToolCall("approval-1", "admin-1")).rejects.toThrow(/cannot use this tool/i);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(finishActivity).toHaveBeenCalledWith(
+      "log-1",
+      "failed",
+      expect.objectContaining({ error: expect.stringContaining("cannot use this tool") }),
+    );
+    const decision = updates.find((u) => u.table === "tool_approvals");
+    expect(decision).toMatchObject({ status: "rejected", decided_by: "admin-1" });
+  });
+
+  it("re-evaluates the policy at approve time — a deny since queueing blocks", async () => {
+    evaluatePolicyAsync.mockResolvedValueOnce({ decision: "deny", ruleId: "tightened-rule" });
+
+    await expect(approveToolCall("approval-1", "admin-1")).rejects.toThrow(/denied by policy/i);
+
+    expect(execute).not.toHaveBeenCalled();
+    const decision = updates.find((u) => u.table === "tool_approvals");
+    expect(decision).toMatchObject({ status: "rejected", decided_by: "admin-1" });
   });
 
   it("finishes the log as failed when the tool itself throws, but still marks the approval approved", async () => {

@@ -54,7 +54,7 @@ describe("project ownership boundary", () => {
     await expect(
       tool("update_project").execute(
         { project_id: PROJECT_ID, name: "renamed" } as never,
-        { agentName: "agent", ownerId: OWNER_ID },
+        { agentName: "agent", ownerId: OWNER_ID, actorType: "agent_token" },
       ),
     ).rejects.toThrow(/not found/i);
 
@@ -66,7 +66,7 @@ describe("project ownership boundary", () => {
     await expect(
       tool("update_project").execute(
         { project_id: PROJECT_ID, name: "renamed" } as never,
-        { agentName: "agent", ownerId: null },
+        { agentName: "agent", ownerId: null, actorType: "agent_token" },
       ),
     ).rejects.toThrow(/not found/i);
 
@@ -85,7 +85,7 @@ describe("project ownership boundary", () => {
         name: "renamed",
         mcp_endpoint: "https://example.com/mcp",
       } as never,
-      { agentName: "agent", ownerId: OWNER_ID },
+      { agentName: "agent", ownerId: OWNER_ID, actorType: "agent_token" },
     );
 
     expect(assertSafeEndpoint).toHaveBeenCalledWith("https://example.com/mcp");
@@ -98,6 +98,7 @@ describe("project ownership boundary", () => {
       tool("delete_project").execute({ project_id: PROJECT_ID } as never, {
         agentName: "agent",
         ownerId: OWNER_ID,
+        actorType: "agent_token",
       }),
     ).rejects.toThrow(/not found/i);
   });
@@ -107,14 +108,14 @@ describe("project ownership boundary", () => {
 
     const result = await tool("delete_project").execute(
       { project_id: PROJECT_ID } as never,
-      { agentName: "agent", ownerId: OWNER_ID },
+      { agentName: "agent", ownerId: OWNER_ID, actorType: "agent_token" },
     );
 
     expect(result).toEqual({ deleted_project_id: PROJECT_ID });
   });
 
   it("a project-pinned token cannot update or delete a different project", async () => {
-    const ctx = { agentName: "pinned", projectId: PROJECT_ID, ownerId: OWNER_ID };
+    const ctx = { agentName: "pinned", projectId: PROJECT_ID, ownerId: OWNER_ID, actorType: "agent_token" as const };
     const otherProject = "33333333-3333-4333-8333-333333333333";
 
     await expect(
@@ -142,7 +143,7 @@ describe("project tool ownership boundary", () => {
     await expect(
       tool("update_project_tool").execute(
         { tool_id: TOOL_ID, tool_name: "renamed" } as never,
-        { agentName: "agent", ownerId: "someone-else" },
+        { agentName: "agent", ownerId: "someone-else", actorType: "agent_token" },
       ),
     ).rejects.toThrow(/not found/i);
   });
@@ -157,7 +158,7 @@ describe("project tool ownership boundary", () => {
         tool_name: "ping",
         endpoint: "https://example.com/ping",
       } as never,
-      { agentName: "agent", ownerId: OWNER_ID },
+      { agentName: "agent", ownerId: OWNER_ID, actorType: "agent_token" },
     );
 
     expect(assertSafeEndpoint).toHaveBeenCalledWith("https://example.com/ping");

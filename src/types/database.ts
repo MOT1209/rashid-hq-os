@@ -34,6 +34,24 @@ export type ProjectTool = Row<"project_tools">;
 export type ToolApprovalStatus = "pending" | "approved" | "rejected";
 export type ToolApprovalRow = Row<"tool_approvals">;
 
+/**
+ * DB-driven policy gate (migration 0017). Hand-written — src/types/supabase.ts
+ * is generated and does not know this table yet. Semantics documented in the
+ * migration and matched by matchDbPolicy (src/lib/policy.ts).
+ */
+export type PolicyRow = {
+  id: string;
+  description: string;
+  tool_names: string[];
+  actor_type: ActorType | null;
+  required_scope: "read" | "write" | null;
+  exclude_tool: string | null;
+  decision: PolicyDecision;
+  priority: number;
+  enabled: boolean;
+  created_at: string;
+};
+
 /** The three places a generateText/streamText call happens (src/lib/agent-run.ts). */
 export type RunKind = "console" | "delegation" | "standing_task";
 export type RunStatus = "success" | "failed";

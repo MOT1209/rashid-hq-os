@@ -55,7 +55,7 @@ describe("delegate_to_department", () => {
 
     const result = await tool("delegate_to_department").execute(
       { department_key: "dev", task: "review the dev projects" } as never,
-      { agentName: "CEO Console", ownerId: "owner-1", delegationDepth: 0 },
+      { agentName: "CEO Console", ownerId: "owner-1", delegationDepth: 0, actorType: "person" },
     );
 
     expect(result).toEqual({ agent: "Dev Agent", summary: "done", steps: 2 });
@@ -69,7 +69,7 @@ describe("delegate_to_department", () => {
       tool("delegate_to_department").execute(
         { department_key: "dev", task: "delegate again" } as never,
         // What a department agent's own context looks like.
-        { agentName: "Dev Agent", ownerId: "owner-1", delegationDepth: 1 },
+        { agentName: "Dev Agent", ownerId: "owner-1", delegationDepth: 1, actorType: "department_agent" },
       ),
     ).rejects.toThrow(/one level deep/i);
 
@@ -84,7 +84,7 @@ describe("delegate_to_department", () => {
     await expect(
       tool("delegate_to_department").execute(
         { department_key: "nope", task: "x" } as never,
-        { agentName: "CEO Console", ownerId: "owner-1", delegationDepth: 0 },
+        { agentName: "CEO Console", ownerId: "owner-1", delegationDepth: 0, actorType: "person" },
       ),
     ).rejects.toThrow(/no department with key "nope"/i);
     expect(runDepartmentAgent).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("delegate_to_department", () => {
 
     await tool("delegate_to_department").execute(
       { department_key: "dev", task: "x" } as never,
-      { agentName: "CEO Console", ownerId: "owner-1" },
+      { agentName: "CEO Console", ownerId: "owner-1", actorType: "person" },
     );
 
     expect(runDepartmentAgent).toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("list_departments", () => {
     const select = vi.fn(() => ({ order: () => ({ data: [], error: null }) }));
     from.mockImplementationOnce(() => ({ select }));
 
-    await tool("list_departments").execute({} as never, { agentName: "CEO Console" });
+    await tool("list_departments").execute({} as never, { agentName: "CEO Console", actorType: "person" });
 
     expect(select).toHaveBeenCalledWith(expect.not.stringContaining("system_prompt"));
   });
