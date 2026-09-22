@@ -171,11 +171,13 @@ export type Database = {
           agent_label_ar: string;
           agent_label_en: string;
           agent_name: string;
+          budget_alerted_at: string | null;
           created_at: string;
           icon: string;
           is_fallback: boolean;
           key: string;
           model: string | null;
+          monthly_token_budget: number | null;
           name_ar: string;
           name_en: string;
           sort_order: number;
@@ -187,11 +189,13 @@ export type Database = {
           agent_label_ar: string;
           agent_label_en: string;
           agent_name: string;
+          budget_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;
           key: string;
           model?: string | null;
+          monthly_token_budget?: number | null;
           name_ar: string;
           name_en: string;
           sort_order?: number;
@@ -203,11 +207,13 @@ export type Database = {
           agent_label_ar?: string;
           agent_label_en?: string;
           agent_name?: string;
+          budget_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;
           key?: string;
           model?: string | null;
+          monthly_token_budget?: number | null;
           name_ar?: string;
           name_en?: string;
           sort_order?: number;
@@ -448,6 +454,7 @@ export type Database = {
           provider: string;
           event_id: string | null;
           event_type: string | null;
+          content_hash: string | null;
           status: string;
           payload: Json | null;
           received_at: string;
@@ -457,6 +464,7 @@ export type Database = {
           provider: string;
           event_id?: string | null;
           event_type?: string | null;
+          content_hash?: string | null;
           status?: string;
           payload?: Json | null;
           received_at?: string;
@@ -466,9 +474,76 @@ export type Database = {
           provider?: string;
           event_id?: string | null;
           event_type?: string | null;
+          content_hash?: string | null;
           status?: string;
           payload?: Json | null;
           received_at?: string;
+        };
+        Relationships: [];
+      };
+      policies: {
+        Row: {
+          actor_type: string | null;
+          created_at: string;
+          decision: string;
+          description: string;
+          enabled: boolean;
+          exclude_tool: string | null;
+          id: string;
+          priority: number;
+          required_scope: string | null;
+          tool_names: string[];
+        };
+        Insert: {
+          actor_type?: string | null;
+          created_at?: string;
+          decision: string;
+          description?: string;
+          enabled?: boolean;
+          exclude_tool?: string | null;
+          id: string;
+          priority?: number;
+          required_scope?: string | null;
+          tool_names?: string[];
+        };
+        Update: {
+          actor_type?: string | null;
+          created_at?: string;
+          decision?: string;
+          description?: string;
+          enabled?: boolean;
+          exclude_tool?: string | null;
+          id?: string;
+          priority?: number;
+          required_scope?: string | null;
+          tool_names?: string[];
+        };
+        Relationships: [];
+      };
+      budget_events: {
+        Row: {
+          agent_name: string;
+          budget: number;
+          created_at: string;
+          id: string;
+          kind: string;
+          tokens_used: number;
+        };
+        Insert: {
+          agent_name: string;
+          budget: number;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          tokens_used: number;
+        };
+        Update: {
+          agent_name?: string;
+          budget?: number;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          tokens_used?: number;
         };
         Relationships: [];
       };

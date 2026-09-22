@@ -29,7 +29,7 @@ export type BudgetCheck = {
 };
 
 /** Best-effort side effects (events, alert timestamps) must never flip a verdict. */
-async function bestEffort(work: Promise<unknown>, label: string): Promise<void> {
+async function bestEffort(work: PromiseLike<unknown>, label: string): Promise<void> {
   try {
     await work;
   } catch (error) {

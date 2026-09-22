@@ -52,10 +52,16 @@ const findTool = vi.fn((name: string) =>
   name === "delete_project" ? { name: "delete_project", execute } : undefined,
 );
 const scopeDenialReason = vi.fn((_tool: unknown, _scopes: unknown): string | null => null);
-const evaluatePolicyAsync = vi.fn(async (_tool: unknown, _ctx: unknown, _args: unknown) => ({
-  decision: "require_approval" as const,
-  ruleId: "delete-project-needs-approval",
-}));
+const evaluatePolicyAsync = vi.fn(
+  async (
+    _tool: unknown,
+    _ctx: unknown,
+    _args: unknown,
+  ): Promise<{ decision: "allow" | "deny" | "require_approval"; ruleId: string | null }> => ({
+    decision: "require_approval",
+    ruleId: "delete-project-needs-approval",
+  }),
+);
 vi.mock("@/lib/mcp/tools", () => ({
   findTool: (name: string) => findTool(name),
   scopeDenialReason: (tool: unknown, scopes: unknown) => scopeDenialReason(tool, scopes),

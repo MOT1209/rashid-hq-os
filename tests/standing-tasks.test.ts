@@ -22,6 +22,8 @@ function dept(overrides: Partial<Department> = {}): Department {
     model: null,
     standing_task: "check the projects",
     standing_task_enabled: true,
+    monthly_token_budget: null,
+    budget_alerted_at: null,
     ...overrides,
   };
 }

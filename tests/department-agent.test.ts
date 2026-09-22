@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Department } from "@/lib/agents";
+import type { BudgetCheck } from "@/lib/budgets";
 
 /**
  * The autonomous standing-task cron runs a department agent daily with no human
@@ -33,12 +34,14 @@ vi.mock("@/lib/agent-run", () => ({
 
 // Budgets are covered in tests/budgets.test.ts; here the gate stays open
 // unless a test says otherwise — and must never touch the network.
-const checkDepartmentBudget = vi.fn(async (_input: Record<string, unknown>) => ({
-  allowed: true,
-  used: 0,
-  budget: null,
-  alerted: false,
-}));
+const checkDepartmentBudget = vi.fn(
+  async (_input: Record<string, unknown>): Promise<BudgetCheck> => ({
+    allowed: true,
+    used: 0,
+    budget: null,
+    alerted: false,
+  }),
+);
 vi.mock("@/lib/budgets", () => ({
   checkDepartmentBudget: (input: Record<string, unknown>) => checkDepartmentBudget(input),
 }));

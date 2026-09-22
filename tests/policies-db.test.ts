@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ToolDefinition } from "@/lib/mcp/tools";
 
 /**
  * Phase 1.1: the policy gate reads its rules from the `policies` table
@@ -81,7 +82,7 @@ const {
 } = await import("@/lib/policy");
 
 function tool(name: string, scope: "read" | "write" = "write") {
-  return { name, requiredScope: scope } as never;
+  return { name, requiredScope: scope } as unknown as ToolDefinition;
 }
 const PERSON = { agentName: "CEO Console", actorType: "person" } as never;
 const AUTONOMOUS = { agentName: "Dev Agent", actorType: "standing_task_routine" } as never;

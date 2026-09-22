@@ -41,7 +41,7 @@ vi.mock("@/lib/supabase/server", () => ({ getServiceSupabase: () => ({ from }) }
 const captureError = vi.fn();
 vi.mock("@/lib/errors", () => ({ captureError: (...args: unknown[]) => captureError(...args) }));
 
-const sendEmail = vi.fn(async () => true);
+const sendEmail = vi.fn(async (..._args: unknown[]) => true);
 vi.mock("@/lib/email", () => ({ sendEmail: (...args: unknown[]) => sendEmail(...args) }));
 
 vi.mock("@/lib/owners", () => ({ ownerEmails: () => ["owner@example.com"] }));

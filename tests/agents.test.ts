@@ -33,6 +33,9 @@ function department(key: string, overrides: Partial<Department> = {}): Departmen
     model: null,
     standing_task: null,
     standing_task_enabled: true,
+    // Budget columns exist since migration 0018; null = unlimited.
+    monthly_token_budget: null,
+    budget_alerted_at: null,
     ...overrides,
   };
 }
