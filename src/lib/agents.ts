@@ -31,6 +31,14 @@ export type Department = {
   standing_task: string | null;
   /** Per-department off switch for the standing task, keeping the brief text. */
   standing_task_enabled: boolean;
+  /**
+   * Monthly token cap across console, delegation and standing-task runs
+   * (migration 0018). Null = unlimited. Checked in runDepartmentAgent before
+   * any model call; the CEO console itself is owner-driven and unchecked.
+   */
+  monthly_token_budget: number | null;
+  /** Last 80% alert mail — throttles it to one a day (src/lib/budgets.ts). */
+  budget_alerted_at: string | null;
 };
 
 export type ProjectCategory = {

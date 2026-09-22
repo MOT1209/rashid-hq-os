@@ -3,6 +3,7 @@ import "server-only";
 import { generateText, stepCountIs, tool, type ToolSet } from "ai";
 import type { z } from "zod";
 import { recordAgentRun } from "@/lib/agent-run";
+import { checkDepartmentBudget } from "@/lib/budgets";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS, type ToolContext } from "@/lib/mcp/tools";
 import { languageModel } from "@/lib/model";
@@ -120,6 +121,18 @@ export async function runDepartmentAgent(input: {
   );
 
   const kind = mode === "autonomous" ? "standing_task" : "delegation";
+  const budget = await checkDepartmentBudget({
+    agentName,
+    departmentKey: department.key,
+    budget: department.monthly_token_budget,
+    alertedAt: department.budget_alerted_at,
+  });
+  if (!budget.allowed) {
+    throw new Error(
+      `Monthly token budget exceeded for ${agentName} (${budget.used.toLocaleString("en")} of ${budget.budget?.toLocaleString("en")} tokens). Raise it in Settings.`,
+    );
+  }
+
   const startedAt = Date.now();
   let result;
   try {

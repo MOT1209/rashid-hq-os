@@ -187,6 +187,13 @@ export const dictionaries = {
     standingTaskEnabled: "مُفعّلة — تعمل تلقائيًا كل يوم",
     standingTaskHint:
       "تُشغّل نموذجًا يوميًا بلا إشراف وتصرف رصيدًا. اتركها فارغة أو ألغِ التفعيل لإيقافها.",
+    tokenBudget: "سقف التوكنات الشهري",
+    tokenBudgetPlaceholder: "غير محدود",
+    tokenBudgetHint:
+      "عند 80% يصلك تنبيه، وعند 100% تتوقف تشغيلات القسم الجديدة. فارغ = بلا سقف.",
+    budgets: "الميزانيات",
+    budgetsHint: "استهلاك آخر 30 يومًا مقابل السقف الشهري لكل قسم.",
+    unlimited: "غير محدود",
     integrations: "التكاملات",
     integrationsHint:
       "اربط حسابات المالك على الخدمات الخارجية. تُخزَّن الأسرار مشفّرة، ولا تصل للمتصفح أبدًا.",
@@ -422,6 +429,13 @@ export const dictionaries = {
     standingTaskEnabled: "Enabled — runs automatically every day",
     standingTaskHint:
       "Runs a model daily, unsupervised, and spends credit. Leave blank or disable to stop it.",
+    tokenBudget: "Monthly token budget",
+    tokenBudgetPlaceholder: "Unlimited",
+    tokenBudgetHint:
+      "Past 80% you get an alert, at 100% the department's new runs stop. Empty = no cap.",
+    budgets: "Budgets",
+    budgetsHint: "Last-30-days spend against each department's monthly cap.",
+    unlimited: "Unlimited",
     integrations: "Integrations",
     integrationsHint:
       "Connect the owner's accounts on external services. Secrets are stored encrypted and never reach the browser.",

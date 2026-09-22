@@ -1,7 +1,8 @@
 import { EmptyState, Panel, StatCard } from "@/components/ui";
 import { getLocale, getT } from "@/lib/locale-server";
-import { fetchRunInsights, INSIGHTS_WINDOW_DAYS } from "@/lib/queries";
+import { fetchDepartments, fetchRunInsights, INSIGHTS_WINDOW_DAYS } from "@/lib/queries";
 import { requireSession } from "@/lib/session";
+import { departmentName } from "@/lib/agents";
 import type { Bucket } from "@/lib/insights";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -13,7 +14,16 @@ export const dynamic = "force-dynamic";
  */
 export default async function InsightsPage() {
   const [t, locale] = await Promise.all([getT(), getLocale(), requireSession()]);
-  const insights = await fetchRunInsights();
+  const [insights, departments] = await Promise.all([fetchRunInsights(), fetchDepartments()]);
+
+  const spendByAgent = new Map(insights.byAgent.map((b) => [b.key, b.tokens]));
+  const budgets = departments.map((d) => ({
+    key: d.key,
+    name: departmentName(d, locale),
+    used: spendByAgent.get(d.agent_name) ?? 0,
+    // Pre-0018 rows (or a missing migration) read as unlimited, not zero.
+    budget: d.monthly_token_budget ?? null,
+  }));
 
   const kindLabel: Record<string, string> = {
     console: t.runKindConsole,
@@ -44,6 +54,43 @@ export default async function InsightsPage() {
           value={`${(insights.avgDurationMs / 1000).toFixed(1)}s`}
         />
       </div>
+
+      <Panel title={t.budgets}>
+        <p className="mb-3 text-sm text-muted">{t.budgetsHint}</p>
+        <ul className="space-y-3">
+          {budgets.map((b) => {
+            const pct = b.budget ? Math.min(100, Math.round((b.used / b.budget) * 100)) : 0;
+            const over = b.budget !== null && b.used >= b.budget;
+            return (
+              <li key={b.key}>
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="font-medium">{b.name}</span>
+                  <span className={over ? "text-err" : "text-muted"}>
+                    {b.budget === null
+                      ? `${number(b.used)} ${t.tokens} · ${t.unlimited}`
+                      : `${number(b.used)} / ${number(b.budget)} ${t.tokens}`}
+                  </span>
+                </div>
+                {b.budget !== null && (
+                  <div
+                    className="mt-1 h-2 overflow-hidden rounded-full bg-panel-2"
+                    role="progressbar"
+                    aria-valuenow={pct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={b.name}
+                  >
+                    <div
+                      className={`h-full rounded-full ${over ? "bg-err" : pct >= 80 ? "bg-warn" : "bg-accent"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
 
       {insights.runs === 0 ? (
         <Panel title={t.tokensPerDay}>

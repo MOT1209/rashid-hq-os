@@ -490,6 +490,17 @@ export async function updateDepartmentAgentAction(form: FormData) {
   // on, so the checkbox must be present and checked — not merely non-empty text.
   const standingTaskEnabled = form.get("standing_task_enabled") === "on";
 
+  // Empty = unlimited (NULL). A number must be a sane positive integer —
+  // free text here would otherwise land in the column or silently become 0.
+  const budgetRaw = text(form, "monthly_token_budget");
+  let monthlyTokenBudget: number | null = null;
+  if (budgetRaw) {
+    if (!/^\d{1,9}$/.test(budgetRaw)) {
+      return { error: `"monthly_token_budget" must be a positive whole number of tokens.` };
+    }
+    monthlyTokenBudget = Number(budgetRaw);
+  }
+
   const { data, error } = await getServiceSupabase()
     .from("departments")
     .update({
@@ -497,6 +508,7 @@ export async function updateDepartmentAgentAction(form: FormData) {
       model,
       standing_task: standingTask || null,
       standing_task_enabled: standingTaskEnabled,
+      monthly_token_budget: monthlyTokenBudget,
     })
     .eq("key", key)
     .select("key")
@@ -514,6 +526,7 @@ export async function updateDepartmentAgentAction(form: FormData) {
       prompt_chars: systemPrompt.length,
       standing_task: standingTask ? `${standingTask.length} chars` : null,
       standing_task_enabled: standingTaskEnabled,
+      monthly_token_budget: monthlyTokenBudget,
     },
     status: "success",
   });

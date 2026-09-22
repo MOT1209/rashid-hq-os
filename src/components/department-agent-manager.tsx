@@ -93,6 +93,18 @@ function AgentEditor({ department }: { department: Department }) {
       </label>
       <p className="text-[11px] text-warn">{t.standingTaskHint}</p>
 
+      <Field id={`${id}-budget`} label={t.tokenBudget}>
+        <input
+          id={`${id}-budget`}
+          name="monthly_token_budget"
+          inputMode="numeric"
+          defaultValue={department.monthly_token_budget ?? ""}
+          placeholder={t.tokenBudgetPlaceholder}
+          className={fieldClass}
+        />
+      </Field>
+      <p className="text-[11px] text-muted">{t.tokenBudgetHint}</p>
+
       <div className="flex items-center gap-3">
         <button
           type="submit"

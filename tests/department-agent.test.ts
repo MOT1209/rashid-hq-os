@@ -31,6 +31,18 @@ vi.mock("@/lib/agent-run", () => ({
   recordAgentRun: (input: Record<string, unknown>) => recordAgentRun(input),
 }));
 
+// Budgets are covered in tests/budgets.test.ts; here the gate stays open
+// unless a test says otherwise — and must never touch the network.
+const checkDepartmentBudget = vi.fn(async (_input: Record<string, unknown>) => ({
+  allowed: true,
+  used: 0,
+  budget: null,
+  alerted: false,
+}));
+vi.mock("@/lib/budgets", () => ({
+  checkDepartmentBudget: (input: Record<string, unknown>) => checkDepartmentBudget(input),
+}));
+
 const { runDepartmentAgent } = await import("@/lib/department-agent");
 
 function dept(overrides: Partial<Department> = {}): Department {
@@ -48,6 +60,8 @@ function dept(overrides: Partial<Department> = {}): Department {
     model: null,
     standing_task: null,
     standing_task_enabled: true,
+    monthly_token_budget: null,
+    budget_alerted_at: null,
     ...overrides,
   };
 }
@@ -70,6 +84,7 @@ const REGISTRY_MUTATION = [
 beforeEach(() => {
   generateText.mockClear();
   recordAgentRun.mockClear();
+  checkDepartmentBudget.mockClear();
 });
 
 describe("runDepartmentAgent tool exposure", () => {
@@ -160,6 +175,44 @@ describe("runDepartmentAgent cost tracking (agent_runs)", () => {
 
     expect(recordAgentRun).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "delegation", status: "failed", stepCount: 0 }),
+    );
+  });
+});
+
+describe("runDepartmentAgent budget gate", () => {
+  it("refuses to start when the department is over budget, before any model call", async () => {
+    checkDepartmentBudget.mockResolvedValueOnce({
+      allowed: false,
+      used: 120_000,
+      budget: 100_000,
+      alerted: false,
+    });
+
+    await expect(
+      runDepartmentAgent({
+        department: dept({ monthly_token_budget: 100_000 }),
+        task: "x",
+        ownerId: "o1",
+      }),
+    ).rejects.toThrow(/budget exceeded/i);
+
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("passes the department's budget columns to the check", async () => {
+    await runDepartmentAgent({
+      department: dept({ monthly_token_budget: 50_000, budget_alerted_at: "2026-09-01T00:00:00Z" }),
+      task: "x",
+      ownerId: "o1",
+    });
+
+    expect(checkDepartmentBudget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "Dev Agent",
+        departmentKey: "dev",
+        budget: 50_000,
+        alertedAt: "2026-09-01T00:00:00Z",
+      }),
     );
   });
 });
