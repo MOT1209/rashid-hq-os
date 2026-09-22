@@ -14,6 +14,23 @@ import "server-only";
 
 const ENDPOINT = "https://api.resend.com/emails";
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/**
+ * HTML-escapes a single interpolated value for the templates below. Most of
+ * what lands there is admin-entered or agent-generated (project names,
+ * endpoints, standing-task summaries), so it must never be injected as markup.
+ */
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
 export function emailConfigured() {
   return Boolean(process.env.RESEND_API_KEY);
 }
@@ -97,14 +114,14 @@ export async function sendHealthAlert(
         Alking Enterprises
       </p>
       <div dir="rtl" style="margin-bottom:1.5rem">
-        <h1 style="font-size:1.15rem;margin:0 0 .5rem">تعذّر الوصول إلى ${project.name}</h1>
+        <h1 style="font-size:1.15rem;margin:0 0 .5rem">تعذّر الوصول إلى ${escapeHtml(project.name)}</h1>
         <p style="margin:0 0 .5rem;line-height:1.7">
           فشل الفحص الصحي ${project.failures} مرات متتالية.
         </p>
-        <p style="margin:0;font-size:.8rem;color:#5b6675;word-break:break-all">${project.endpoint}</p>
+        <p style="margin:0;font-size:.8rem;color:#5b6675;word-break:break-all">${escapeHtml(project.endpoint)}</p>
       </div>
       <div>
-        <h2 style="font-size:1rem;margin:0 0 .5rem">${project.name} is failing health checks</h2>
+        <h2 style="font-size:1rem;margin:0 0 .5rem">${escapeHtml(project.name)} is failing health checks</h2>
         <p style="margin:0;line-height:1.7">
           The scheduled health check has failed ${project.failures} times in a row.
         </p>
@@ -145,9 +162,9 @@ export async function sendStandingTaskDigest(
       <li style="margin-bottom:1rem;list-style:none">
         <p style="margin:0 0 .25rem;font-weight:600">
           <span style="color:${run.ok ? "#17924a" : "#d13b3b"}">${run.ok ? "✓" : "✗"}</span>
-          ${run.department}
+          ${escapeHtml(run.department)}
         </p>
-        <p style="margin:0;line-height:1.7;color:#5b6675;white-space:pre-wrap">${run.summary}</p>
+        <p style="margin:0;line-height:1.7;color:#5b6675;white-space:pre-wrap">${escapeHtml(run.summary)}</p>
       </li>`,
     )
     .join("");
@@ -196,7 +213,7 @@ export async function sendPasswordReset(to: string, url: string) {
         </p>
       </div>
       <p style="margin:0 0 1.5rem">
-        <a href="${url}" style="display:inline-block;background:#c9a227;color:#000;text-decoration:none;padding:.6rem 1.2rem;border-radius:.75rem;font-weight:600">
+        <a href="${escapeHtml(url)}" style="display:inline-block;background:#c9a227;color:#000;text-decoration:none;padding:.6rem 1.2rem;border-radius:.75rem;font-weight:600">
           إعادة التعيين · Reset password
         </a>
       </p>
@@ -207,7 +224,7 @@ export async function sendPasswordReset(to: string, url: string) {
           ignore this message — nothing will change.
         </p>
       </div>
-      <p style="font-size:.75rem;color:#5b6675;word-break:break-all;margin:0">${url}</p>
+      <p style="font-size:.75rem;color:#5b6675;word-break:break-all;margin:0">${escapeHtml(url)}</p>
     </div>
   `;
 

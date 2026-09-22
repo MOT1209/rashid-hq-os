@@ -130,7 +130,7 @@ export async function assertSafeEndpoint(value: string): Promise<URL> {
     throw new UnsafeEndpointError("Endpoint resolves to a private address.");
   }
 
-  vetted.set(host, { ...addresses[0], at: Date.now() });
+  vettedSet(host, addresses[0]);
   return url;
 }
 
@@ -142,6 +142,27 @@ export async function assertSafeEndpoint(value: string): Promise<URL> {
  */
 const vetted = new Map<string, { address: string; family: number; at: number }>();
 const VETTED_TTL_MS = 30_000;
+// Every distinct hostname an agent registers lands here for VETTED_TTL_MS. The
+// map is a cache, not an archive — cap it so a hostile client registering a
+// fresh hostname per request cannot grow memory without limit.
+const VETTED_MAX_HOSTS = 1024;
+
+function vettedSet(host: string, addr: { address: string; family: number }): void {
+  if (vetted.size >= VETTED_MAX_HOSTS) {
+    const now = Date.now();
+    for (const [h, entry] of vetted) {
+      if (now - entry.at > VETTED_TTL_MS) vetted.delete(h);
+    }
+  }
+  if (vetted.size >= VETTED_MAX_HOSTS) {
+    let oldestHost: string | null = null;
+    for (const [h, entry] of vetted) {
+      if (oldestHost === null || entry.at < vetted.get(oldestHost)!.at) oldestHost = h;
+    }
+    if (oldestHost !== null) vetted.delete(oldestHost);
+  }
+  vetted.set(host, { ...addr, at: Date.now() });
+}
 
 /**
  * An undici dispatcher whose DNS lookup returns only the address this module

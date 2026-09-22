@@ -80,9 +80,11 @@ describe("with TOKEN_PEPPER set", () => {
     rows.set(sha, record());
 
     await verifyAgentToken(`Bearer ${TOKEN}`);
-    await new Promise((r) => setTimeout(r, 10)); // the write is fire-and-forget
-
-    expect(updates.at(-1)).toMatchObject({ token_hash: hmac });
+    // The write is fire-and-forget (deliberately — a digest upgrade must never
+    // block a verification), so poll instead of sleeping a fixed amount.
+    await vi.waitFor(() => {
+      expect(updates.at(-1)).toMatchObject({ token_hash: hmac });
+    });
   });
 
   it("still rejects a token that matches neither digest", async () => {

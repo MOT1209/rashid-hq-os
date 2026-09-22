@@ -41,6 +41,11 @@ const RULES: [prefix: string, rule: Rule][] = [
   ["/api/agent", { windowMs: 60_000, max: 10 }],
   ["/api/maintenance", { windowMs: 60_000, max: 10 }],
   ["/api/activity/export", { windowMs: 60_000, max: 10 }],
+  // The activity reader is an authenticated CEO console client, but every
+  // page fetch hits /page and /stream stays open — an over-hot client must
+  // not get to hammer Postgres through these either.
+  ["/api/activity/page", { windowMs: 60_000, max: 30 }],
+  ["/api/activity/stream", { windowMs: 60_000, max: 30 }],
   // OAuth connect/callback/test plus API-key saves. A handful per session; a
   // burst is either a retry loop or someone probing the state store.
   ["/api/integrations", { windowMs: 60_000, max: 30 }],
@@ -159,6 +164,11 @@ function securityHeaders(nonce: string) {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     // Nothing here needs a camera, a microphone or a location.
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    // HSTS is only meaningful (and only honoured by browsers) over HTTPS;
+    // local development serves http, so advertise it in production only.
+    ...(isDev
+      ? {}
+      : { "Strict-Transport-Security": "max-age=63072000; includeSubDomains" }),
   };
 }
 

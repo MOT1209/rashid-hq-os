@@ -15,8 +15,17 @@ if (!connectionString) {
   process.exit(1);
 }
 
+// Mirrors src/lib/auth.ts: verify TLS by default, with a documented opt-out
+// for private/self-signed endpoints.
+const ssl =
+  process.env.SUPABASE_SSL_VERIFY_NONE === "1"
+    ? { rejectUnauthorized: false }
+    : connectionString.includes("supabase.")
+      ? { rejectUnauthorized: true }
+      : undefined;
+
 const auth = betterAuth({
-  database: new pg.Pool({ connectionString, ssl: { rejectUnauthorized: false } }),
+  database: new pg.Pool({ connectionString, ssl }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:7070",
   emailAndPassword: { enabled: true, autoSignIn: true },

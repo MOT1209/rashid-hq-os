@@ -2,6 +2,7 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { verifyAgentToken } from "@/lib/agent-tokens";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS } from "@/lib/mcp/tools";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,21 @@ export const dynamic = "force-dynamic";
  * same bearer tokens, same activity log — this is a second transport onto
  * the same server, not a second implementation. /api/mcp is left in place
  * for whatever already calls it.
+ *
+ * The SDK parses the request body itself, so the size cap has to be applied
+ * here, off the measured text, before the body is handed to it — the wrapper
+ * rebuilds the request with the already-read body rather than let the SDK
+ * buffer an unbounded stream.
  */
+
+const MAX_BODY = 512 * 1024;
+
+function tooLarge() {
+  return NextResponse.json(
+    { jsonrpc: "2.0", id: null, error: { code: -32000, message: "Payload too large (exceeds 512 KiB)" } },
+    { status: 413 },
+  );
+}
 
 type AgentContext = {
   agentName: string;
@@ -89,4 +104,30 @@ const authedHandler = withMcpAuth(
   { required: true },
 );
 
-export { authedHandler as GET, authedHandler as POST, authedHandler as DELETE };
+async function guarded(request: NextRequest) {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > MAX_BODY) {
+    return tooLarge();
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return tooLarge();
+  }
+  if (raw.length > MAX_BODY) {
+    return tooLarge();
+  }
+
+  // Rebuild so the SDK still sees a body (we just consumed it) — with the same
+  // headers it relies on (authorization, accept, content-type).
+  const rebuilt = new NextRequest(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: raw,
+  });
+  return authedHandler(rebuilt);
+}
+
+export { authedHandler as GET, guarded as POST, authedHandler as DELETE };

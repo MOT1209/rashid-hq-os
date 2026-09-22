@@ -9,6 +9,11 @@ export const dynamic = "force-dynamic";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
+// A tool list or call is a few KB at most; anything past this is attacker
+// noise trying to make us buffer + parse unbounded input. Enforced on the
+// measured body length, with content-length as a cheap first gate.
+const MAX_BODY = 512 * 1024;
+
 type RpcRequest = {
   jsonrpc: "2.0";
   id?: string | number | null;
@@ -43,9 +48,29 @@ function unauthorized() {
  * every tool call is written to agent_logs and streams to the dashboard live.
  */
 export async function POST(request: Request) {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > MAX_BODY) {
+    return rpcError(null, -32600, "Payload too large (exceeds 512 KiB)", 413);
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return rpcError(null, -32700, "Parse error");
+  }
+
+  if (raw.length === 0) {
+    return rpcError(null, -32600, "Empty request body", 400);
+  }
+  if (raw.length > MAX_BODY) {
+    // content-length is advisory and can lie; the measured size is final.
+    return rpcError(null, -32600, "Payload too large (exceeds 512 KiB)", 413);
+  }
+
   let body: RpcRequest;
   try {
-    body = (await request.json()) as RpcRequest;
+    body = JSON.parse(raw) as RpcRequest;
   } catch {
     return rpcError(null, -32700, "Parse error");
   }

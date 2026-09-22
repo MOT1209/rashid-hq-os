@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alking HQ OS — تقرير المراجعة الشاملة والأمنية 2026-09-21</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root {
+    --gold:#d4af37; --gold-dim:#b8962e; --gold-glow:rgba(212,175,55,.12);
+    --bg:#0a0a0f; --bg-card:#111118; --bg-code:#0d0d14;
+    --border:#1e1e2a; --border-light:#2a2a3a;
+    --text:#e8e6e3; --text-dim:#8a8a9a; --text-muted:#5a5a6a;
+    --green:#22c55e; --green-bg:rgba(34,197,94,.1);
+    --red:#ef4444; --red-bg:rgba(239,68,68,.1);
+    --amber:#f59e0b; --amber-bg:rgba(245,158,11,.1);
+    --blue:#3b82f6; --blue-bg:rgba(59,130,246,.1);
+    --radius:12px; --radius-sm:8px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;
+    line-height:1.75; padding:0 0 80px;
+  }
+  code, .mono { font-family:"IBM Plex Mono",monospace; }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 24px; }
+
+  header.hero {
+    border-bottom:1px solid var(--border);
+    padding:56px 0 40px;
+    background:radial-gradient(ellipse 900px 300px at 50% -10%, var(--gold-glow), transparent);
+  }
+  .kicker { color:var(--gold); font-size:13px; letter-spacing:.08em; font-weight:600; margin-bottom:10px; }
+  h1 { font-size:34px; font-weight:700; margin-bottom:8px; }
+  .sub { color:var(--text-dim); font-size:15px; max-width:680px; }
+  .meta-row { display:flex; gap:24px; margin-top:24px; flex-wrap:wrap; }
+  .meta-item { font-size:13px; color:var(--text-muted); }
+  .meta-item b { color:var(--text-dim); font-weight:500; }
+
+  .scoreboard {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px; margin-top:32px;
+  }
+  .score-card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; text-align:center;
+  }
+  .score-card .val { font-size:22px; font-weight:700; }
+  .score-card .val.good { color:var(--green); }
+  .score-card .val.bad { color:var(--red); }
+  .score-card .val.warn { color:var(--amber); }
+  .score-card .lbl { font-size:12px; color:var(--text-muted); margin-top:4px; }
+
+  section { padding:44px 0; border-bottom:1px solid var(--border); }
+  section:last-of-type { border-bottom:none; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:24px; }
+  .sec-num { color:var(--gold); font-family:"IBM Plex Mono",monospace; font-size:13px; }
+  h2 { font-size:22px; font-weight:600; }
+  h3 { font-size:16px; font-weight:600; margin:24px 0 10px; color:var(--text); }
+  p { color:var(--text-dim); font-size:14.5px; margin-bottom:10px; }
+  ul, ol { padding-inline-start:22px; margin-bottom:12px; }
+  li { color:var(--text-dim); font-size:14.5px; margin-bottom:6px; }
+  strong { color:var(--text); font-weight:600; }
+
+  .badge {
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px;
+    letter-spacing:.02em;
+  }
+  .badge.pass { background:var(--green-bg); color:var(--green); }
+  .badge.warn { background:var(--amber-bg); color:var(--amber); }
+  .badge.info { background:var(--blue-bg); color:var(--blue); }
+  .badge.fail { background:var(--red-bg); color:var(--red); }
+
+  .check-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+  .check {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .check .name { font-size:13.5px; color:var(--text); }
+  .check .name .sub-name { display:block; font-size:11.5px; color:var(--text-muted); margin-top:2px; font-family:"IBM Plex Mono",monospace;}
+
+  .card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:14px;
+  }
+  .card.finding { border-inline-start:3px solid var(--border-light); }
+  .card.finding.warn { border-inline-start-color:var(--amber); }
+  .card.finding.info { border-inline-start-color:var(--blue); }
+  .card.finding.pass { border-inline-start-color:var(--green); }
+  .card.finding.blocker { border-inline-start-color:var(--red); }
+  .card-title { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .card-title strong { font-size:15px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin:10px 0 18px; }
+  th, td { text-align:start; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text-dim); vertical-align:top; }
+  th { color:var(--text-muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  td code, th code { background:var(--bg-code); padding:2px 6px; border-radius:4px; font-size:12.5px; color:var(--gold-dim); }
+
+  pre {
+    background:var(--bg-code); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:14px 16px; font-size:12.5px; overflow-x:auto; color:var(--text-dim); margin:10px 0;
+    direction:ltr; text-align:left; line-height:1.6;
+  }
+
+  .priority-list { display:flex; flex-direction:column; gap:10px; }
+  .priority-item { display:flex; gap:14px; align-items:flex-start; }
+  .p-rank {
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; font-family:"IBM Plex Mono",monospace;
+  }
+  .p-rank.high { background:var(--red-bg); color:var(--red); }
+  .p-rank.med { background:var(--amber-bg); color:var(--amber); }
+  .p-rank.low { background:var(--blue-bg); color:var(--blue); }
+
+  .pill { display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--bg-code); border:1px solid var(--border); margin:0 2px 4px 0; }
+
+  footer { text-align:center; padding:40px 0 0; color:var(--text-muted); font-size:12.5px; }
+  a { color:var(--gold); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">ALKING ENTERPRISES · CEO COMMAND CENTER</div>
+    <h1>تقرير المراجعة الشاملة والأمنية</h1>
+    <p class="sub">
+      مراجعة أمنية + مراجعة اختبارات + مراجعة منتج/توثيق. تحقّقت يدويًا من كل ادعاء قبل إدراجه
+      (<code>file:line</code>)، وأُسقط أي ادعاء لم يتكرَّر إنتاجه في القراءة المباشرة.
+    </p>
+    <div class="meta-row">
+      <div class="meta-item"><b>التاريخ:</b> 2026-09-21</div>
+      <div class="meta-item"><b>الفرع:</b> main</div>
+      <div class="meta-item"><b>HEAD:</b> <code>9db38a7</code></div>
+      <div class="meta-item"><b>Next.js:</b> 16.3.1 (Turbopack) · <b>Vitest:</b> 4</div>
+    </div>
+    <div class="scoreboard">
+      <div class="score-card"><div class="val bad">✗</div><div class="lbl">npm run typecheck</div></div>
+      <div class="score-card"><div class="val good">✓</div><div class="lbl">eslint · 0/8</div></div>
+      <div class="score-card"><div class="val good">312/314</div><div class="lbl">vitest (2 timeout)</div></div>
+      <div class="score-card"><div class="val bad">✗</div><div class="lbl">next build</div></div>
+      <div class="score-card"><div class="val warn">0/0/3/8/9</div><div class="lbl">حرج/عالي/متوسط/منخفض/معلوم</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 1 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>الملخص التنفيذي</h2></div>
+    <p>
+      <strong>خلاصة الجولة:</strong> لا ثغرة أمنية حرجة أو عالية. الموجة الأخيرة
+      (<code>feat(policy)</code>) أدخلت جدول <code>policies</code> (ترحيل <code>0017</code>) دون إعادة توليد
+      أنواع Supabase، فانكسر نوع <code>Database</code> المولّد بجدول مفقود — ومن هنا فشل
+      <code>typecheck</code> و<code>build</code> معًا على <code>main</code> حالياً (BLOCKER، القسم 02).
+    </p>
+    <p>أهم أولويات المعالجة الأمنية بعد فك الحصار:</p>
+    <ul>
+      <li><strong>M1 — حقن HTML في رسائل البريد</strong> (نص يولّده الوكيل نفسه يتسرب إلى قارئ البريد دون تهريب).</li>
+      <li><strong>M2 — الـ dedup للويبوکس غير مربوط بالمحتوى الموقَّع</strong> (يجب إصلاحه قبل تفعيل معالجة الأحداث).</li>
+      <li><strong>M3 — مفتاح تعمية التكاملات</strong> بلا KDF/ملح/تدوير.</li>
+    </ul>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>حالة خط الإنتاج — BLOCKER 🔴</h2></div>
+
+    <div class="card finding blocker">
+      <div class="card-title"><strong>B1 — <code>src/types/supabase.ts</code> لا يتضمن جدول <code>policies</code> ⇒ typecheck + build مكسوران على main</strong><span class="badge fail">BLOCKER</span></div>
+      <p>كلاهما يفشل الآن على <code>main</code> بنفس القائمة:</p>
+<pre>src/lib/policy.ts(115,11): error TS2769: Argument of type '"policies"' is not assignable ...
+src/lib/policy.ts(117,9):  error TS2345: Argument of type '"enabled"' is not assignable to parameter of type 'never'
+src/lib/policy.ts(153,11): error TS2769: ...
+src/lib/policy.ts(162,53): error TS2769: ...
+src/lib/policy.ts(162,74): error TS2353: 'enabled' does not exist in type 'RejectExcessProperties...'
+tests/approvals.test.ts(149,49): error TS2322: Type '"deny"' is not assignable to type '"require_approval"'
+tests/policies-db.test.ts(126,23): error TS2339: Property 'name' does not exist on type 'never'
+Failed to type check.</pre>
+      <p>
+        <strong>السبب:</strong> <code>0017_policies.sql</code> أنشأ جدول <code>policies</code> و<code>src/lib/policy.ts:111-165</code>
+        يقرأه/يكتبه عبر <code>getServiceSupabase().from("policies")</code>، لكن الملف المولّد
+        <code>src/types/supabase.ts</code> (آخر توليد في <code>fbe6e7e</code> = ترحيل <code>0016_agent_runs</code>) لم يُعَد توليده.
+        النوع اليدوي <code>src/types/database.ts</code> (PolicyRow/PolicyDecision) موجود لكنه طبقة منفصلة لا تساعد عميل Supabase.
+      </p>
+      <p><strong>الأثر:</strong> CI أحمر، ونشر Vercel يفشل في خطوة البناء. لا خطر أمني (فشل ملموس) لكن كل شحن معلّق.</p>
+      <p><strong>الإصلاح:</strong> طبّق الترحيلات المعلقة ثم <code>npx supabase gen types typescript --project-id &lt;id&gt; --schema public &gt; src/types/supabase.ts</code>، أو أضف نوع الجدول يدويًا طبقًا لـ <code>0017</code>، وأعد التشغيل.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>نتائج الفحص الآلي والمراجعة الكودية</h2></div>
+    <div class="check-grid">
+      <div class="check"><div class="name">TypeScript<span class="sub-name">npm run typecheck</span></div><span class="badge fail">فشل — B1</span></div>
+      <div class="check"><div class="name">ESLint<span class="sub-name">npm run lint</span></div><span class="badge pass">0 أخطاء / 8 تحذيرات</span></div>
+      <div class="check"><div class="name">Vitest<span class="sub-name">314 اختبارًا (~62s)</span></div><span class="badge pass">312/314 — 2 مهلة تحت الحمل</span></div>
+      <div class="check"><div class="name">Build<span class="sub-name">next build (Turbopack)</span></div><span class="badge fail">فشل في فحص الأنواع</span></div>
+    </div>
+    <p style="margin-top:14px">
+      الفشلان في الاختبارات (<code>members.test.ts</code> resolveRole و<code>token-hashing.test.ts</code> pepper) يعتمدان على مهلة
+      حقيقية (5000ms) مقابل آلة بطيئة وطقم كبير — يتقلبان ويمران منفردين (13/13). وصفة فصلة لا علاقة لها بمنطق الاختبارات.
+    </p>
+
+    <h3>ما أكّدته القراءة المباشرة (لا خلل)</h3>
+    <ul>
+      <li><strong>حراسة SSRF حقيقية</strong> في <code>src/lib/net/safe-endpoint.ts</code>: تحقق بعد حل DNS، رفض نطاقات خاصة و<code>169.254.169.254</code>، تثبيت الاتصال على العنوان المفحوص (مانع DNS rebinding) — 13 اختبارًا.</li>
+      <li><strong>توکنات مقلوبة (hashed)</strong> بـ HMAC + pepper مع إعادة تجزئة تدريجية.</li>
+      <li><strong>CSP صارم قائم على nonce</strong> بلا <code>unsafe-eval</code> في الإنتاج (لا HSTS — I6).</li>
+      <li><strong>مفتاح service-role لا يغادر السيرفر إطلاقًا</strong>؛ تحديد معدل تسجيل الدخول في Postgres (يصمد أمام تعدد النسخ).</li>
+      <li><strong>MCP</strong>: فحص نطاق (read/write) قبل التنفيذ، <code>call_project_tool</code> خلف <code>ownsProject</code>+<code>assertSafeEndpoint</code>، جدار قرارات يفصّل في <code>executor.ts</code>.</li>
+    </ul>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>الثغرات الأمنية</h2></div>
+
+    <table>
+      <tr><th>#</th><th>الشدة</th><th>الوصف</th><th>الموقع</th><th>قابل للاستغلال اليوم؟</th></tr>
+      <tr><td>M1</td><td><span class="badge warn">متوسط</span></td><td>حقن HTML في رسائل البريد (تنبيهات صحية + ملخصات مهام دائمة)</td><td><code>email.ts:100,104,107,109,148,150</code></td><td>نعم (نص الوكيل/المسؤول)</td></tr>
+      <tr><td>M2</td><td><span class="badge warn">متوسط</span></td><td>dedup الويبوکس غير مربوط بالمحتوى الموقَّع + NULL يكسر الفهرسة الفريدة</td><td><code>route.ts:61-79</code> + <code>github.ts:119-133</code></td><td>جزئيًا</td></tr>
+      <tr><td>M3</td><td><span class="badge warn">متوسط</span></td><td>SHA-256 واحد بلا KDF/ملح/تدوير لمفتاح تعمية التكاملات</td><td><code>encryption.ts:27-36</code></td><td>لا (مع سر عالي الإنتروبي)</td></tr>
+      <tr><td>L1</td><td><span class="badge info">منخفض</span></td><td><code>/api/activity/page</code> و<code>/stream</code> خارج قواعد الحد</td><td><code>proxy.ts:34-55</code></td><td>عميل مصادق</td></tr>
+      <tr><td>L2</td><td><span class="badge info">منخفض</span></td><td>طلبات JSON غير محدودة على ناقلي MCP</td><td><code>mcp/route.ts:48</code></td><td>نعم</td></tr>
+      <tr><td>L3</td><td><span class="badge info">منخفض</span></td><td>تعطيل التحقق من شهادة TLS للقاعدة</td><td><code>auth.ts:57-58</code> + <code>auth-migrate.mjs:19</code></td><td>لا اليوم</td></tr>
+      <tr><td>L4</td><td><span class="badge info">منخفض</span></td><td>خريطة vetted غير محدودة في حارس SSRF</td><td><code>safe-endpoint.ts:~144</code></td><td>لا</td></tr>
+      <tr><td>L5</td><td><span class="badge info">منخفض</span></td><td>نطاق GitHub <code>repo</code> رغم تعليق "الأقل صلاحية"</td><td><code>github.ts:44-45</code></td><td>تفويض زائد</td></tr>
+      <tr><td>L6</td><td><span class="badge info">منخفض</span></td><td>جسم الويبوکس يُقرأ كاملًا قبل فحص 1MB + سطر تدقيق لكل محاولة مزيّفة</td><td><code>route.ts:30-33,44-51</code></td><td>إزعاج سجل</td></tr>
+      <tr><td>L7</td><td><span class="badge info">منخفض</span></td><td>مشرف عضويات يرقّي مشرفًا ويصدر توکنات كتابة (قرار تصميم موثّق)</td><td><code>actions.ts</code></td><td>ضمن التصميم</td></tr>
+      <tr><td>L8</td><td><span class="badge info">منخفض</span></td><td><code>prune_agent_logs</code> بلا <code>grant</code> صريح لـ <code>service_role</code> — قد يفشل cron بصمت</td><td><code>0006:27-30</code></td><td>يحتاج فحصًا حيًا</td></tr>
+    </table>
+
+    <h3>المتوسطة — التفاصيل</h3>
+
+    <div class="card finding warn">
+      <div class="card-title"><strong>M1 — حقن HTML في رسائل البريد</strong><span class="badge warn">متوسط · قابل للاستغلال اليوم</span></div>
+      <p>القيم المعروضة في القوالب تُدرج دون تهريب: <code>sendHealthAlert</code> (<code>email.ts:100,104,107,109</code>) يدرج <code>project.name</code> و<code>endpoint</code> و<code>run.department</code>؛ <code>sendStandingTaskDigest</code> (<code>email.ts:147-150</code>) يدرج <code>run.department</code> و<code>run.summary</code> (نص LLM من تشغيل غير مراقب)؛ <code>sendPasswordReset</code> (<code>email.ts:199-210</code>) يدرج الـ URL.</p>
+      <p><code>run.summary</code> يولّده الوكيل نفسه تلقائيًا — أي نص خرج إليه وكيل إدارة يتسرب إلى قارئ البريد معرّى. الأثر: XSS في عميل بريد HTML وتزوير محتوى/روابط.</p>
+      <p><strong>الإصلاح:</strong> دالة <code>escapeHtml</code> موحدة تُطبَّق على كل تحقين في قوالب HTML + اختبار وحدة للتهريب (لا يوجد اليوم).</p>
+    </div>
+
+    <div class="card finding warn">
+      <div class="card-title"><strong>M2 — الـ dedup للويبوکس غير مربوط بالمحتوى الموقَّع</strong><span class="badge warn">متوسط</span></div>
+      <p>توقيع <code>github.ts:119-133</code> يغطي الجسم فقط عبر HMAC، أما <code>event_id</code> فيأتي من ترويسة <code>X-GitHub-Delivery</code> غير الموقّعة. تُدرج الصفوف بـ (route.ts:61-79) وتُعالج <code>23505</code> كإعادة؛ لكن <code>event_id: verdict.eventId ?? null</code> (السطر 63): بلا ترويسة يصير <code>NULL</code>، وفي Postgres <code>NULL ≠ NULL</code> تحت الفهرسة الفريدة — فيُمرَّر كل تكرار.</p>
+      <p><strong>الأثر اليوم ضئيل</strong> (صف واحد يُضاف، المعالجة الفعلية غير مفعّلة)، لكنه يحكم كل معالجة قادمة. <strong>الإصلاح قبل تفعيل معالجة الأحداث:</strong> مفتاح dedup مشتق من المحتوى الموقَّع نفسه (HMAC من <code>rawBody</code>) + معالجة صريحة لـ NULL.</p>
+    </div>
+
+    <div class="card finding warn">
+      <div class="card-title"><strong>M3 — مخطط مفتاح تعمية التكاملات</strong><span class="badge warn">متوسط</span></div>
+      <p><code>encryption.ts:27-36</code> يشتق المفتاح بـ <code>createHMACKey('SHA-256', secret)</code> مباشرة — بلا KDF/ملح/نسخة مفتاح. بلا KDF، أي سر منخفض الإنتروبي ينعكس لمفتاح قابل للـ brute-force. وبلا <code>key_id</code>، تغيير <code>INTEGRATIONS_SECRET</code> يكسّر كل الاتصالات المخزنة (التدوير = فقدان).</p>
+      <p><strong>الإصلاح:</strong> HKDF/scrypt بملح مشتق + عمود <code>key_id</code> في <code>integration_connections</code>، وتوثيق أن السر يُولَّد بـ <code>openssl rand -base64 32</code>.</p>
+    </div>
+
+    <h3>المنخفضة والمعلوماتية</h3>
+    <ul>
+      <li><strong>L1</strong> إضافة <code>/api/activity/page</code> و<code>/api/activity/stream</code> إلى قواعد <code>src/proxy.ts</code>.</li>
+      <li><strong>L2</strong> سقف حجم (مثل 1MB) قبل <code>request.json()</code> على ناقلي MCP (<code>mcp/route.ts:48</code> وما يماثلها في mcp-server).</li>
+      <li><strong>L3</strong> إعادة <code>rejectUnauthorized: true</code> في <code>auth.ts:57-58</code> و<code>auth-migrate.mjs:19</code> أو توثيق السبب.</li>
+      <li><strong>L4</strong> حدود/انتهاء لخريطة <code>vetted</code> في <code>safe-endpoint.ts</code>.</li>
+      <li><strong>L5</strong> تقليص نطاق GitHub إلى القراءة ما لم تُطلَب الكتابة فعليًا.</li>
+      <li><strong>L6</strong> فحص <code>content-length</code> قبل قراءة الجسم + التسجيل بعد الفحص لا قبله (منع تلويث السجل).</li>
+      <li><strong>L7</strong> قرار تصميم موثّق (ترقية المشرفين وإصدار توکنات كتابة) — يُنصح بمراجعته دوريًا.</li>
+      <li><strong>L8</strong> تحقق حي من <code>has_function_privilege('service_role', 'public.prune_agent_logs(interval)', 'EXECUTE')</code> وإضافة <code>grant</code> صريح في <code>0018</code> عند غيابه.</li>
+      <li><strong>I1</strong> الموافقة تنفّذ args/ctx محفوظة دون إعادة تقييم — <strong>مُختبَر ومُوثّق بوعي</strong> (<code>approvals.test.ts</code> + plan.md:172)؛ ليس ثغرة.</li>
+      <li><strong>I2</strong> <code>actorType</code> اختياري في <code>ToolContext</code> يعطّل حارس المهمة اليومية لمن نسي ضبطه — اجعله إلزاميًا (plan.md:171).</li>
+      <li><strong>I3</strong> عدم تناظر null-check لـ <code>pinnedDispatcher</code> في daily-check.</li>
+      <li><strong>I4</strong> <code>list_recent_logs</code> بتوکن عام يقرأ آخر 5 سجلات لكل المشاريع — اقصرها على مشاريع التوکن.</li>
+      <li><strong>I5</strong> <code>seed-owner.mjs</code> بكلمة مرور من وسيط CLI — انقل إلى env/stdin.</li>
+      <li><strong>I6</strong> لا HSTS في <code>proxy.ts:132</code>.</li>
+      <li><strong>I7</strong> <code>GET /api/integrations</code> يكشف حضور/غياب env للمشرف.</li>
+      <li><strong>I8</strong> <code>webhook_events</code> بلا احتفاظ ويخزّن حمولات حتى 1MB.</li>
+      <li><strong>I9</strong> GitHub بلا PKCE (مقبول لكلاينت سرّي) + connect بلا فحص Origin.</li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>مراجعة الاختبارات</h2></div>
+    <p><strong>متين:</strong> سياسات، موافقات، SSRF (13 حالة)، توکنات (pepper/HMAC/revoke)، ملكية، أدوات MCP، snapshot تراکيب الأدوات، insights.</p>
+    <h3>ثغرات التغطية (الأهم أولًا)</h3>
+    <ul>
+      <li><strong>لا اختبار لعقد تقرير <code>runTool</code> (executor)</strong> — لا شيء يؤكد أن كل قرار (deny / awaiting / allow) يكتب <code>agent_logs</code> بالقرار و<code>actor_type</code> الصحيحين.</li>
+      <li><strong>لا اختبارات لسطح <code>/api/mcp</code></strong> (parse/defat/oversize/notifications) ولا <code>mcp-server</code> — إلا <code>mcp-route-ping</code>.</li>
+      <li><strong>لا اختبارات لمسارات الويبوکس والـ OAuth</strong> — <code>verifyWebhook</code> مُختبَر كدالة، لكن الـ route كاملةً (حمولة، توقيع فاسد، مكرر، 404) و callback/connect (state، انتهاء، redirectTo) بلا تغطية.</li>
+      <li><strong>لا اختبار لـ proxy rate-limit</strong> (clientIp / overLimitInMemory / windows).</li>
+      <li><strong>snapshot tool-schemas</strong> يفلت منه أي أداة جديدة بصمت — أدخله المراجعة الذهنية.</li>
+      <li><strong>إلغاء التقلب</strong> في <code>members.test.ts</code> و<code>token-hashing.test.ts</code> (رفع المهلة/زمن وهمي).</li>
+    </ul>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>انحراف المنتج والتوثيق</h2></div>
+    <ul>
+      <li><strong>P1 — <code>plan.md</code> متأخر:</strong> قائمة الترحيلات المعلقة (سطور 183-185) تذكر <code>0014/0015/0016</code> ولا تذكر <code>0017</code>؛ أما تنظيف المتغيرات (<code>AI_GATEWAY_API_KEY</code>, <code>CEO_CONSOLE_MODEL</code>, سطر GROQ المكرر) فمؤكَّد منجَز (0 إشارات في <code>src</code>).</li>
+      <li><strong>P2 — 5 متغيرات ميتة في <code>.env.local</code> (صفر إشارات):</strong> <span class="pill">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</span><span class="pill">VERCEL_OIDC_TOKEN</span><span class="pill">KV_URL</span><span class="pill">REDIS_URL</span><span class="pill">RESEND_EMAIL_DOMAIN</span></li>
+      <li><strong>P3 — ترحيلات معلقة على الإنتاج:</strong> <code>0013</code>–<code>0017</code> غير مؤكدة التطبيق — بدونها: تكاملات، قرارات DB، موافقات، سجل تشغيل، وجدار السياسات كلها معطلة في الإنتاج. <strong>أول خطوة عملية: تطبيق الترحيلات ثم إعادة توليد الأنواع.</strong></li>
+      <li><strong>P4:</strong> تقرير <code>docs/audits/2026-08-23</code> عمره 29 يومًا وأجيال المراجعة الأخيرة فقط في <code>plan.md</code>؛ النسخة الجديدة تُحفظ في <code>docs/audits</code>.</li>
+      <li><strong>P5:</strong> <code>README.md</code> و<code>INTEGRATIONS.md</code> دقيقان مع الكود.</li>
+      <li><strong>P6:</strong> تحذيرات lint الثمانية كلها في الاختبارات (pre-existing).</li>
+    </ul>
+  </section>
+
+  <!-- 7 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>قائمة تحقق تحتاج بيئة حية</h2></div>
+    <div class="card finding pass">
+      <div class="card-title"><strong>لا يمكن فحصها محليًا — تُنفَّذ على الإنتاج</strong></div>
+      <ul>
+        <li>تطبيق الترحيلات <code>0013</code>–<code>0017</code> ثم إعادة توليد الأنواع (<code>supabase gen types</code>).</li>
+        <li><code>has_function_privilege('service_role', 'public.prune_agent_logs(interval)', 'EXECUTE')</code> → أضف <code>grant</code> عند غيابها.</li>
+        <li>تحقق RLS بـ <code>set role authenticated</code> على <code>agent_logs</code>/<code>tool_approvals</code>/<code>policies</code>.</li>
+        <li>ترويسة <code>Strict-Transport-Security</code> على Vercel.</li>
+        <li><code>INTEGRATIONS_SECRET</code> في Vercel عالي الإنتروبي.</li>
+        <li>crons <code>/api/maintenance/prune</code> (04:00) و<code>/api/agent/daily-check</code> (06:00) بلا أخطاء مؤخرًا.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">08</span><h2>خطة الإصلاح المقترحة</h2></div>
+    <div class="priority-list">
+      <div class="priority-item">
+        <div class="p-rank high">0</div>
+        <div>
+          <strong>فك الحصار</strong>
+          <p style="margin-top:2px">(1) تطبيق الترحيلات المعلقة + إعادة توليد <code>src/types/supabase.ts</code> + <code>grant</code> للـ prune إن غاب → <code>typecheck</code>+<code>build</code> أخضران. (2) M1: <code>escapeHtml</code> على كل تحقين في <code>email.ts</code> + اختبار تهريب.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank med">1</div>
+        <div>
+          <strong>سريع</strong>
+          <p style="margin-top:2px">M2: مفتاح dedup من الجسم الموقَّع قبل تفعيل معالجة الأحداث. L2: سقف حجم لناقلي MCP. L1: إضافة مسارات activity للقواعد. L6: فحص <code>content-length</code> قبل القراءة.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank med">2</div>
+        <div>
+          <strong>تحصين</strong>
+          <p style="margin-top:2px">L3: إعادة تفعيل التحقق من الشهادة. I6: HSTS في <code>proxy.ts</code>. L4: حدود خريطة vetted. L5: تقليل نطاق GitHub. M3: KDF + <code>key_id</code>. I2/I4/I9.</p>
+        </div>
+      </div>
+      <div class="priority-item">
+        <div class="p-rank low">3</div>
+        <div>
+          <strong>اختبارات لتثبيت القرارات</strong>
+          <p style="margin-top:2px">executor contract (قرارات+سجل) · سطح <code>/api/mcp</code> و<code>mcp-server</code> · مسارات الويبوکس/الـOAuth · proxy rate-limit · إزالة تذبذب الاختبارين.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section>
+    <div class="sec-head"><span class="sec-num">09</span><h2>الخلاصة</h2></div>
+    <p>
+      بنية أمنية جيدة: حراسة SSRF وتوکنات مجزأة وCSP صارم وأدوار — ولا ثغرة حرجة أو عالية في الكود المُفحص.
+      لكن خط الإنتاج <strong>مكسور في اللحظة الحالية</strong> (أنواع Supabase لم تُحدَّث بعد <code>0017</code>)
+      وقاعدة الإنتاج <strong>معلقة الترحيلات</strong> — وهاتان نقطا البداية فعلًا. بعدها تأتي M1 ثم M2 ثم M3.
+      الإطار العام: أمن جيد، انضباط توثيقي يحتاج استعادة، واختبارات جيدة الحجم تحتاج خياطة في النقاط الحاسمة.
+    </p>
+  </section>
+
+</div>
+
+<footer>
+  تقرير أُعِدّ بقراءة كودية كاملة + فحوصات آلية + تحقق يدوي من كل ادعاء (file:line)، مع إسقاط أي ادعاء لم يتكرَّر إنتاجه — Alking Enterprises · 2026-09-21
+</footer>
+
+</body>
+</html>

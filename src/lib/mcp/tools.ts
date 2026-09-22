@@ -514,6 +514,22 @@ const listRecentLogs = defineTool({
     if (projectId) query = query.eq("project_id", projectId);
     if (args.agent_name) query = query.eq("agent_name", args.agent_name);
 
+    if (!projectId) {
+      // A caller without a project context must not read across owners: pin
+      // the read to logs that belong to this owner's own projects. (The owner's
+      // console runs with ownerId too, so this never clips the owner.) No
+      // owner and no project = no provenance, so refuse rather than read all.
+      if (!ctx.ownerId) return { logs: [] } as Json;
+      const { data: owned, error } = await getServiceSupabase()
+        .from("projects")
+        .select("id")
+        .eq("owner_id", ctx.ownerId);
+      if (error) throw dbError("list_recent_logs", error);
+      const ownedIds = (owned ?? []).map((p) => p.id);
+      if (ownedIds.length === 0) return { logs: [] } as Json;
+      query = query.in("project_id", ownedIds);
+    }
+
     const { data, error } = await query;
     if (error) throw dbError("list_recent_logs", error);
     return { logs: data ?? [] } as Json;

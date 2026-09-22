@@ -51,12 +51,26 @@ function trustedOrigins() {
  * Owner sign-in is email + password; agents authenticate with bearer tokens
  * issued from /dashboard/access (see src/lib/agent-tokens.ts).
  */
+
+/**
+ * TLS is verified by default. Supabase's managed Postgres serves a publicly
+ * trusted certificate, so a rejection is either a real MITM or a self-signed
+ * proxy — precisely the situations that should fail loudly. Set
+ * SUPABASE_SSL_VERIFY_NONE=1 only for a private/self-signed endpoint; the
+ * opt-out is documented here rather than being the silent default.
+ */
+function dbSsl(): { rejectUnauthorized: boolean } | undefined {
+  if (process.env.SUPABASE_SSL_VERIFY_NONE === "1") {
+    console.warn("[auth] DATABASE TLS certificate verification is DISABLED (SUPABASE_SSL_VERIFY_NONE=1).");
+    return { rejectUnauthorized: false };
+  }
+  return connectionString?.includes("supabase.") ? { rejectUnauthorized: true } : undefined;
+}
+
 export const auth = betterAuth({
   database: new Pool({
     connectionString,
-    ssl: connectionString?.includes("supabase.")
-      ? { rejectUnauthorized: false }
-      : undefined,
+    ssl: dbSsl(),
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL:

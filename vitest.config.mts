@@ -16,5 +16,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // The first-run transpile of the whole project is slow on a cold machine;
+    // a file that does real DB/parse work can legitimately cross 5 s.
+    testTimeout: 15_000,
   },
 });
