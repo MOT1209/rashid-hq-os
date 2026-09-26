@@ -583,6 +583,136 @@ export type Database = {
         };
         Relationships: [];
       };
+      /** Monthly follow-up register; see migration 0020. */
+      tracking_months: {
+        Row: {
+          class_name: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          month_key: string;
+          school_name: string;
+          subject: string;
+        };
+        Insert: {
+          class_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          month_key: string;
+          school_name?: string;
+          subject?: string;
+        };
+        Update: {
+          class_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          month_key?: string;
+          school_name?: string;
+          subject?: string;
+        };
+        Relationships: [];
+      };
+      tracking_members: {
+        Row: {
+          created_at: string;
+          id: string;
+          month_id: string;
+          name: string;
+          notes: string;
+          overall_grade: string;
+          role: string;
+          sort_order: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          month_id: string;
+          name: string;
+          notes?: string;
+          overall_grade?: string;
+          role?: string;
+          sort_order?: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          month_id?: string;
+          name?: string;
+          notes?: string;
+          overall_grade?: string;
+          role?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_members_month_id_fkey";
+            columns: ["month_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_months";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tracking_cells: {
+        Row: {
+          kind: string;
+          member_id: string;
+          updated_at: string;
+          value: number;
+          week: number;
+        };
+        Insert: {
+          kind: string;
+          member_id: string;
+          updated_at?: string;
+          value?: number;
+          week: number;
+        };
+        Update: {
+          kind?: string;
+          member_id?: string;
+          updated_at?: string;
+          value?: number;
+          week?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_cells_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tracking_scores: {
+        Row: {
+          idx: number;
+          member_id: string;
+          score: number;
+        };
+        Insert: {
+          idx: number;
+          member_id: string;
+          score?: number;
+        };
+        Update: {
+          idx?: number;
+          member_id?: string;
+          score?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tracking_scores_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "tracking_members";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

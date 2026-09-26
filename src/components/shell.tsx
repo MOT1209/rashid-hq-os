@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import {
   Activity,
   Boxes,
+  ClipboardList,
   KeyRound,
   LayoutDashboard,
   Languages,
@@ -53,6 +54,7 @@ export function Shell({
     { href: "/dashboard", label: t.dashboard, icon: LayoutDashboard },
     { href: "/dashboard/activity", label: t.activity, icon: Activity },
     { href: "/dashboard/insights", label: t.insights, icon: TrendingUp },
+    { href: "/dashboard/tracking", label: t.tracking, icon: ClipboardList },
     { href: "/dashboard/projects", label: t.projects, icon: Boxes },
     { href: "/dashboard/access", label: t.access, icon: KeyRound },
     { href: "/dashboard/settings/integrations", label: t.integrations, icon: Plug },
