@@ -12,6 +12,13 @@ type RecordAgentRunInput = {
   durationMs: number;
   stepCount: number;
   status: RunStatus;
+  /**
+   * Set only when every tool call in this run touched the same single
+   * project (see src/lib/department-agent.ts and the console route); null
+   * when a run touched zero or several projects, so a project is never
+   * mis-attributed spend it didn't necessarily cause alone.
+   */
+  projectId?: string | null;
 };
 
 /**
@@ -33,6 +40,7 @@ export async function recordAgentRun(input: RecordAgentRunInput): Promise<void> 
     duration_ms: input.durationMs,
     step_count: input.stepCount,
     status: input.status,
+    project_id: input.projectId ?? null,
   });
   if (error) {
     captureError("agent-run:record", error, { agentName: input.agentName, kind: input.kind });

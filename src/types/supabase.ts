@@ -76,6 +76,7 @@ export type Database = {
           step_count: number;
           status: string;
           created_at: string;
+          project_id: string | null;
         };
         Insert: {
           id?: string;
@@ -87,6 +88,7 @@ export type Database = {
           step_count: number;
           status: string;
           created_at?: string;
+          project_id?: string | null;
         };
         Update: {
           id?: string;
@@ -98,8 +100,17 @@ export type Database = {
           step_count?: number;
           status?: string;
           created_at?: string;
+          project_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tool_approvals: {
         Row: {
@@ -531,6 +542,7 @@ export type Database = {
           id: string;
           kind: string;
           tokens_used: number;
+          project_id: string | null;
         };
         Insert: {
           agent_name: string;
@@ -539,6 +551,7 @@ export type Database = {
           id?: string;
           kind: string;
           tokens_used: number;
+          project_id?: string | null;
         };
         Update: {
           agent_name?: string;
@@ -547,8 +560,17 @@ export type Database = {
           id?: string;
           kind?: string;
           tokens_used?: number;
+          project_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "budget_events_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       projects: {
         Row: {
@@ -561,6 +583,9 @@ export type Database = {
           repository_url: string | null;
           status: string;
           url: string | null;
+          monthly_token_budget: number | null;
+          budget_alerted_at: string | null;
+          budget_exhausted_alerted_at: string | null;
         };
         Insert: {
           category?: string | null;
@@ -572,6 +597,9 @@ export type Database = {
           repository_url?: string | null;
           status?: string;
           url?: string | null;
+          monthly_token_budget?: number | null;
+          budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
         };
         Update: {
           category?: string | null;
@@ -583,6 +611,9 @@ export type Database = {
           repository_url?: string | null;
           status?: string;
           url?: string | null;
+          monthly_token_budget?: number | null;
+          budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
         };
         Relationships: [];
       };

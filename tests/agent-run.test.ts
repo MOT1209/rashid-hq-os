@@ -54,8 +54,22 @@ describe("recordAgentRun", () => {
         duration_ms: 1500,
         step_count: 3,
         status: "success",
+        project_id: null,
       },
     ]);
+  });
+
+  it("stores the projectId when a run is attributed to a single project", async () => {
+    await recordAgentRun({
+      agentName: "Dev Agent",
+      kind: "delegation",
+      durationMs: 50,
+      stepCount: 1,
+      status: "success",
+      projectId: "proj-1",
+    });
+
+    expect(inserts[0].project_id).toBe("proj-1");
   });
 
   it("stores missing token counts as null rather than undefined", async () => {

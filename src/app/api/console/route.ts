@@ -69,6 +69,11 @@ export async function POST(request: Request) {
 
   const agentName = "CEO Console";
 
+  // Tokens are attributed to a single project only when every tool call in
+  // this turn touched the same one (see recordAgentRun's projectId doc) — a
+  // turn that fans out across projects, or touches none, charges no one.
+  const touchedProjects = new Set<string>();
+
   const tools = Object.fromEntries(
     TOOLS.map((definition) => [
       definition.name,
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
             delegationDepth: 0,
             actorType: "person",
           });
+          if (outcome.projectId) touchedProjects.add(outcome.projectId);
           switch (outcome.status) {
             case "success":
               return outcome.result;
@@ -122,6 +128,7 @@ export async function POST(request: Request) {
         durationMs: Date.now() - startedAt,
         stepCount,
         status: "success",
+        projectId: touchedProjects.size === 1 ? [...touchedProjects][0] : null,
       });
     },
     onError: async ({ error }) => {

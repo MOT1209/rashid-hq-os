@@ -95,6 +95,11 @@ export async function runDepartmentAgent(input: {
     return true;
   });
 
+  // Tokens are attributed to a single project only when every tool call in
+  // this run touched the same one (see recordAgentRun's projectId doc) — so
+  // a run that fans out across projects, or touches none, charges no one.
+  const touchedProjects = new Set<string>();
+
   const tools: ToolSet = Object.fromEntries(
     available.map((definition) => [
       definition.name,
@@ -103,6 +108,7 @@ export async function runDepartmentAgent(input: {
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
           const outcome = await runTool(definition, args, context);
+          if (outcome.projectId) touchedProjects.add(outcome.projectId);
           // Always returned, never thrown: a denied/failed/queued tool call is
           // information the agent can act on, and throwing would abort the
           // whole delegated run.
@@ -190,6 +196,7 @@ export async function runDepartmentAgent(input: {
     durationMs: Date.now() - startedAt,
     stepCount: result.steps.length,
     status: "success",
+    projectId: touchedProjects.size === 1 ? [...touchedProjects][0] : null,
   });
 
   return {
