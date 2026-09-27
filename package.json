@@ -11,6 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "auth:migrate": "node --env-file=.env.local scripts/auth-migrate.mjs",
+    "migrate:status": "node --env-file=.env.local scripts/migrate.mjs status",
+    "migrate:baseline": "node --env-file=.env.local scripts/migrate.mjs baseline",
+    "migrate:dry-run": "node --env-file=.env.local scripts/migrate.mjs dry-run",
+    "migrate:apply": "node --env-file=.env.local scripts/migrate.mjs apply",
     "seed:owner": "node scripts/seed-owner.mjs"
   },
   "dependencies": {
