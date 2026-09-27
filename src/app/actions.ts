@@ -147,6 +147,16 @@ export async function updateProjectAction(form: FormData) {
     }
   }
 
+  // Empty = unlimited (NULL), same validation as a department's budget field.
+  const budgetRaw = text(form, "monthly_token_budget");
+  let monthlyTokenBudget: number | null = null;
+  if (budgetRaw) {
+    if (!/^\d{1,9}$/.test(budgetRaw)) {
+      return { error: `"monthly_token_budget" must be a positive whole number of tokens.` };
+    }
+    monthlyTokenBudget = Number(budgetRaw);
+  }
+
   const { error } = await getServiceSupabase()
     .from("projects")
     .update({
@@ -156,6 +166,7 @@ export async function updateProjectAction(form: FormData) {
       repository_url: text(form, "repository_url"),
       mcp_endpoint: mcpEndpoint,
       status: (text(form, "status") ?? "active") as ProjectStatus,
+      monthly_token_budget: monthlyTokenBudget,
     })
     .eq("id", id)
     .eq("owner_id", session.user.id);

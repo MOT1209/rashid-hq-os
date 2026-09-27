@@ -43,7 +43,7 @@ export const fetchSkills = cache(async (): Promise<AgentSkill[]> => {
 
 /** Registry pages need every column; pickers only need id + name. */
 const PROJECT_COLUMNS =
-  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at";
+  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at";
 
 export async function fetchProjects(limit = 200): Promise<Project[]> {
   const { data, error } = await getServiceSupabase()
@@ -68,6 +68,24 @@ export async function fetchProjectOptions(): Promise<
     .order("name");
   if (error) throw dbError("Loading projects", error);
   return (data ?? []) as Pick<Project, "id" | "name">[];
+}
+
+const PROJECT_BUDGET_COLUMNS =
+  "id, name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at";
+
+export type ProjectBudget = Pick<
+  Project,
+  "id" | "name" | "monthly_token_budget" | "budget_alerted_at" | "budget_exhausted_alerted_at"
+>;
+
+/** For the /dashboard/insights budgets panel — only the columns that panel needs. */
+export async function fetchProjectBudgets(): Promise<ProjectBudget[]> {
+  const { data, error } = await getServiceSupabase()
+    .from("projects")
+    .select(PROJECT_BUDGET_COLUMNS)
+    .order("name");
+  if (error) throw dbError("Loading project budgets", error);
+  return (data ?? []) as ProjectBudget[];
 }
 
 export async function fetchProjectTools(): Promise<ProjectTool[]> {
@@ -236,7 +254,7 @@ export async function fetchRunInsights(
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await getServiceSupabase()
     .from("agent_runs")
-    .select("agent_name, kind, tokens_in, tokens_out, duration_ms, status, created_at")
+    .select("agent_name, kind, tokens_in, tokens_out, duration_ms, status, created_at, project_id")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(INSIGHTS_MAX_ROWS);

@@ -12,7 +12,7 @@ type Result = { data?: unknown; error?: unknown };
 let insertResult: Result = { data: { id: "w1" }, error: null };
 const inserts: Record<string, unknown>[] = [];
 
-const from = vi.fn((table: string) => {
+const from = vi.fn((_table: string) => {
   const insert = (row: Record<string, unknown>) => {
     inserts.push(row);
     return Promise.resolve(insertResult);

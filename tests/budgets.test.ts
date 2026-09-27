@@ -42,11 +42,15 @@ const captureError = vi.fn();
 vi.mock("@/lib/errors", () => ({ captureError: (...args: unknown[]) => captureError(...args) }));
 
 const sendEmail = vi.fn(async (..._args: unknown[]) => true);
-vi.mock("@/lib/email", () => ({ sendEmail: (...args: unknown[]) => sendEmail(...args) }));
+vi.mock("@/lib/email", async (importOriginal) => ({
+  escapeHtml: (await importOriginal<typeof import("@/lib/email")>()).escapeHtml,
+  sendEmail: (...args: unknown[]) => sendEmail(...args),
+}));
 
 vi.mock("@/lib/owners", () => ({ ownerEmails: () => ["owner@example.com"] }));
 
-const { checkDepartmentBudget, spendForAgent } = await import("@/lib/budgets");
+const { checkDepartmentBudget, checkProjectBudget, spendForAgent, spendForProject } =
+  await import("@/lib/budgets");
 
 const BASE = {
   agentName: "Dev Agent",
@@ -108,17 +112,58 @@ describe("checkDepartmentBudget", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("blocks at 100% and records the block without mailing", async () => {
+  it("blocks at 100%, records the block and mails the exhausted alert once", async () => {
     spendRows.push({ tokens_in: 100_000, tokens_out: 1 });
     const result = await checkDepartmentBudget(BASE);
-    expect(result).toEqual({ allowed: false, used: 100_001, budget: 100_000, alerted: false });
-    expect(sendEmail).not.toHaveBeenCalled();
+    expect(result).toEqual({ allowed: false, used: 100_001, budget: 100_000, alerted: true });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail.mock.calls[0][0]).toMatchObject({ subject: expect.stringContaining("100%") });
+    expect(updates).toEqual([
+      {
+        table: "departments",
+        patch: { budget_exhausted_alerted_at: expect.any(String) },
+      },
+    ]);
     expect(inserts).toEqual([
       {
         table: "budget_events",
         row: expect.objectContaining({ kind: "blocked" }),
       },
     ]);
+  });
+
+  it("still blocks but does not re-mail within a day of the last exhausted alert", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 1 });
+    const result = await checkDepartmentBudget({
+      ...BASE,
+      exhaustedAlertedAt: new Date().toISOString(),
+    });
+    expect(result).toEqual({ allowed: false, used: 100_001, budget: 100_000, alerted: false });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it("escapes the agent name in the HTML body", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 0 });
+    await checkDepartmentBudget({ ...BASE, agentName: "<img src=x onerror=alert(1)>" });
+    const [mail] = sendEmail.mock.calls[0] as [{ html: string }];
+    expect(mail.html).not.toContain("<img");
+    expect(mail.html).toContain("&lt;img");
+  });
+
+  it("a recent 80% alert does not suppress the 100% alert", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 0 });
+    const result = await checkDepartmentBudget({ ...BASE, alertedAt: new Date().toISOString() });
+    expect(result.allowed).toBe(false);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stamp the department when the mail could not be sent", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 0 });
+    sendEmail.mockResolvedValueOnce(false);
+    const result = await checkDepartmentBudget(BASE);
+    expect(result).toMatchObject({ allowed: false, alerted: false });
+    expect(updates).toHaveLength(0);
   });
 
   it("fails safe to allowed when the ledger is unreadable", async () => {
@@ -128,5 +173,93 @@ describe("checkDepartmentBudget", () => {
     expect(captureError).toHaveBeenCalledWith("budget:check", expect.anything(), {
       agentName: "Dev Agent",
     });
+  });
+});
+
+describe("spendForProject", () => {
+  it("sums in + out tokens over the window", async () => {
+    spendRows.push({ tokens_in: 30_000, tokens_out: 4_000 }, { tokens_in: null, tokens_out: 1_000 });
+    await expect(spendForProject("proj-1")).resolves.toBe(35_000);
+  });
+});
+
+describe("checkProjectBudget", () => {
+  const PROJECT_BASE = {
+    projectId: "proj-1",
+    projectName: "Clothing Store",
+    budget: 100_000,
+    alertedAt: null as string | null,
+  };
+
+  it("allows everything when no budget is set, without touching the ledger", async () => {
+    const result = await checkProjectBudget({ ...PROJECT_BASE, budget: null });
+    expect(result).toEqual({ allowed: true, used: 0, budget: null, alerted: false });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("allows under 80% with no mail and no event", async () => {
+    spendRows.push({ tokens_in: 50_000, tokens_out: 0 });
+    const result = await checkProjectBudget(PROJECT_BASE);
+    expect(result).toEqual({ allowed: true, used: 50_000, budget: 100_000, alerted: false });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("mails once past 80%, stamps the project (not departments) and records the alert with project_id", async () => {
+    spendRows.push({ tokens_in: 85_000, tokens_out: 0 });
+    const result = await checkProjectBudget(PROJECT_BASE);
+    expect(result).toEqual({ allowed: true, used: 85_000, budget: 100_000, alerted: true });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(updates).toEqual([{ table: "projects", patch: expect.objectContaining({}) }]);
+    expect(inserts).toEqual([
+      {
+        table: "budget_events",
+        row: expect.objectContaining({
+          agent_name: "Clothing Store",
+          project_id: "proj-1",
+          kind: "alert",
+        }),
+      },
+    ]);
+  });
+
+  it("does not re-mail within a day of the last alert", async () => {
+    spendRows.push({ tokens_in: 85_000, tokens_out: 0 });
+    const result = await checkProjectBudget({ ...PROJECT_BASE, alertedAt: new Date().toISOString() });
+    expect(result.alerted).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("blocks at 100%, records the block and mails the exhausted alert once", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 1 });
+    const result = await checkProjectBudget(PROJECT_BASE);
+    expect(result).toEqual({ allowed: false, used: 100_001, budget: 100_000, alerted: true });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail.mock.calls[0][0]).toMatchObject({ subject: expect.stringContaining("100%") });
+    expect(updates).toEqual([
+      { table: "projects", patch: { budget_exhausted_alerted_at: expect.any(String) } },
+    ]);
+    expect(inserts).toEqual([
+      { table: "budget_events", row: expect.objectContaining({ project_id: "proj-1", kind: "blocked" }) },
+    ]);
+  });
+
+  it("still blocks but does not re-mail within a day of the last exhausted alert", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 1 });
+    const result = await checkProjectBudget({
+      ...PROJECT_BASE,
+      exhaustedAlertedAt: new Date().toISOString(),
+    });
+    expect(result).toEqual({ allowed: false, used: 100_001, budget: 100_000, alerted: false });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it("uses the word 'Project' rather than 'Agent' in the mail copy", async () => {
+    spendRows.push({ tokens_in: 100_000, tokens_out: 0 });
+    await checkProjectBudget(PROJECT_BASE);
+    const [mail] = sendEmail.mock.calls[0] as [{ text: string }];
+    expect(mail.text).toContain('Project "Clothing Store"');
+    expect(mail.text).not.toContain('Agent "Clothing Store"');
   });
 });

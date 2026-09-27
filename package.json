@@ -15,7 +15,8 @@
     "migrate:baseline": "node --env-file=.env.local scripts/migrate.mjs baseline",
     "migrate:dry-run": "node --env-file=.env.local scripts/migrate.mjs dry-run",
     "migrate:apply": "node --env-file=.env.local scripts/migrate.mjs apply",
-    "seed:owner": "node scripts/seed-owner.mjs"
+    "seed:owner": "node scripts/seed-owner.mjs",
+    "db:backup": "node --env-file=.env.local scripts/pre-migrate-backup.mjs"
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.31",

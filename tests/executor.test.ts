@@ -32,9 +32,23 @@ vi.mock("@/lib/activity", () => ({
 
 const captureError = vi.fn();
 vi.mock("@/lib/errors", () => ({
-  captureError: (context: string, error: unknown, extra?: unknown) =>
-    captureError(context, error, extra),
+  captureError: (context: string, error: unknown, extra?: unknown, enrich?: unknown) =>
+    captureError(context, error, extra, enrich),
 }));
+
+/** Runs the scope enricher runTool hands to captureError against a recording scope. */
+function enrichedScope(call: unknown[]) {
+  const tags: Record<string, string> = {};
+  const contexts: Record<string, unknown> = {};
+  const scope = {
+    setTag: (key: string, value: string) => void (tags[key] = value),
+    setContext: (key: string, value: unknown) => void (contexts[key] = value),
+    setLevel: vi.fn(),
+    setFingerprint: vi.fn(),
+  };
+  (call[3] as (s: typeof scope) => void)(scope);
+  return { tags, contexts, scope };
+}
 
 type ApprovalInput = { logId: string };
 const queueApproval = vi.fn(async (input: ApprovalInput) => `approval-${input.logId}`);
@@ -144,7 +158,7 @@ describe("runTool audit contract", () => {
 
     const out = await runTool(stubTool(), { x: 1 }, ctx);
 
-    expect(out).toEqual({ status: "queued", approvalId: "approval-log-1" });
+    expect(out).toEqual({ status: "queued", approvalId: "approval-log-1", projectId: "p1" });
     expect(execute).not.toHaveBeenCalled();
     expect(activityLogs.at(-1)).toMatchObject({
       status: "awaiting_approval",
@@ -173,7 +187,7 @@ describe("runTool audit contract", () => {
 
     const out = await runTool(stubTool(), { zip: 2 }, ctx);
 
-    expect(out).toEqual({ status: "success", result: { ok: true } });
+    expect(out).toEqual({ status: "success", result: { ok: true }, projectId: "p1" });
     expect(execute).toHaveBeenCalledWith({ zip: 2 }, ctx);
     expect(activityLogs.at(-1)).toMatchObject({ decision: "allow", actorType: "department_agent" });
     expect(finishes.at(-1)).toEqual([["success", { ok: true }]]);
@@ -186,10 +200,47 @@ describe("runTool audit contract", () => {
     const out = await runTool(stubTool(), {}, ctx);
 
     expect(out).toMatchObject({ status: "failed", error: "boom", unexpected: true });
-    expect(captureError).toHaveBeenCalledWith("tool:test_tool", expect.any(Error), {
-      agentName: "test-agent",
-    });
+    expect(captureError).toHaveBeenCalledWith(
+      "tool:test_tool",
+      expect.any(Error),
+      { agentName: "test-agent", toolName: "test_tool", failureKind: "tool_error" },
+      expect.any(Function),
+    );
     expect(finishes.at(-1)).toEqual([["failed", { error: "boom" }]]);
+  });
+
+  it("reports an unexpected failure with the agent's identity as searchable tags", async () => {
+    execute.mockRejectedValue(new Error("boom"));
+    const { runTool } = await load();
+
+    await runTool(stubTool(), { project_id: "p-9" }, { ...ctx, projectId: null, delegationDepth: 1 });
+
+    const { tags, contexts, scope } = enrichedScope(captureError.mock.calls.at(-1)!);
+    expect(tags).toEqual({
+      agent_name: "test-agent",
+      tool_name: "test_tool",
+      project_id: "p-9",
+      actor_type: ctx.actorType,
+      delegation_depth: "1",
+      failure_kind: "tool_error",
+    });
+    expect(contexts.agent).toMatchObject({ project_id: "p-9", delegation_depth: 1 });
+    expect(scope.setLevel).not.toHaveBeenCalled();
+  });
+
+  it("classifies a remote timeout as a warning grouped per tool", async () => {
+    execute.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+    );
+    const { runTool } = await load();
+
+    const out = await runTool(stubTool(), {}, ctx);
+
+    expect(out).toMatchObject({ status: "failed", unexpected: true });
+    const { tags, scope } = enrichedScope(captureError.mock.calls.at(-1)!);
+    expect(tags.failure_kind).toBe("timeout");
+    expect(scope.setLevel).toHaveBeenCalledWith("warning");
+    expect(scope.setFingerprint).toHaveBeenCalledWith(["agent-timeout", "test_tool"]);
   });
 
   it("does not treat a dbError-shaped crash as unexpected", async () => {

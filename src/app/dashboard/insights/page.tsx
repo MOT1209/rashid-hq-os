@@ -1,10 +1,17 @@
 import { EmptyState, Panel, StatCard } from "@/components/ui";
 import { getLocale, getT } from "@/lib/locale-server";
-import { fetchDepartments, fetchRunInsights, INSIGHTS_WINDOW_DAYS } from "@/lib/queries";
+import {
+  fetchDepartments,
+  fetchProjectBudgets,
+  fetchRunInsights,
+  INSIGHTS_WINDOW_DAYS,
+} from "@/lib/queries";
 import { requireSession } from "@/lib/session";
 import { departmentName } from "@/lib/agents";
 import type { Bucket } from "@/lib/insights";
 import type { Dictionary } from "@/lib/i18n";
+
+type BudgetRow = { key: string; name: string; used: number; budget: number | null };
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +21,32 @@ export const dynamic = "force-dynamic";
  */
 export default async function InsightsPage() {
   const [t, locale] = await Promise.all([getT(), getLocale(), requireSession()]);
-  const [insights, departments] = await Promise.all([fetchRunInsights(), fetchDepartments()]);
+  const [insights, departments, projects] = await Promise.all([
+    fetchRunInsights(),
+    fetchDepartments(),
+    fetchProjectBudgets(),
+  ]);
 
   const spendByAgent = new Map(insights.byAgent.map((b) => [b.key, b.tokens]));
-  const budgets = departments.map((d) => ({
+  const departmentBudgets: BudgetRow[] = departments.map((d) => ({
     key: d.key,
     name: departmentName(d, locale),
     used: spendByAgent.get(d.agent_name) ?? 0,
     // Pre-0018 rows (or a missing migration) read as unlimited, not zero.
     budget: d.monthly_token_budget ?? null,
   }));
+
+  const spendByProject = new Map(insights.byProject.map((b) => [b.key, b.tokens]));
+  // Only projects with a cap set are worth showing here — an uncapped
+  // project's spend already appears in the Insights numbers above.
+  const projectBudgets: BudgetRow[] = projects
+    .filter((p) => p.monthly_token_budget !== null)
+    .map((p) => ({
+      key: p.id,
+      name: p.name,
+      used: spendByProject.get(p.id) ?? 0,
+      budget: p.monthly_token_budget,
+    }));
 
   const kindLabel: Record<string, string> = {
     console: t.runKindConsole,
@@ -57,39 +80,18 @@ export default async function InsightsPage() {
 
       <Panel title={t.budgets}>
         <p className="mb-3 text-sm text-muted">{t.budgetsHint}</p>
-        <ul className="space-y-3">
-          {budgets.map((b) => {
-            const pct = b.budget ? Math.min(100, Math.round((b.used / b.budget) * 100)) : 0;
-            const over = b.budget !== null && b.used >= b.budget;
-            return (
-              <li key={b.key}>
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="font-medium">{b.name}</span>
-                  <span className={over ? "text-err" : "text-muted"}>
-                    {b.budget === null
-                      ? `${number(b.used)} ${t.tokens} · ${t.unlimited}`
-                      : `${number(b.used)} / ${number(b.budget)} ${t.tokens}`}
-                  </span>
-                </div>
-                {b.budget !== null && (
-                  <div
-                    className="mt-1 h-2 overflow-hidden rounded-full bg-panel-2"
-                    role="progressbar"
-                    aria-valuenow={pct}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={b.name}
-                  >
-                    <div
-                      className={`h-full rounded-full ${over ? "bg-err" : pct >= 80 ? "bg-warn" : "bg-accent"}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t.departments}
+        </h3>
+        <BudgetList rows={departmentBudgets} t={t} number={number} />
+        {projectBudgets.length > 0 && (
+          <>
+            <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">
+              {t.projects}
+            </h3>
+            <BudgetList rows={projectBudgets} t={t} number={number} />
+          </>
+        )}
       </Panel>
 
       {insights.runs === 0 ? (
@@ -124,6 +126,53 @@ export default async function InsightsPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** Shared by the departments and projects sub-lists in the Budgets panel. */
+function BudgetList({
+  rows,
+  t,
+  number,
+}: {
+  rows: BudgetRow[];
+  t: Dictionary;
+  number: (value: number) => string;
+}) {
+  return (
+    <ul className="space-y-3">
+      {rows.map((b) => {
+        const pct = b.budget ? Math.min(100, Math.round((b.used / b.budget) * 100)) : 0;
+        const over = b.budget !== null && b.used >= b.budget;
+        return (
+          <li key={b.key}>
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="font-medium">{b.name}</span>
+              <span className={over ? "text-err" : "text-muted"}>
+                {b.budget === null
+                  ? `${number(b.used)} ${t.tokens} · ${t.unlimited}`
+                  : `${number(b.used)} / ${number(b.budget)} ${t.tokens}`}
+              </span>
+            </div>
+            {b.budget !== null && (
+              <div
+                className="mt-1 h-2 overflow-hidden rounded-full bg-panel-2"
+                role="progressbar"
+                aria-valuenow={pct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={b.name}
+              >
+                <div
+                  className={`h-full rounded-full ${over ? "bg-err" : pct >= 80 ? "bg-warn" : "bg-accent"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

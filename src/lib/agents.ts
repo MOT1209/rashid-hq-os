@@ -39,6 +39,8 @@ export type Department = {
   monthly_token_budget: number | null;
   /** Last 80% alert mail — throttles it to one a day (src/lib/budgets.ts). */
   budget_alerted_at: string | null;
+  /** Last 100% alert mail — separate one-a-day throttle (migration 0021). */
+  budget_exhausted_alerted_at: string | null;
 };
 
 export type ProjectCategory = {

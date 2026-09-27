@@ -7,8 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const captureException = vi.fn();
+const scopeTags: Record<string, string> = {};
+const withScope = vi.fn((callback: (scope: unknown) => void) =>
+  callback({ setTag: (key: string, value: string) => void (scopeTags[key] = value) }),
+);
 vi.mock("@sentry/nextjs", () => ({
   captureException: (...args: unknown[]) => captureException(...args),
+  withScope: (callback: (scope: unknown) => void) => withScope(callback),
   flush: async () => true,
 }));
 
@@ -23,6 +28,8 @@ const { captureError, dbError, safeMessage } = await import("@/lib/errors");
 
 beforeEach(() => {
   captureException.mockReset();
+  withScope.mockClear();
+  for (const key of Object.keys(scopeTags)) delete scopeTags[key];
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -31,6 +38,16 @@ afterEach(() => {
 });
 
 describe("captureError", () => {
+  it("applies an enricher inside an isolated scope, and only when given one", () => {
+    captureError("ctx", new Error("boom"));
+    expect(withScope).not.toHaveBeenCalled();
+
+    captureError("ctx", new Error("boom"), {}, (scope) => scope.setTag("agent_name", "Dev Agent"));
+    expect(withScope).toHaveBeenCalledTimes(1);
+    expect(scopeTags).toEqual({ agent_name: "Dev Agent" });
+    expect(captureException).toHaveBeenCalledTimes(2);
+  });
+
   it("returns a uuid reference", () => {
     expect(captureError("ctx", new Error("boom"))).toMatch(/^[0-9a-f-]{36}$/);
   });

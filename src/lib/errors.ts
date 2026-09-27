@@ -41,8 +41,19 @@ function errorDetail(error: unknown): string {
   return String(error);
 }
 
+/**
+ * Adds tags/contexts to one event only. Runs inside Sentry.withScope, so
+ * nothing set here leaks onto other events — see src/lib/agent-errors.ts.
+ */
+export type ScopeEnricher = (scope: Sentry.Scope) => void;
+
 /** Records an error and returns the reference shown to the client. */
-export function captureError(context: string, error: unknown, extra: Extra = {}): string {
+export function captureError(
+  context: string,
+  error: unknown,
+  extra: Extra = {},
+  enrich?: ScopeEnricher,
+): string {
   const ref = randomUUID();
   const detail = errorDetail(error);
   console.error(`[${context}] ref=${ref}: ${detail}`);
@@ -50,10 +61,15 @@ export function captureError(context: string, error: unknown, extra: Extra = {})
   // A non-Error (a string, a Postgres error object) is wrapped so Sentry gets
   // a stack and groups it, rather than recording "Object".
   const err = error instanceof Error ? error : new Error(detail);
-  Sentry.captureException(err, {
-    tags: { context },
-    extra: { ref, ...extra },
-  });
+  const hint = { tags: { context }, extra: { ref, ...extra } };
+  if (enrich) {
+    Sentry.withScope((scope) => {
+      enrich(scope);
+      Sentry.captureException(err, hint);
+    });
+  } else {
+    Sentry.captureException(err, hint);
+  }
 
   // A plain route handler or server action is not auto-flushed under Turbopack,
   // so the event is queued but the serverless function can freeze before it is

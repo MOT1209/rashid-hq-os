@@ -32,6 +32,11 @@ vi.mock("@/lib/agent-run", () => ({
   recordAgentRun: (input: Record<string, unknown>) => recordAgentRun(input),
 }));
 
+const captureAgentError = vi.fn((..._args: unknown[]) => "00000000-0000-4000-8000-000000000000");
+vi.mock("@/lib/agent-errors", () => ({
+  captureAgentError: (...args: unknown[]) => captureAgentError(...args),
+}));
+
 // Budgets are covered in tests/budgets.test.ts; here the gate stays open
 // unless a test says otherwise — and must never touch the network.
 const checkDepartmentBudget = vi.fn(
@@ -45,6 +50,27 @@ const checkDepartmentBudget = vi.fn(
 vi.mock("@/lib/budgets", () => ({
   checkDepartmentBudget: (input: Record<string, unknown>) => checkDepartmentBudget(input),
 }));
+
+// Project attribution (0022) reads runTool's own projectId, not what a tool
+// call actually does — so runTool itself is faked here, one queued outcome
+// per call, and the real network/DB path is never reached.
+const runToolProjectIds: (string | null)[] = [];
+let runToolIndex = 0;
+vi.mock("@/lib/mcp/executor", () => ({
+  runTool: vi.fn(async () => ({
+    status: "success" as const,
+    result: {},
+    projectId: runToolProjectIds[runToolIndex++] ?? null,
+  })),
+}));
+
+type FakeTool = { execute: (args: Record<string, unknown>) => Promise<unknown> };
+
+/** Invokes N of the tools generateText was handed, in order, before it returns. */
+function invokeTools(opts: { tools: Record<string, unknown> }, count: number) {
+  const tools = Object.values(opts.tools) as FakeTool[];
+  return Promise.all(tools.slice(0, count).map((t) => t.execute({})));
+}
 
 const { runDepartmentAgent } = await import("@/lib/department-agent");
 
@@ -65,6 +91,7 @@ function dept(overrides: Partial<Department> = {}): Department {
     standing_task_enabled: true,
     monthly_token_budget: null,
     budget_alerted_at: null,
+    budget_exhausted_alerted_at: null,
     ...overrides,
   };
 }
@@ -88,6 +115,8 @@ beforeEach(() => {
   generateText.mockClear();
   recordAgentRun.mockClear();
   checkDepartmentBudget.mockClear();
+  runToolProjectIds.length = 0;
+  runToolIndex = 0;
 });
 
 describe("runDepartmentAgent tool exposure", () => {
@@ -172,12 +201,43 @@ describe("runDepartmentAgent cost tracking (agent_runs)", () => {
   it("records a failed run and rethrows when the model call itself throws", async () => {
     generateText.mockRejectedValueOnce(new Error("provider unavailable"));
 
+    // Rethrown as a referenced error: runTool treats that form as already
+    // reported, and the raw provider text stays out of the model's context.
     await expect(
       runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" }),
-    ).rejects.toThrow("provider unavailable");
+    ).rejects.toThrow(
+      "Dev Agent run failed. Reference: 00000000-0000-4000-8000-000000000000",
+    );
 
     expect(recordAgentRun).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "delegation", status: "failed", stepCount: 0 }),
+    );
+    expect(captureAgentError).toHaveBeenCalledWith(
+      "department-run:dev",
+      expect.objectContaining({ message: "provider unavailable" }),
+      expect.objectContaining({
+        agentName: "Dev Agent",
+        toolName: null,
+        actorType: "department_agent",
+        delegationDepth: 1,
+        runKind: "delegation",
+      }),
+      "model_error",
+    );
+  });
+
+  it("reports an autonomous run's failure with the standing-task actor type", async () => {
+    generateText.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(
+      runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1", mode: "autonomous" }),
+    ).rejects.toThrow(/Reference:/);
+
+    expect(captureAgentError).toHaveBeenLastCalledWith(
+      "department-run:dev",
+      expect.anything(),
+      expect.objectContaining({ actorType: "standing_task_routine", runKind: "standing_task" }),
+      "model_error",
     );
   });
 });
@@ -217,5 +277,38 @@ describe("runDepartmentAgent budget gate", () => {
         alertedAt: "2026-09-01T00:00:00Z",
       }),
     );
+  });
+});
+
+describe("runDepartmentAgent project attribution (0022)", () => {
+  it("charges the single project every tool call in the run touched", async () => {
+    runToolProjectIds.push("proj-a", "proj-a");
+    generateText.mockImplementationOnce(async (opts) => {
+      await invokeTools(opts, 2);
+      return { text: "ok", steps: [1, 2], usage: { inputTokens: 10, outputTokens: 5 } };
+    });
+
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "proj-a" }),
+    );
+  });
+
+  it("leaves projectId null when the run touches two different projects", async () => {
+    runToolProjectIds.push("proj-a", "proj-b");
+    generateText.mockImplementationOnce(async (opts) => {
+      await invokeTools(opts, 2);
+      return { text: "ok", steps: [1, 2], usage: { inputTokens: 10, outputTokens: 5 } };
+    });
+
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ projectId: null }));
+  });
+
+  it("leaves projectId null when no tool call touches a project", async () => {
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ projectId: null }));
   });
 });

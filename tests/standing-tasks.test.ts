@@ -24,6 +24,7 @@ function dept(overrides: Partial<Department> = {}): Department {
     standing_task_enabled: true,
     monthly_token_budget: null,
     budget_alerted_at: null,
+    budget_exhausted_alerted_at: null,
     ...overrides,
   };
 }

@@ -16,7 +16,7 @@ const updates: Record<string, unknown>[] = [];
 
 function builder(table: string) {
   const chain: Record<string, unknown> = {};
-  const methods = ["select", "eq", "order", "limit"];
+  const methods = ["select", "eq", "order", "limit", "or"];
   for (const m of methods) chain[m] = () => chain;
   chain.insert = (row: Record<string, unknown>) => {
     void row;
@@ -40,6 +40,14 @@ function builder(table: string) {
 
 const from = vi.fn((table: string) => builder(table));
 vi.mock("@/lib/supabase/server", () => ({ getServiceSupabase: () => ({ from }) }));
+
+// An approved tool that crashes now reports to Sentry via captureAgentError,
+// exactly like an inline runTool failure. Mocked so the test asserts the call
+// without pulling in the real Sentry SDK.
+const captureAgentError = vi.fn((..._args: unknown[]) => "00000000-0000-4000-8000-000000000000");
+vi.mock("@/lib/agent-errors", () => ({
+  captureAgentError: (...args: unknown[]) => captureAgentError(...args),
+}));
 
 const finishActivity = vi.fn(async (_id: string, _status: string, _result: unknown) => {});
 vi.mock("@/lib/activity", () => ({
@@ -84,6 +92,7 @@ beforeEach(() => {
   findTool.mockClear();
   scopeDenialReason.mockClear();
   evaluatePolicyAsync.mockClear();
+  captureAgentError.mockClear();
   updates.length = 0;
   insertResult = { data: { id: "approval-1" }, error: null };
   approvalRow = {
@@ -170,6 +179,43 @@ describe("approveToolCall", () => {
     expect(result.status).toBe("failed");
     const decision = updates.find((u) => u.table === "tool_approvals");
     expect(decision).toMatchObject({ status: "approved" });
+    // The failure is reported to Sentry, same as an inline runTool crash.
+    expect(captureAgentError).toHaveBeenCalledWith(
+      "approval:delete_project",
+      expect.objectContaining({ message: "boom" }),
+      expect.objectContaining({ toolName: "delete_project", actorType: "person" }),
+    );
+  });
+
+  it("does not report an already-referenced dbError to Sentry a second time", async () => {
+    execute.mockRejectedValueOnce(
+      new Error("delete_project failed. Reference: 00000000-0000-0000-0000-000000000000"),
+    );
+    const result = await approveToolCall("approval-1", "admin-1");
+    expect(result.status).toBe("failed");
+    expect(captureAgentError).not.toHaveBeenCalled();
+  });
+
+  it("refuses an expired approval, marks it expired, and never executes", async () => {
+    approvalRow!.expires_at = new Date(Date.now() - 1000).toISOString();
+
+    await expect(approveToolCall("approval-1", "admin-1")).rejects.toThrow(/expired/i);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(finishActivity).toHaveBeenCalledWith(
+      "log-1",
+      "failed",
+      expect.objectContaining({ error: expect.stringContaining("expired") }),
+    );
+    const decision = updates.find((u) => u.table === "tool_approvals");
+    expect(decision).toMatchObject({ status: "expired", decided_by: "admin-1" });
+  });
+
+  it("still runs an approval whose expiry is in the future", async () => {
+    approvalRow!.expires_at = new Date(Date.now() + 60_000).toISOString();
+    const result = await approveToolCall("approval-1", "admin-1");
+    expect(result.status).toBe("success");
+    expect(execute).toHaveBeenCalled();
   });
 
   it("refuses an approval that is not pending (already decided, or unknown id)", async () => {

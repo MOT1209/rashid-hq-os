@@ -76,6 +76,7 @@ export type Database = {
           step_count: number;
           status: string;
           created_at: string;
+          project_id: string | null;
         };
         Insert: {
           id?: string;
@@ -87,6 +88,7 @@ export type Database = {
           step_count: number;
           status: string;
           created_at?: string;
+          project_id?: string | null;
         };
         Update: {
           id?: string;
@@ -98,8 +100,17 @@ export type Database = {
           step_count?: number;
           status?: string;
           created_at?: string;
+          project_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tool_approvals: {
         Row: {
@@ -111,6 +122,7 @@ export type Database = {
           status: string;
           decided_by: string | null;
           decided_at: string | null;
+          expires_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -122,6 +134,7 @@ export type Database = {
           status?: string;
           decided_by?: string | null;
           decided_at?: string | null;
+          expires_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -133,6 +146,7 @@ export type Database = {
           status?: string;
           decided_by?: string | null;
           decided_at?: string | null;
+          expires_at?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -172,6 +186,7 @@ export type Database = {
           agent_label_en: string;
           agent_name: string;
           budget_alerted_at: string | null;
+          budget_exhausted_alerted_at: string | null;
           created_at: string;
           icon: string;
           is_fallback: boolean;
@@ -190,6 +205,7 @@ export type Database = {
           agent_label_en: string;
           agent_name: string;
           budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;
@@ -208,6 +224,7 @@ export type Database = {
           agent_label_en?: string;
           agent_name?: string;
           budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;
@@ -528,6 +545,7 @@ export type Database = {
           id: string;
           kind: string;
           tokens_used: number;
+          project_id: string | null;
         };
         Insert: {
           agent_name: string;
@@ -536,6 +554,7 @@ export type Database = {
           id?: string;
           kind: string;
           tokens_used: number;
+          project_id?: string | null;
         };
         Update: {
           agent_name?: string;
@@ -544,8 +563,17 @@ export type Database = {
           id?: string;
           kind?: string;
           tokens_used?: number;
+          project_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "budget_events_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       projects: {
         Row: {
@@ -558,6 +586,9 @@ export type Database = {
           repository_url: string | null;
           status: string;
           url: string | null;
+          monthly_token_budget: number | null;
+          budget_alerted_at: string | null;
+          budget_exhausted_alerted_at: string | null;
         };
         Insert: {
           category?: string | null;
@@ -569,6 +600,9 @@ export type Database = {
           repository_url?: string | null;
           status?: string;
           url?: string | null;
+          monthly_token_budget?: number | null;
+          budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
         };
         Update: {
           category?: string | null;
@@ -580,6 +614,9 @@ export type Database = {
           repository_url?: string | null;
           status?: string;
           url?: string | null;
+          monthly_token_budget?: number | null;
+          budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
         };
         Relationships: [];
       };

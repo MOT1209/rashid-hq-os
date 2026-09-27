@@ -1,17 +1,17 @@
 import "server-only";
 
 import { startActivity } from "@/lib/activity";
-import { captureError } from "@/lib/errors";
+import { captureAgentError } from "@/lib/agent-errors";
 import { queueApproval } from "@/lib/approvals";
 import { evaluatePolicyAsync } from "@/lib/policy";
 import { scopeDenialReason, type ToolContext, type ToolDefinition } from "@/lib/mcp/tools";
 import type { Json } from "@/types/database";
 
 export type RunToolResult =
-  | { status: "denied"; reason: string }
-  | { status: "queued"; approvalId: string }
-  | { status: "success"; result: Json }
-  | { status: "failed"; error: string; unexpected: boolean };
+  | { status: "denied"; reason: string; projectId: string | null }
+  | { status: "queued"; approvalId: string; projectId: string | null }
+  | { status: "success"; result: Json; projectId: string | null }
+  | { status: "failed"; error: string; unexpected: boolean; projectId: string | null };
 
 /** A dbError() message already carries its own reference; anything else is an unexpected crash. */
 const KNOWN_ERROR = /Reference: [0-9a-f-]{36}$/;
@@ -54,7 +54,7 @@ export async function runTool(
       actorType: ctx.actorType,
     });
     await finish("failed", { error: scopeReason });
-    return { status: "denied", reason: scopeReason };
+    return { status: "denied", reason: scopeReason, projectId };
   }
 
   const policy = await evaluatePolicyAsync(tool, ctx, args);
@@ -71,7 +71,7 @@ export async function runTool(
       actorType: ctx.actorType,
     });
     await finish("failed", { error: reason });
-    return { status: "denied", reason };
+    return { status: "denied", reason, projectId };
   }
 
   if (policy.decision === "require_approval") {
@@ -93,6 +93,7 @@ export async function runTool(
         status: "failed",
         error: "Could not queue this call for approval.",
         unexpected: true,
+        projectId,
       };
     }
     const approvalId = await queueApproval({
@@ -101,7 +102,7 @@ export async function runTool(
       args: argsRecord,
       ctx,
     });
-    return { status: "queued", approvalId };
+    return { status: "queued", approvalId, projectId };
   }
 
   const { finish } = await startActivity({
@@ -114,15 +115,28 @@ export async function runTool(
     actorType: ctx.actorType,
   });
 
+  const startedAt = Date.now();
   try {
     const result = await tool.execute(args as never, ctx);
     await finish("success", result);
-    return { status: "success", result };
+    return { status: "success", result, projectId };
   } catch (error) {
     const message = error instanceof Error ? error.message : "The tool failed unexpectedly.";
     const unexpected = !(error instanceof Error && KNOWN_ERROR.test(error.message));
-    if (unexpected) captureError(`tool:${tool.name}`, error, { agentName: ctx.agentName });
+    // A known dbError() was already reported where it was raised; everything
+    // else (including a remote timeout) goes to Sentry with the agent's
+    // identity attached so it can be filtered by agent, tool and project.
+    if (unexpected) {
+      captureAgentError(`tool:${tool.name}`, error, {
+        agentName: ctx.agentName,
+        toolName: tool.name,
+        projectId,
+        actorType: ctx.actorType,
+        delegationDepth: ctx.delegationDepth,
+        durationMs: Date.now() - startedAt,
+      });
+    }
     await finish("failed", { error: message });
-    return { status: "failed", error: message, unexpected };
+    return { status: "failed", error: message, unexpected, projectId };
   }
 }

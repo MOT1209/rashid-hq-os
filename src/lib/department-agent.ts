@@ -2,6 +2,7 @@ import "server-only";
 
 import { generateText, stepCountIs, tool, type ToolSet } from "ai";
 import type { z } from "zod";
+import { captureAgentError } from "@/lib/agent-errors";
 import { recordAgentRun } from "@/lib/agent-run";
 import { checkDepartmentBudget } from "@/lib/budgets";
 import { runTool } from "@/lib/mcp/executor";
@@ -94,6 +95,11 @@ export async function runDepartmentAgent(input: {
     return true;
   });
 
+  // Tokens are attributed to a single project only when every tool call in
+  // this run touched the same one (see recordAgentRun's projectId doc) — so
+  // a run that fans out across projects, or touches none, charges no one.
+  const touchedProjects = new Set<string>();
+
   const tools: ToolSet = Object.fromEntries(
     available.map((definition) => [
       definition.name,
@@ -102,6 +108,7 @@ export async function runDepartmentAgent(input: {
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
           const outcome = await runTool(definition, args, context);
+          if (outcome.projectId) touchedProjects.add(outcome.projectId);
           // Always returned, never thrown: a denied/failed/queued tool call is
           // information the agent can act on, and throwing would abort the
           // whole delegated run.
@@ -126,6 +133,7 @@ export async function runDepartmentAgent(input: {
     departmentKey: department.key,
     budget: department.monthly_token_budget,
     alertedAt: department.budget_alerted_at,
+    exhaustedAlertedAt: department.budget_exhausted_alerted_at,
   });
   if (!budget.allowed) {
     throw new Error(
@@ -149,14 +157,35 @@ export async function runDepartmentAgent(input: {
       stopWhen: stepCountIs(MAX_STEPS),
     });
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     await recordAgentRun({
       agentName,
       kind,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       stepCount: 0,
       status: "failed",
     });
-    throw error;
+    // Reported here, where the department's identity is known. The standing-
+    // task cron used to swallow this into agent_logs only, never Sentry.
+    const ref = captureAgentError(
+      `department-run:${department.key}`,
+      error,
+      {
+        agentName,
+        toolName: null,
+        projectId: null,
+        actorType: context.actorType,
+        delegationDepth: context.delegationDepth,
+        runKind: kind,
+        durationMs,
+      },
+      "model_error",
+    );
+    // Rethrown with a reference instead of the raw provider message: it ends
+    // in the "Reference: <uuid>" form runTool treats as already reported (so
+    // a console delegation is not captured twice), and provider error text
+    // stays out of the model's context and the digest mail.
+    throw new Error(`${agentName} run failed. Reference: ${ref}`);
   }
 
   await recordAgentRun({
@@ -167,6 +196,7 @@ export async function runDepartmentAgent(input: {
     durationMs: Date.now() - startedAt,
     stepCount: result.steps.length,
     status: "success",
+    projectId: touchedProjects.size === 1 ? [...touchedProjects][0] : null,
   });
 
   return {
