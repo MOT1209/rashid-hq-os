@@ -192,7 +192,7 @@ export const dictionaries = {
     tokenBudgetHint:
       "عند 80% يصلك تنبيه، وعند 100% تتوقف تشغيلات القسم الجديدة. فارغ = بلا سقف.",
     budgets: "الميزانيات",
-    budgetsHint: "استهلاك آخر 30 يومًا مقابل السقف الشهري لكل قسم.",
+    budgetsHint: "استهلاك آخر 30 يومًا مقابل السقف الشهري لكل قسم ومشروع محدد له سقف.",
     unlimited: "غير محدود",
     integrations: "التكاملات",
     integrationsHint:
@@ -453,7 +453,8 @@ export const dictionaries = {
     tokenBudgetHint:
       "Past 80% you get an alert, at 100% the department's new runs stop. Empty = no cap.",
     budgets: "Budgets",
-    budgetsHint: "Last-30-days spend against each department's monthly cap.",
+    budgetsHint:
+      "Last-30-days spend against each department's monthly cap, and each project that has one set.",
     unlimited: "Unlimited",
     integrations: "Integrations",
     integrationsHint:

@@ -18,6 +18,8 @@ export type RunRow = {
   duration_ms: number;
   status: string;
   created_at: string;
+  /** Set only when the run's tool calls touched exactly one project (0022). */
+  project_id?: string | null;
 };
 
 export type Bucket = {
@@ -35,6 +37,8 @@ export type RunInsights = {
   avgDurationMs: number;
   byKind: Bucket[];
   byAgent: Bucket[];
+  /** Keyed by project_id; only runs attributable to a single project appear here. */
+  byProject: Bucket[];
   /** Oldest first, one entry per day in the window even when nothing ran. */
   byDay: Bucket[];
 };
@@ -73,6 +77,7 @@ export function summariseRuns(
     KINDS.map((kind) => [kind, { key: kind, runs: 0, tokens: 0 }]),
   );
   const byAgent = new Map<string, Bucket>();
+  const byProject = new Map<string, Bucket>();
   const byDay = new Map<string, Bucket>(
     windowDays(days, now).map((day) => [day, { key: day, runs: 0, tokens: 0 }]),
   );
@@ -90,6 +95,7 @@ export function summariseRuns(
 
     add(byKind, row.kind, row);
     add(byAgent, row.agent_name, row);
+    if (row.project_id) add(byProject, row.project_id, row);
     // A row older than the window (or from a clock skew) has no bucket to land
     // in; counting it in the totals but not the trend is the honest reading.
     const day = row.created_at.slice(0, 10);
@@ -106,6 +112,7 @@ export function summariseRuns(
     avgDurationMs: runs ? Math.round(durationTotal / runs) : 0,
     byKind: [...byKind.values()],
     byAgent: [...byAgent.values()].sort((a, b) => b.tokens - a.tokens),
+    byProject: [...byProject.values()].sort((a, b) => b.tokens - a.tokens),
     byDay: [...byDay.values()],
   };
 }

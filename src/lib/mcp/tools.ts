@@ -5,6 +5,7 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
+import { checkProjectBudget } from "@/lib/budgets";
 import { dbError } from "@/lib/errors";
 import type { ActorType, Json } from "@/types/database";
 
@@ -559,7 +560,9 @@ const callProjectTool = defineTool({
 
     const { data: project } = await supabase
       .from("projects")
-      .select("mcp_endpoint, name")
+      .select(
+        "mcp_endpoint, name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at",
+      )
       .eq("id", args.project_id)
       .maybeSingle();
 
@@ -567,6 +570,22 @@ const callProjectTool = defineTool({
     if (!endpoint) {
       throw new Error(
         `No endpoint for "${args.tool_name}" — set one on the tool or on the project.`,
+      );
+    }
+
+    // Gate before spending anything on this project's behalf — a budget
+    // check after the call would only ever report an overrun, never prevent
+    // one (same reasoning as the department budget check).
+    const budget = await checkProjectBudget({
+      projectId: args.project_id,
+      projectName: project?.name ?? args.project_id,
+      budget: project?.monthly_token_budget,
+      alertedAt: project?.budget_alerted_at,
+      exhaustedAlertedAt: project?.budget_exhausted_alerted_at,
+    });
+    if (!budget.allowed) {
+      throw new Error(
+        `Monthly token budget exceeded for ${project?.name ?? args.project_id} (${budget.used.toLocaleString("en")} of ${budget.budget?.toLocaleString("en")} tokens). Raise it in Settings.`,
       );
     }
 

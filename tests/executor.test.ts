@@ -158,7 +158,7 @@ describe("runTool audit contract", () => {
 
     const out = await runTool(stubTool(), { x: 1 }, ctx);
 
-    expect(out).toEqual({ status: "queued", approvalId: "approval-log-1" });
+    expect(out).toEqual({ status: "queued", approvalId: "approval-log-1", projectId: "p1" });
     expect(execute).not.toHaveBeenCalled();
     expect(activityLogs.at(-1)).toMatchObject({
       status: "awaiting_approval",
@@ -187,7 +187,7 @@ describe("runTool audit contract", () => {
 
     const out = await runTool(stubTool(), { zip: 2 }, ctx);
 
-    expect(out).toEqual({ status: "success", result: { ok: true } });
+    expect(out).toEqual({ status: "success", result: { ok: true }, projectId: "p1" });
     expect(execute).toHaveBeenCalledWith({ zip: 2 }, ctx);
     expect(activityLogs.at(-1)).toMatchObject({ decision: "allow", actorType: "department_agent" });
     expect(finishes.at(-1)).toEqual([["success", { ok: true }]]);

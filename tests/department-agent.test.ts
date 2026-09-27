@@ -51,6 +51,27 @@ vi.mock("@/lib/budgets", () => ({
   checkDepartmentBudget: (input: Record<string, unknown>) => checkDepartmentBudget(input),
 }));
 
+// Project attribution (0022) reads runTool's own projectId, not what a tool
+// call actually does — so runTool itself is faked here, one queued outcome
+// per call, and the real network/DB path is never reached.
+const runToolProjectIds: (string | null)[] = [];
+let runToolIndex = 0;
+vi.mock("@/lib/mcp/executor", () => ({
+  runTool: vi.fn(async () => ({
+    status: "success" as const,
+    result: {},
+    projectId: runToolProjectIds[runToolIndex++] ?? null,
+  })),
+}));
+
+type FakeTool = { execute: (args: Record<string, unknown>) => Promise<unknown> };
+
+/** Invokes N of the tools generateText was handed, in order, before it returns. */
+function invokeTools(opts: { tools: Record<string, unknown> }, count: number) {
+  const tools = Object.values(opts.tools) as FakeTool[];
+  return Promise.all(tools.slice(0, count).map((t) => t.execute({})));
+}
+
 const { runDepartmentAgent } = await import("@/lib/department-agent");
 
 function dept(overrides: Partial<Department> = {}): Department {
@@ -94,6 +115,8 @@ beforeEach(() => {
   generateText.mockClear();
   recordAgentRun.mockClear();
   checkDepartmentBudget.mockClear();
+  runToolProjectIds.length = 0;
+  runToolIndex = 0;
 });
 
 describe("runDepartmentAgent tool exposure", () => {
@@ -254,5 +277,38 @@ describe("runDepartmentAgent budget gate", () => {
         alertedAt: "2026-09-01T00:00:00Z",
       }),
     );
+  });
+});
+
+describe("runDepartmentAgent project attribution (0022)", () => {
+  it("charges the single project every tool call in the run touched", async () => {
+    runToolProjectIds.push("proj-a", "proj-a");
+    generateText.mockImplementationOnce(async (opts) => {
+      await invokeTools(opts, 2);
+      return { text: "ok", steps: [1, 2], usage: { inputTokens: 10, outputTokens: 5 } };
+    });
+
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "proj-a" }),
+    );
+  });
+
+  it("leaves projectId null when the run touches two different projects", async () => {
+    runToolProjectIds.push("proj-a", "proj-b");
+    generateText.mockImplementationOnce(async (opts) => {
+      await invokeTools(opts, 2);
+      return { text: "ok", steps: [1, 2], usage: { inputTokens: 10, outputTokens: 5 } };
+    });
+
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ projectId: null }));
+  });
+
+  it("leaves projectId null when no tool call touches a project", async () => {
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ projectId: null }));
   });
 });

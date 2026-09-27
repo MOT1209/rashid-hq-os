@@ -127,6 +127,17 @@ export function ProjectRow({
               </select>
             </Field>
 
+            <Field id={`${id}-budget`} label={t.tokenBudget}>
+              <input
+                id={`${id}-budget`}
+                name="monthly_token_budget"
+                inputMode="numeric"
+                defaultValue={project.monthly_token_budget ?? ""}
+                placeholder={t.tokenBudgetPlaceholder}
+                className={fieldClass}
+              />
+            </Field>
+
             <div className="sm:col-span-2 flex items-center gap-3">
               <button
                 type="submit"
