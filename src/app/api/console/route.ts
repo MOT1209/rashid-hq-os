@@ -7,6 +7,7 @@ import { recordAgentRun } from "@/lib/agent-run";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS } from "@/lib/mcp/tools";
 import { languageModel, modelConfigured } from "@/lib/model";
+import { spendForAgent } from "@/lib/budgets";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -52,6 +53,33 @@ export async function POST(request: Request) {
       }),
       { status: 503, headers: { "content-type": "application/json" } },
     );
+  }
+
+  // Console cost cap. The console runs as the owner and was the one model path
+  // with no budget at all (department + project runs are gated in budgets.ts),
+  // so a runaway session — a tool loop, an accidental fan-out — could spend
+  // without limit. Opt-in: unset CONSOLE_MONTHLY_TOKEN_BUDGET keeps the old
+  // unlimited behavior. Fail-safe: a ledger read error never blocks the owner.
+  const consoleCap = Number(process.env.CONSOLE_MONTHLY_TOKEN_BUDGET);
+  if (Number.isFinite(consoleCap) && consoleCap > 0) {
+    try {
+      const used = await spendForAgent("CEO Console");
+      if (used >= consoleCap) {
+        return new Response(
+          JSON.stringify({
+            error:
+              `تجاوز الكونسول ميزانيته الشهرية (${used.toLocaleString("en")} من ${consoleCap.toLocaleString("en")} توكن). ` +
+              `ارفع CONSOLE_MONTHLY_TOKEN_BUDGET أو انتظر انقضاء النافذة. · ` +
+              `Console monthly token budget exceeded (${used.toLocaleString("en")} of ${consoleCap.toLocaleString("en")}). ` +
+              `Raise CONSOLE_MONTHLY_TOKEN_BUDGET or wait for the window to roll off.`,
+          }),
+          { status: 429, headers: { "content-type": "application/json" } },
+        );
+      }
+    } catch {
+      // Ledger unreadable: do not wedge the owner's console over a telemetry
+      // outage — the same fail-open posture as checkBudget in budgets.ts.
+    }
   }
 
   let messages: UIMessage[];

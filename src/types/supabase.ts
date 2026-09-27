@@ -122,6 +122,7 @@ export type Database = {
           status: string;
           decided_by: string | null;
           decided_at: string | null;
+          expires_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -133,6 +134,7 @@ export type Database = {
           status?: string;
           decided_by?: string | null;
           decided_at?: string | null;
+          expires_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -144,6 +146,7 @@ export type Database = {
           status?: string;
           decided_by?: string | null;
           decided_at?: string | null;
+          expires_at?: string | null;
           created_at?: string;
         };
         Relationships: [

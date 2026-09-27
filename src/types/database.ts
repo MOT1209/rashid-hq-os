@@ -31,7 +31,7 @@ export type ActorType =
 export type Project = Omit<Row<"projects">, "status"> & { status: ProjectStatus };
 export type AgentLog = Omit<Row<"agent_logs">, "status"> & { status: LogStatus };
 export type ProjectTool = Row<"project_tools">;
-export type ToolApprovalStatus = "pending" | "approved" | "rejected";
+export type ToolApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 export type ToolApprovalRow = Row<"tool_approvals">;
 
 /**
