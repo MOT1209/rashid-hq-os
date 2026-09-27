@@ -36,6 +36,7 @@ function department(key: string, overrides: Partial<Department> = {}): Departmen
     // Budget columns exist since migration 0018; null = unlimited.
     monthly_token_budget: null,
     budget_alerted_at: null,
+    budget_exhausted_alerted_at: null,
     ...overrides,
   };
 }

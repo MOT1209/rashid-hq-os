@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "auth:migrate": "node --env-file=.env.local scripts/auth-migrate.mjs",
-    "seed:owner": "node scripts/seed-owner.mjs"
+    "seed:owner": "node scripts/seed-owner.mjs",
+    "db:backup": "node --env-file=.env.local scripts/pre-migrate-backup.mjs"
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.31",

@@ -32,6 +32,11 @@ vi.mock("@/lib/agent-run", () => ({
   recordAgentRun: (input: Record<string, unknown>) => recordAgentRun(input),
 }));
 
+const captureAgentError = vi.fn((..._args: unknown[]) => "00000000-0000-4000-8000-000000000000");
+vi.mock("@/lib/agent-errors", () => ({
+  captureAgentError: (...args: unknown[]) => captureAgentError(...args),
+}));
+
 // Budgets are covered in tests/budgets.test.ts; here the gate stays open
 // unless a test says otherwise — and must never touch the network.
 const checkDepartmentBudget = vi.fn(
@@ -65,6 +70,7 @@ function dept(overrides: Partial<Department> = {}): Department {
     standing_task_enabled: true,
     monthly_token_budget: null,
     budget_alerted_at: null,
+    budget_exhausted_alerted_at: null,
     ...overrides,
   };
 }
@@ -172,12 +178,43 @@ describe("runDepartmentAgent cost tracking (agent_runs)", () => {
   it("records a failed run and rethrows when the model call itself throws", async () => {
     generateText.mockRejectedValueOnce(new Error("provider unavailable"));
 
+    // Rethrown as a referenced error: runTool treats that form as already
+    // reported, and the raw provider text stays out of the model's context.
     await expect(
       runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" }),
-    ).rejects.toThrow("provider unavailable");
+    ).rejects.toThrow(
+      "Dev Agent run failed. Reference: 00000000-0000-4000-8000-000000000000",
+    );
 
     expect(recordAgentRun).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "delegation", status: "failed", stepCount: 0 }),
+    );
+    expect(captureAgentError).toHaveBeenCalledWith(
+      "department-run:dev",
+      expect.objectContaining({ message: "provider unavailable" }),
+      expect.objectContaining({
+        agentName: "Dev Agent",
+        toolName: null,
+        actorType: "department_agent",
+        delegationDepth: 1,
+        runKind: "delegation",
+      }),
+      "model_error",
+    );
+  });
+
+  it("reports an autonomous run's failure with the standing-task actor type", async () => {
+    generateText.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(
+      runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1", mode: "autonomous" }),
+    ).rejects.toThrow(/Reference:/);
+
+    expect(captureAgentError).toHaveBeenLastCalledWith(
+      "department-run:dev",
+      expect.anything(),
+      expect.objectContaining({ actorType: "standing_task_routine", runKind: "standing_task" }),
+      "model_error",
     );
   });
 });

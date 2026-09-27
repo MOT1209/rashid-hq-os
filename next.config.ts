@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { assertRateLimitBackendAtBuild } from "./src/lib/env/rate-limit";
+
+// Fail the Vercel production build, not the live deployment, when the shared
+// rate-limit store is missing: a failed build keeps the previous deployment
+// serving. No-op for local, CI and preview builds (see the function).
+assertRateLimitBackendAtBuild();
 
 const nextConfig: NextConfig = {
   // `pg` is a native-ish driver used by Better Auth; keep it out of the bundle.

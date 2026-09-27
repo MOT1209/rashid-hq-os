@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { resolveRateLimitBackend } from "@/lib/env/rate-limit";
 
 /**
  * Two jobs, both of which have to happen before a route renders:
@@ -16,10 +17,11 @@ import { Redis } from "@upstash/redis";
  * The throttle is backed by Upstash Redis (REST, so it works from any
  * runtime) when KV_REST_API_URL/TOKEN are set — one shared counter across
  * every instance, which is the real requirement once this scales past one.
- * Locally, or in any environment where the integration isn't connected, it
- * falls back to an in-memory counter scoped to this instance: still a brake,
- * just not a cross-instance guarantee. Either way, the auth checks downstream
- * are the actual boundary — this is best-effort shaping in front of them.
+ * Outside production it falls back to an in-memory counter scoped to this
+ * instance: still a brake, just not a cross-instance guarantee. In production
+ * that fallback is refused (src/lib/env/rate-limit.ts) unless explicitly opted
+ * into for a single-instance host. Either way, the auth checks downstream are
+ * the actual boundary — this is shaping in front of them.
  */
 
 type Rule = {
@@ -60,10 +62,17 @@ const RULES: [prefix: string, rule: Rule][] = [
   ["/dashboard", { windowMs: 60_000, max: 120, methods: ["POST"], format: "text" }],
 ];
 
+/**
+ * Throws at module load in production without Redis. That is intentional: the
+ * build (next.config.ts) and boot (src/instrumentation.ts) checks should have
+ * stopped this deployment already, and if they were bypassed, failing every
+ * request is safer than serving auth and model-spend routes behind a
+ * per-instance counter that does not actually limit.
+ */
+const backend = resolveRateLimitBackend();
+
 const redis =
-  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
-    ? new Redis({ url: process.env.KV_REST_API_URL, token: process.env.KV_REST_API_TOKEN })
-    : null;
+  backend.kind === "redis" ? new Redis({ url: backend.url, token: backend.token }) : null;
 
 /** One Ratelimit instance per rule, built lazily and cached by prefix. */
 const limiters = new Map<string, Ratelimit>();
@@ -125,6 +134,8 @@ async function overLimit(key: string, prefix: string, rule: Rule) {
 
   // A Redis hiccup should not take the whole console down: fail open and let
   // the in-memory brake (and the real auth checks) keep covering this request.
+  // This is an availability choice for a transient outage, distinct from the
+  // configuration check above — a *missing* Redis in production never gets here.
   try {
     const { success } = await limiterFor(prefix, rule).limit(key);
     return !success;

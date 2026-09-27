@@ -20,12 +20,16 @@ written to Supabase and streams to the dashboard live.
    - `OWNER_EMAILS` — your email. Nobody else can sign up or sign in.
    - `GROQ_API_KEY` — free key from [Groq](https://console.groq.com/keys), no
      card needed (the console returns 503 without it)
-   - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — optional. Install the Upstash for
-     Redis integration (`vercel integration add upstash/upstash-kv`) and
-     `vercel env pull` to get these; without them, rate limiting falls back to
-     per-instance memory (see Security notes).
+   - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — optional locally, **required in
+     production**. Install the Upstash for Redis integration
+     (`vercel integration add upstash/upstash-kv`) and `vercel env pull` to get
+     these. Without them, development falls back to per-instance memory; a
+     production build or server refuses to start (see Security notes).
 3. Apply the SQL in `supabase/migrations/` in order. Every file is re-runnable,
    and `0005` carries the Better Auth schema so no separate step is needed.
+   Against a database with data in it, take a backup first
+   (`npm run db:backup`) — see [docs/DATABASE.md](docs/DATABASE.md) for the
+   apply and rollback procedure.
    (`npm run auth:migrate` regenerates that schema from the installed package if
    you ever upgrade Better Auth.)
 4. `npm run dev` — serves on **http://localhost:7070** — then create the owner
@@ -216,9 +220,14 @@ CI runs all five on every push and pull request (`.github/workflows/ci.yml`).
   sliding-window throttle in front of `/api/auth`, `/api/mcp`, `/api/console` and
   every Server Action POST under `/dashboard`, backed by Upstash Redis
   (`KV_REST_API_URL` / `KV_REST_API_TOKEN`, set automatically by the Upstash for
-  Redis integration) — one shared counter across every instance. Without those
-  variables it falls back to a per-instance in-memory counter, and a live Redis
-  hiccup fails open to that same fallback rather than blocking requests.
+  Redis integration) — one shared counter across every instance. Outside
+  production, missing variables fall back to a per-instance in-memory counter.
+  **In production that fallback is refused** (`src/lib/env/rate-limit.ts`): a
+  Vercel production build fails, a self-hosted `next start` exits at boot, and
+  the proxy itself errors rather than throttle per instance. The one opt-out,
+  `RATE_LIMIT_ALLOW_IN_MEMORY=1`, is for a genuinely single-instance host. A
+  live Redis *outage* (as opposed to missing config) still fails open to the
+  in-memory counter rather than blocking requests.
 - **Every legitimate origin is trusted, not just one.** Preview deployments and
   local development sign in without changing configuration; add a custom domain
   through `TRUSTED_ORIGINS`.

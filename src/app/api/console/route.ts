@@ -2,6 +2,7 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { resolveRole } from "@/lib/members";
+import { captureAgentError } from "@/lib/agent-errors";
 import { recordAgentRun } from "@/lib/agent-run";
 import { runTool } from "@/lib/mcp/executor";
 import { TOOLS } from "@/lib/mcp/tools";
@@ -124,11 +125,26 @@ export async function POST(request: Request) {
       });
     },
     onError: async ({ error }) => {
-      console.error("[console] streamText failed:", error);
+      const durationMs = Date.now() - startedAt;
+      // Was console.error only — a failed console turn never reached Sentry.
+      captureAgentError(
+        "console:stream",
+        error,
+        {
+          agentName,
+          toolName: null,
+          projectId: null,
+          actorType: "person",
+          delegationDepth: 0,
+          runKind: "console",
+          durationMs,
+        },
+        "model_error",
+      );
       await recordAgentRun({
         agentName,
         kind: "console",
-        durationMs: Date.now() - startedAt,
+        durationMs,
         stepCount,
         status: "failed",
       });

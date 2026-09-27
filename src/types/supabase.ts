@@ -172,6 +172,7 @@ export type Database = {
           agent_label_en: string;
           agent_name: string;
           budget_alerted_at: string | null;
+          budget_exhausted_alerted_at: string | null;
           created_at: string;
           icon: string;
           is_fallback: boolean;
@@ -190,6 +191,7 @@ export type Database = {
           agent_label_en: string;
           agent_name: string;
           budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;
@@ -208,6 +210,7 @@ export type Database = {
           agent_label_en?: string;
           agent_name?: string;
           budget_alerted_at?: string | null;
+          budget_exhausted_alerted_at?: string | null;
           created_at?: string;
           icon?: string;
           is_fallback?: boolean;

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { startActivity } from "@/lib/activity";
-import { captureError } from "@/lib/errors";
+import { captureAgentError } from "@/lib/agent-errors";
 import { queueApproval } from "@/lib/approvals";
 import { evaluatePolicyAsync } from "@/lib/policy";
 import { scopeDenialReason, type ToolContext, type ToolDefinition } from "@/lib/mcp/tools";
@@ -114,6 +114,7 @@ export async function runTool(
     actorType: ctx.actorType,
   });
 
+  const startedAt = Date.now();
   try {
     const result = await tool.execute(args as never, ctx);
     await finish("success", result);
@@ -121,7 +122,19 @@ export async function runTool(
   } catch (error) {
     const message = error instanceof Error ? error.message : "The tool failed unexpectedly.";
     const unexpected = !(error instanceof Error && KNOWN_ERROR.test(error.message));
-    if (unexpected) captureError(`tool:${tool.name}`, error, { agentName: ctx.agentName });
+    // A known dbError() was already reported where it was raised; everything
+    // else (including a remote timeout) goes to Sentry with the agent's
+    // identity attached so it can be filtered by agent, tool and project.
+    if (unexpected) {
+      captureAgentError(`tool:${tool.name}`, error, {
+        agentName: ctx.agentName,
+        toolName: tool.name,
+        projectId,
+        actorType: ctx.actorType,
+        delegationDepth: ctx.delegationDepth,
+        durationMs: Date.now() - startedAt,
+      });
+    }
     await finish("failed", { error: message });
     return { status: "failed", error: message, unexpected };
   }

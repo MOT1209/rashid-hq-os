@@ -1,14 +1,15 @@
 import "server-only";
 
 import { captureError } from "@/lib/errors";
-import { sendEmail } from "@/lib/email";
+import { escapeHtml, sendEmail } from "@/lib/email";
 import { ownerEmails } from "@/lib/owners";
 import { getServiceSupabase } from "@/lib/supabase/server";
 
 /**
  * Spend guardrails (Phase 1.2, migration 0018). agent_runs measures what each
  * model run cost; this turns the measurement into a budget: past 80% the
- * owners get one mail a day, at 100% no new department run starts.
+ * owners get one mail a day, at 100% no new department run starts and the
+ * owners get a separate "runs are blocked" mail (also one a day, 0021).
  *
  * Fail-safe throughout: a ledger outage must never halt the business, so any
  * DB error here resolves to `allowed: true` and is reported to Sentry — the
@@ -77,30 +78,98 @@ async function recordBudgetEvent(input: {
   );
 }
 
+type AlertLevel = "warning" | "exhausted";
+
+function alertedWithinADay(stamp: string | null | undefined): boolean {
+  const last = stamp ? Date.parse(stamp) : NaN;
+  return Number.isFinite(last) && Date.now() - last < DAY_MS;
+}
+
 async function sendBudgetAlert(input: {
   agentName: string;
   used: number;
   budget: number;
+  level: AlertLevel;
 }): Promise<boolean> {
   const to = ownerEmails();
   if (to.length === 0) return false;
-  const { agentName, used, budget } = input;
-  const subject = `ميزانية ${agentName} تجاوزت 80% · ${agentName} past 80% of its token budget`;
-  const text = [
-    `استهلك وكيل "${agentName}" ${used.toLocaleString("en")} من ${budget.toLocaleString("en")} توكن شهريًا.`,
-    "عند 100% تتوقف التشغيلات الجديدة — ارفع السقف من Settings إن كان مقصودًا.",
-    "",
-    `Agent "${agentName}" has used ${used.toLocaleString("en")} of ${budget.toLocaleString("en")} monthly tokens.`,
-    "New runs stop at 100% — raise the cap in Settings if that spend is intended.",
-  ].join("\n");
-  return sendEmail({ to, subject, html: `<pre>${text}</pre>`, text });
+  const { agentName, level } = input;
+  const used = input.used.toLocaleString("en");
+  const budget = input.budget.toLocaleString("en");
+  const subject =
+    level === "exhausted"
+      ? `ميزانية ${agentName} نفدت — التشغيلات متوقفة · ${agentName} hit 100% — runs are blocked`
+      : `ميزانية ${agentName} تجاوزت 80% · ${agentName} past 80% of its token budget`;
+  const text = (
+    level === "exhausted"
+      ? [
+          `استهلك وكيل "${agentName}" ${used} من ${budget} توكن — لن تبدأ أي تشغيلات جديدة له.`,
+          "ارفع السقف من Settings إن كان هذا الاستهلاك مقصودًا، وإلا راجع Insights بحثًا عن حلقة.",
+          "",
+          `Agent "${agentName}" has used ${used} of ${budget} tokens — no new runs will start.`,
+          "Raise the cap in Settings if that spend is intended; otherwise check Insights for a runaway loop.",
+        ]
+      : [
+          `استهلك وكيل "${agentName}" ${used} من ${budget} توكن شهريًا.`,
+          "عند 100% تتوقف التشغيلات الجديدة — ارفع السقف من Settings إن كان مقصودًا.",
+          "",
+          `Agent "${agentName}" has used ${used} of ${budget} monthly tokens.`,
+          "New runs stop at 100% — raise the cap in Settings if that spend is intended.",
+        ]
+  ).join("\n");
+  // agentName is admin-editable free text; escape it like every other template.
+  return sendEmail({ to, subject, html: `<pre>${escapeHtml(text)}</pre>`, text });
 }
 
+/**
+ * Mails the owners at most once a day per level, then stamps the department.
+ * The stamp is written only after a successful send, so a mail outage retries
+ * on the next run instead of losing the alert for a day. Two concurrent runs
+ * can both send (read-then-write throttle) — a duplicate mail, judged cheaper
+ * than a row lock on every gate check.
+ */
+async function alertOnce(input: {
+  agentName: string;
+  departmentKey: string;
+  used: number;
+  budget: number;
+  level: AlertLevel;
+  lastAlertedAt: string | null | undefined;
+}): Promise<boolean> {
+  if (alertedWithinADay(input.lastAlertedAt)) return false;
+  const sent = await sendBudgetAlert(input);
+  if (!sent) return false;
+  await bestEffort(
+    getServiceSupabase()
+      .from("departments")
+      .update(
+        input.level === "exhausted"
+          ? { budget_exhausted_alerted_at: new Date().toISOString() }
+          : { budget_alerted_at: new Date().toISOString() },
+      )
+      .eq("key", input.departmentKey)
+      .then(({ error }) => {
+        if (error) throw error;
+      }),
+    "budget:alert-stamp",
+  );
+  return true;
+}
+
+/**
+ * The gate, called before a department run starts (src/lib/department-agent.ts)
+ * — not from recordAgentRun: by the time a run is recorded its tokens are
+ * already spent, so a check there could only report an overrun, never
+ * prevent one. The cost of checking up front is that one run can overshoot
+ * the cap by at most its own spend (bounded by MAX_STEPS).
+ */
 export async function checkDepartmentBudget(input: {
   agentName: string;
   departmentKey: string;
   budget: number | null | undefined;
   alertedAt: string | null | undefined;
+  /** Throttle stamp for the 100% mail (migration 0021). */
+  exhaustedAlertedAt?: string | null | undefined;
 }): Promise<BudgetCheck> {
   const budget = input.budget ?? null;
   if (budget === null || budget <= 0) return { allowed: true, used: 0, budget: null, alerted: false };
@@ -113,33 +182,36 @@ export async function checkDepartmentBudget(input: {
     return { allowed: true, used: 0, budget, alerted: false };
   }
 
+  const alertInput = {
+    agentName: input.agentName,
+    departmentKey: input.departmentKey,
+    used,
+    budget,
+  };
+
   if (used >= budget) {
+    // Every blocked attempt is audited; only the first one a day mails.
     await recordBudgetEvent({
       agentName: input.agentName,
       tokensUsed: used,
       budget,
       kind: "blocked",
     });
-    return { allowed: false, used, budget, alerted: false };
+    const alerted = await alertOnce({
+      ...alertInput,
+      level: "exhausted",
+      lastAlertedAt: input.exhaustedAlertedAt,
+    });
+    return { allowed: false, used, budget, alerted };
   }
 
   if (used >= budget * BUDGET_ALERT_RATIO) {
-    const last = input.alertedAt ? Date.parse(input.alertedAt) : NaN;
-    if (Number.isFinite(last) && Date.now() - last < DAY_MS) {
-      return { allowed: true, used, budget, alerted: false };
-    }
-    const sent = await sendBudgetAlert({ agentName: input.agentName, used, budget });
-    if (sent) {
-      await bestEffort(
-        getServiceSupabase()
-          .from("departments")
-          .update({ budget_alerted_at: new Date().toISOString() })
-          .eq("key", input.departmentKey)
-          .then(({ error }) => {
-            if (error) throw error;
-          }),
-        "budget:alert-stamp",
-      );
+    const alerted = await alertOnce({
+      ...alertInput,
+      level: "warning",
+      lastAlertedAt: input.alertedAt,
+    });
+    if (alerted) {
       await recordBudgetEvent({
         agentName: input.agentName,
         tokensUsed: used,
@@ -147,7 +219,7 @@ export async function checkDepartmentBudget(input: {
         kind: "alert",
       });
     }
-    return { allowed: true, used, budget, alerted: sent };
+    return { allowed: true, used, budget, alerted };
   }
 
   return { allowed: true, used, budget, alerted: false };
