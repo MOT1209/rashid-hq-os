@@ -56,3 +56,4 @@ prod.log
 .env*
 
 .env*
+.vercel
