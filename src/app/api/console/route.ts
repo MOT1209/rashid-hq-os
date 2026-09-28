@@ -119,9 +119,12 @@ export async function POST(request: Request) {
             delegationDepth: 0,
             actorType: "person",
           });
-          if (outcome.projectId) touchedProjects.add(outcome.projectId);
           switch (outcome.status) {
             case "success":
+              // Only a call that actually executed counts as "touched" —
+              // denied/queued/failed calls did no work on this project and
+              // must not be charged for the turn's tokens.
+              if (outcome.projectId) touchedProjects.add(outcome.projectId);
               return outcome.result;
             case "queued":
               return { queued: true, approval_id: outcome.approvalId };
