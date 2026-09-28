@@ -108,12 +108,15 @@ export async function runDepartmentAgent(input: {
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
           const outcome = await runTool(definition, args, context);
-          if (outcome.projectId) touchedProjects.add(outcome.projectId);
           // Always returned, never thrown: a denied/failed/queued tool call is
           // information the agent can act on, and throwing would abort the
           // whole delegated run.
           switch (outcome.status) {
             case "success":
+              // Only a call that actually executed counts as "touched" —
+              // denied/queued/failed calls did no work on this project and
+              // must not be charged for the run's tokens.
+              if (outcome.projectId) touchedProjects.add(outcome.projectId);
               return outcome.result;
             case "queued":
               return { queued: true, approval_id: outcome.approvalId };

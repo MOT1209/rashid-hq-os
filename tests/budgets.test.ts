@@ -17,7 +17,10 @@ function builder(table: string) {
       select: () => ({
         eq: () => ({
           gte: () => ({
-            limit: async () => ({ data: spendRows, error: spendError }),
+            range: async (from: number, to: number) => {
+              if (spendError) return { data: null, error: spendError };
+              return { data: spendRows.slice(from, to + 1), error: null };
+            },
           }),
         }),
       }),
@@ -73,6 +76,14 @@ describe("spendForAgent", () => {
   it("sums in + out tokens over the window", async () => {
     spendRows.push({ tokens_in: 80_000, tokens_out: 10_000 }, { tokens_in: null, tokens_out: 5_000 });
     await expect(spendForAgent("Dev Agent")).resolves.toBe(95_000);
+  });
+
+  it("sums past a single page of rows instead of truncating", async () => {
+    // One page's worth of full-size rows plus one more row on a second page:
+    // a single-page `.limit()` would have dropped that last row entirely.
+    for (let i = 0; i < 1000; i++) spendRows.push({ tokens_in: 1, tokens_out: 0 });
+    spendRows.push({ tokens_in: 500, tokens_out: 0 });
+    await expect(spendForAgent("Dev Agent")).resolves.toBe(1500);
   });
 });
 

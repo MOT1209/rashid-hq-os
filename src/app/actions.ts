@@ -148,10 +148,13 @@ export async function updateProjectAction(form: FormData) {
   }
 
   // Empty = unlimited (NULL), same validation as a department's budget field.
+  // "0" is rejected too: checkBudget treats budget <= 0 as unlimited, so
+  // letting 0 through would silently do the opposite of what an admin
+  // entering 0 to freeze spend intends.
   const budgetRaw = text(form, "monthly_token_budget");
   let monthlyTokenBudget: number | null = null;
   if (budgetRaw) {
-    if (!/^\d{1,9}$/.test(budgetRaw)) {
+    if (!/^[1-9]\d{0,8}$/.test(budgetRaw)) {
       return { error: `"monthly_token_budget" must be a positive whole number of tokens.` };
     }
     monthlyTokenBudget = Number(budgetRaw);
@@ -503,10 +506,13 @@ export async function updateDepartmentAgentAction(form: FormData) {
 
   // Empty = unlimited (NULL). A number must be a sane positive integer —
   // free text here would otherwise land in the column or silently become 0.
+  // "0" itself is rejected too: checkBudget treats budget <= 0 as unlimited,
+  // so letting 0 through would silently do the opposite of what an admin
+  // entering 0 to freeze spend intends.
   const budgetRaw = text(form, "monthly_token_budget");
   let monthlyTokenBudget: number | null = null;
   if (budgetRaw) {
-    if (!/^\d{1,9}$/.test(budgetRaw)) {
+    if (!/^[1-9]\d{0,8}$/.test(budgetRaw)) {
       return { error: `"monthly_token_budget" must be a positive whole number of tokens.` };
     }
     monthlyTokenBudget = Number(budgetRaw);

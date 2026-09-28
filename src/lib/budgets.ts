@@ -25,8 +25,15 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 export const BUDGET_WINDOW_DAYS = 30;
 const BUDGET_ALERT_RATIO = 0.8;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Same ceiling as the insights query — one window cannot pull unbounded rows. */
-const SPEND_MAX_ROWS = 5000;
+/** Page size for summing agent_runs — keeps each request bounded. */
+const SPEND_PAGE_SIZE = 1000;
+/**
+ * Hard stop on pagination so a runaway agent can't turn a budget check into
+ * an unbounded scan. 200 pages (~200k rows) is far beyond any real 30-day
+ * window; hitting it means something is badly wrong upstream, so we log and
+ * return the partial sum rather than loop forever.
+ */
+const SPEND_MAX_PAGES = 200;
 
 export type BudgetCheck = {
   allowed: boolean;
@@ -50,17 +57,30 @@ async function bestEffort(work: PromiseLike<unknown>, label: string): Promise<vo
 async function spendFor(scope: BudgetScope, key: string, days = BUDGET_WINDOW_DAYS): Promise<number> {
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
   const column = scope === "department" ? "agent_name" : "project_id";
-  const { data, error } = await getServiceSupabase()
-    .from("agent_runs")
-    .select("tokens_in, tokens_out")
-    .eq(column, key)
-    .gte("created_at", since)
-    .limit(SPEND_MAX_ROWS);
-  if (error) throw error;
-  return ((data ?? []) as { tokens_in: number | null; tokens_out: number | null }[]).reduce(
-    (sum, row) => sum + (row.tokens_in ?? 0) + (row.tokens_out ?? 0),
-    0,
+  const client = getServiceSupabase();
+
+  // Paginate rather than cap at one page: a single `.limit()` silently
+  // truncates the sum for any department/project past that many runs in the
+  // window, which is exactly the case a budget check exists to catch.
+  let total = 0;
+  for (let page = 0; page < SPEND_MAX_PAGES; page++) {
+    const from = page * SPEND_PAGE_SIZE;
+    const { data, error } = await client
+      .from("agent_runs")
+      .select("tokens_in, tokens_out")
+      .eq(column, key)
+      .gte("created_at", since)
+      .range(from, from + SPEND_PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as { tokens_in: number | null; tokens_out: number | null }[];
+    total += rows.reduce((sum, row) => sum + (row.tokens_in ?? 0) + (row.tokens_out ?? 0), 0);
+    if (rows.length < SPEND_PAGE_SIZE) return total;
+  }
+  captureError(
+    "budgets.spendFor.pageLimitExceeded",
+    new Error(`spendFor(${scope}, ${key}) hit ${SPEND_MAX_PAGES} pages — returning partial sum`),
   );
+  return total;
 }
 
 export function spendForAgent(agentName: string, days = BUDGET_WINDOW_DAYS): Promise<number> {
