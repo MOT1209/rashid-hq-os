@@ -8,6 +8,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Increased from default 360 to 15 for faster failure detection
     steps:
       - uses: actions/checkout@v4
 
@@ -20,12 +21,15 @@ jobs:
 
       - name: Lint
         run: npm run lint
+        timeout-minutes: 5
 
       - name: Typecheck
         run: npm run typecheck
+        timeout-minutes: 5
 
       - name: Test
         run: npm test
+        timeout-minutes: 3
 
       # Placeholder secrets: the build only needs these to exist, and no test
       # here talks to a real Supabase project.

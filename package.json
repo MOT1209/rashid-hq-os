@@ -15,6 +15,7 @@
     "migrate:baseline": "node --env-file=.env.local scripts/migrate.mjs baseline",
     "migrate:dry-run": "node --env-file=.env.local scripts/migrate.mjs dry-run",
     "migrate:apply": "node --env-file=.env.local scripts/migrate.mjs apply",
+    "migrate:from-scratch": "node --env-file-if-exists=.env.local scripts/migrate.mjs apply --from-scratch",
     "seed:owner": "node scripts/seed-owner.mjs",
     "db:backup": "node --env-file=.env.local scripts/pre-migrate-backup.mjs"
   },

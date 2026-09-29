@@ -177,9 +177,10 @@ function securityHeaders(nonce: string) {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
     // HSTS is only meaningful (and only honoured by browsers) over HTTPS;
     // local development serves http, so advertise it in production only.
+    // max-age=63072000 = 2 years, includeSubDomains, preload for hstspreload.org
     ...(isDev
       ? {}
-      : { "Strict-Transport-Security": "max-age=63072000; includeSubDomains" }),
+      : { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }),
   };
 }
 

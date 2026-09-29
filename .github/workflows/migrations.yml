@@ -1,0 +1,71 @@
+name: Migrations
+
+# The audit's #1 finding, twice-over by 2026-09-27: schema drift between the
+# files and production, because applying a migration meant hand-running SQL
+# against the dashboard. This job is the automation half of the fix (the tool
+# half is scripts/migrate.mjs):
+#   1. a fresh Postgres is built ENTIRELY from supabase/migrations/*.sql —
+#      the files alone must recreate the schema, no console, no baseline;
+#   2. the same batch is applied a second time and must be a no-op — the
+#      "re-runnable" claim is executed, not assumed (0019's guard was added
+#      the hard way, mid-batch, on live production);
+#   3. the ledger must end at 0 pending — status is the deploy gate.
+# Production itself is still applied by hand (npm run migrate:apply): CI has
+# no DATABASE_URL with write access to it, by design.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hq_os_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The runner is not a Supabase host, so the script's TLS-verify branch
+      # (connectionString.includes("supabase.")) stays off — plain pg over the
+      # loopback service, no sslmode needed.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hq_os_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Only `pg` is needed; a full `npm ci` would buy nothing here. A --no-save
+      # install keeps package-lock.json untouched for the other jobs.
+      - run: npm install --no-save pg
+
+      - name: Apply all migrations from scratch (fresh database)
+        run: node scripts/migrate.mjs apply --from-scratch
+
+      - name: Re-apply the whole batch (must be a no-op)
+        run: node scripts/migrate.mjs apply
+        # If this step ever fails, a migration file grew an unguarded ALTER —
+        # the exact failure 0019 hit in production. Fix the file, not the CI.
+
+      - name: Ledger must be clean (0 pending)
+        run: |
+          node scripts/migrate.mjs status | tee status.txt
+          # "… pending" is the per-file marker; the summary line always says
+          # "N pending", so assert on both the marker and a zero count.
+          ! grep -q "… pending" status.txt
+          grep -q "^0 pending" status.txt

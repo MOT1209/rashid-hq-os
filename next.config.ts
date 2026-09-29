@@ -1,11 +1,18 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { assertRateLimitBackendAtBuild } from "./src/lib/env/rate-limit";
+import { assertAuthSecretAtBuild } from "./src/lib/env/auth-secret";
 
 // Fail the Vercel production build, not the live deployment, when the shared
 // rate-limit store is missing: a failed build keeps the previous deployment
 // serving. No-op for local, CI and preview builds (see the function).
 assertRateLimitBackendAtBuild();
+
+// Same gate for the Better Auth signing secret: production must never boot on
+// the library's hard-coded public fallback (or on it pasted literally), or
+// anyone can mint a valid session cookie. Failing the build keeps the last
+// good deployment serving instead.
+assertAuthSecretAtBuild();
 
 const nextConfig: NextConfig = {
   // `pg` is a native-ish driver used by Better Auth; keep it out of the bundle.

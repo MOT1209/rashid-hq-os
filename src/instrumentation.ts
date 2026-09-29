@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { resolveRateLimitBackend } from "./lib/env/rate-limit";
+import { assertAuthSecretConfigured } from "./lib/env/auth-secret";
 
 /**
  * Server-side registration hook (Next.js file convention). Runs once per server
@@ -19,6 +20,21 @@ export async function register() {
   // fail-closed backstop.
   try {
     resolveRateLimitBackend();
+  } catch (error) {
+    if (process.env.NEXT_RUNTIME === "nodejs" && !process.env.VERCEL) {
+      console.error(`[startup] ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  // Same treatment for the Better Auth signing secret: refuse production on
+  // the library's hard-coded public fallback — sign-in would "just work"
+  // while anyone could mint a session cookie. Exit on self-hosted (a process
+  // manager can see it), throw on Vercel (fail-closed backstop behind the
+  // build gate in next.config.ts).
+  try {
+    assertAuthSecretConfigured();
   } catch (error) {
     if (process.env.NEXT_RUNTIME === "nodejs" && !process.env.VERCEL) {
       console.error(`[startup] ${error instanceof Error ? error.message : String(error)}`);

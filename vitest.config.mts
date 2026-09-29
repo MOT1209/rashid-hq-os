@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 export default defineConfig({
   resolve: {
@@ -19,5 +20,14 @@ export default defineConfig({
     // The first-run transpile of the whole project is slow on a cold machine;
     // a file that does real DB/parse work can legitimately cross 5 s.
     testTimeout: 15_000,
+  },
+  // Workaround for Windows paths with spaces causing spawn EPERM
+  // See: https://github.com/vitejs/vite/issues/15714
+  optimizeDeps: {
+    disabled: true,
+  },
+  esbuild: {
+    // Use esbuild instead of rolldown to avoid Windows path issues
+    target: "node18",
   },
 });

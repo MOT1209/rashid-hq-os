@@ -11,6 +11,12 @@
  *             migration ledger existed). Run once, ever.
  *   dry-run   Preview exactly what "apply" would run. (read-only)
  *   apply     Run pending migrations in order: backup -> apply -> validate.
+ *   apply --from-scratch
+ *             Apply EVERY migration file to an empty database, in order, in
+ *             one transaction. Refuses to run when the schema already exists
+ *             (public.projects present). This is what the CI workflow runs
+ *             against its ephemeral Postgres, and the proof that a fresh
+ *             clone can build the schema from the files alone.
  *
  * Safety model:
  *   - All pending files run inside ONE transaction under a Postgres advisory
@@ -122,6 +128,55 @@ const CHECKS = {
                 and to_regclass('public.tracking_scores') is not null) as ok`,
     },
   ],
+  "0021_budget_exhausted_alert.sql": [
+    {
+      label: "departments has budget_exhausted_alerted_at",
+      sql: `select exists(
+              select 1 from information_schema.columns
+               where table_schema = 'public' and table_name = 'departments'
+                 and column_name = 'budget_exhausted_alerted_at'
+            ) as ok`,
+    },
+  ],
+  "0022_project_budgets.sql": [
+    {
+      label: "projects has the 3 budget columns",
+      sql: `select count(*) = 3 as ok
+              from information_schema.columns
+             where table_schema = 'public' and table_name = 'projects'
+               and column_name in ('monthly_token_budget', 'budget_alerted_at', 'budget_exhausted_alerted_at')`,
+    },
+    {
+      label: "agent_runs.project_id + budget_events.project_id exist",
+      sql: `select (exists(
+                select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'agent_runs'
+                   and column_name = 'project_id'
+              ) and exists(
+                select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'budget_events'
+                   and column_name = 'project_id'
+              )) as ok`,
+    },
+  ],
+  "0023_approval_expiry.sql": [
+    {
+      label: "tool_approvals.expires_at exists",
+      sql: `select exists(
+              select 1 from information_schema.columns
+               where table_schema = 'public' and table_name = 'tool_approvals'
+                 and column_name = 'expires_at'
+            ) as ok`,
+    },
+    {
+      label: "tool_approvals status check allows 'expired'",
+      sql: `select exists(
+              select 1 from pg_constraint
+               where conname = 'tool_approvals_status_check'
+                 and pg_get_constraintdef(oid) like '%expired%'
+            ) as ok`,
+    },
+  ],
 };
 
 const log = (...a) => console.log(...a);
@@ -131,14 +186,19 @@ const fail = (msg) => {
 };
 
 function parseCommand() {
-  const [command] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const fromScratch = args.includes("--from-scratch");
+  const [command] = args.filter((a) => !a.startsWith("--"));
   const valid = ["status", "baseline", "dry-run", "apply"];
   if (!valid.includes(command)) {
-    log(`Usage: node --env-file=.env.local scripts/migrate.mjs <${valid.join("|")}>`);
+    log(`Usage: node --env-file=.env.local scripts/migrate.mjs <${valid.join("|")}> [--from-scratch]`);
     log("See docs/MIGRATIONS.md for the full procedure.");
     process.exit(1);
   }
-  return command;
+  if (fromScratch && command !== "apply") {
+    fail("--from-scratch only makes sense with: apply");
+  }
+  return { command, fromScratch };
 }
 
 /** Numeric-prefix order so 0002 < 0010 < 0014. */
@@ -306,19 +366,49 @@ async function cmdBaseline(client) {
   log(`\nBaseline recorded. Verify with: status\nRun ONCE — it marks history, it does not replay it.`);
 }
 
-async function cmdApply(client) {
-  await ensureLedger(client);
-  const pending = await pendingMigrations(client);
-  if (pending.length === 0) return log("Nothing to apply — no pending migrations.");
+/**
+ * from-scratch guard: that mode exists for CI's ephemeral Postgres, where an
+ * empty database is the only safe state. Any existing schema means a plain
+ * `apply` (ledger-driven) is what was wanted — or a deliberate `drop schema
+ * public cascade` first.
+ */
+async function assertEmptyDatabase(client) {
+  const { rows } = await client.query(`select to_regclass('public.projects') is not null as ok`);
+  if (rows[0]?.ok === true) {
+    fail(
+      "from-scratch refuses to run: public.projects already exists, so this is not an empty database.\n" +
+        "  For a real database use plain: apply\n" +
+        "  If you truly mean to rebuild: drop schema public cascade; create schema public; — then re-run.",
+    );
+  }
+}
 
-  log(`Pending (${pending.length}):\n${pending.map((f) => `  - ${path.basename(f)}`).join("\n")}\n`);
+async function cmdApply(client, fromScratch = false) {
+  await ensureLedger(client);
+  let pending;
+  if (fromScratch) {
+    await assertEmptyDatabase(client);
+    pending = listMigrationFiles();
+    if (pending.length === 0) return log(`No .sql files under ${MIGRATIONS_DIR} — nothing to build.`);
+    log(
+      `FROM-SCRATCH: applying all ${pending.length} migration(s) to an empty database, in order, in one transaction.\n`,
+    );
+  } else {
+    pending = await pendingMigrations(client);
+    if (pending.length === 0) return log("Nothing to apply — no pending migrations.");
+    log(`Pending (${pending.length}):\n${pending.map((f) => `  - ${path.basename(f)}`).join("\n")}\n`);
+  }
 
   const got = await client.query("select pg_try_advisory_lock($1) as ok", [ADVISORY_LOCK_KEY]);
   if (got.rows[0]?.ok !== true) {
     fail("Another migration run holds the advisory lock. Wait for it to finish.");
   }
   try {
-    await backup(client);
+    if (fromScratch) {
+      log("Skipping backup — from-scratch targets an empty database (nothing to back up yet).");
+    } else {
+      await backup(client);
+    }
 
     log("\nApplying in one transaction (any failure rolls everything back)…");
     await client.query("begin");
@@ -358,14 +448,14 @@ async function cmdApply(client) {
 
 /* ---------------------------------- main ---------------------------------- */
 
-const command = parseCommand();
+const { command, fromScratch } = parseCommand();
 let client;
 try {
   client = await connect();
   if (command === "status") await cmdStatus(client);
   else if (command === "dry-run") await cmdDryRun(client);
   else if (command === "baseline") await cmdBaseline(client);
-  else if (command === "apply") await cmdApply(client);
+  else if (command === "apply") await cmdApply(client, fromScratch);
 } catch (err) {
   fail(err?.message ?? String(err));
 } finally {
