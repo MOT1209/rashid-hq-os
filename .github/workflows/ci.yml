@@ -27,12 +27,11 @@ jobs:
         run: npm run typecheck
         timeout-minutes: 5
 
-      # Temporarily disabled: Vitest fails on Windows paths with spaces
-      # TODO: Re-enable after moving project to path without spaces
-      # See: WINDOWS-PATH-ISSUE.md
-      # - name: Test
-      #   run: npm test
-      #   timeout-minutes: 3
+      # The Windows path issue (WINDOWS-PATH-ISSUE.md) is local-only; this
+      # runner is Linux, where the suite runs fine.
+      - name: Test
+        run: npm test
+        timeout-minutes: 3
 
       # Placeholder secrets: the build only needs these to exist, and no test
       # here talks to a real Supabase project.

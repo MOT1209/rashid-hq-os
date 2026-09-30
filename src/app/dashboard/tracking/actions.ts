@@ -19,25 +19,6 @@ function isKind(value: string): value is CellKind {
   return value === "c" || value === "t" || value === "b" || value === "h";
 }
 
-/** Creates the month row if needed and returns its id. */
-async function ensureMonthId(monthKey: string): Promise<string> {
-  const db = getServiceSupabase();
-  const { data: existing } = await db
-    .from("tracking_months")
-    .select("id")
-    .eq("month_key", monthKey)
-    .maybeSingle();
-  if (existing) return (existing as { id: string }).id;
-
-  const { data, error } = await db
-    .from("tracking_months")
-    .insert({ month_key: monthKey })
-    .select("id")
-    .single();
-  if (error) throw new Error("Could not create the tracking month.");
-  return (data as { id: string }).id;
-}
-
 export async function createMonthAction(form: FormData): Promise<void> {
   await requireAdmin();
   const monthKey = String(form.get("month_key") ?? "").trim().slice(0, 60);
@@ -153,7 +134,8 @@ export async function setScoreAction(memberId: string, idx: number, score: numbe
 
 export async function setGradeAction(memberId: string, grade: string, notes: string) {
   await requireAdmin();
-  const overall: OverallGrade = GRADES.includes(grade as OverallGrade) ? (grade as OverallGrade) : "ممتاز";
+  if (!GRADES.includes(grade as OverallGrade)) return { error: "Bad grade." };
+  const overall = grade as OverallGrade;
   const { error } = await getServiceSupabase()
     .from("tracking_members")
     .update({ overall_grade: overall, notes: notes.slice(0, 2000) })
@@ -165,7 +147,7 @@ export async function setGradeAction(memberId: string, grade: string, notes: str
 
 /** Clears every cell and score of the month but keeps the member list. */
 export async function clearMonthAction(monthId: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const db = getServiceSupabase();
   const { data: members } = await db.from("tracking_members").select("id").eq("month_id", monthId);
   const ids = ((members ?? []) as { id: string }[]).map((m) => m.id);
@@ -173,8 +155,15 @@ export async function clearMonthAction(monthId: string) {
     await db.from("tracking_cells").delete().in("member_id", ids);
     await db.from("tracking_scores").delete().in("member_id", ids);
   }
+
+  await logActivity({
+    agentName: ACTOR,
+    toolName: "tracking_clear",
+    payload: { month_id: monthId, members: ids.length, actor: session.user.email },
+    status: "success",
+    actorType: "person",
+  });
   revalidatePath(PATH);
   return { ok: true };
 }
 
-export { ensureMonthId };

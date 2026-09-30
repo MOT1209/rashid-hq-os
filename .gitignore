@@ -52,11 +52,5 @@ next-env.d.ts
 dev.log
 prod.log
 
-# migration backups (contain production data dumps)
-/backups/
-
-.vercel
-.env*
-
-.env*
-.vercel
+# Windows/MSYS crash dumps
+*.stackdump
