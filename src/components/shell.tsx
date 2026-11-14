@@ -14,6 +14,7 @@ import {
   Menu,
   Moon,
   Plug,
+  Share2,
   Settings,
   Sun,
   TrendingUp,
@@ -57,6 +58,7 @@ export function Shell({
     { href: "/dashboard/tracking", label: t.tracking, icon: ClipboardList },
     { href: "/dashboard/projects", label: t.projects, icon: Boxes },
     { href: "/dashboard/access", label: t.access, icon: KeyRound },
+    { href: "/dashboard/social-studio", label: "KING Social Studio", icon: Share2 },
     { href: "/dashboard/settings/integrations", label: t.integrations, icon: Plug },
     { href: "/dashboard/settings", label: t.settings, icon: Settings },
   ];

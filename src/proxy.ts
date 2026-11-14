@@ -151,17 +151,31 @@ function securityHeaders(nonce: string) {
   // 'unsafe-eval' is required in development only: React uses eval to rebuild
   // server-side error stacks in the browser. Neither React nor Next uses eval
   // in a production build.
+  // Social Studio uploads media straight from the browser to Supabase Storage
+  // via short-lived signed URLs (Vercel functions cap request bodies at ~4.5MB),
+  // and previews play from signed URLs. Allow exactly this project's origin —
+  // nothing else — for connect/img/media.
+  let storageOrigin = "";
+  try {
+    storageOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? ` ${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin}`
+      : "";
+  } catch {
+    storageOrigin = "";
+  }
+
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Tailwind ships a stylesheet, but Next injects inline <style> for its dev
     // overlay and for streamed CSS, which a nonce alone does not cover.
     `style-src 'self' 'unsafe-inline'`,
-    "img-src 'self' blob: data:",
+    `img-src 'self' blob: data:${storageOrigin}`,
+    `media-src 'self' blob:${storageOrigin}`,
     "font-src 'self' data:",
     // Same-origin only: the CEO console and the SSE feed both go through
     // this app's own API routes, never straight to a third party.
-    "connect-src 'self'",
+    `connect-src 'self'${storageOrigin}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

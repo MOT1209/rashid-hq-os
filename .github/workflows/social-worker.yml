@@ -1,0 +1,30 @@
+name: Social publishing worker
+
+# Free scheduler for Social Studio jobs. Vercel Hobby only allows daily crons,
+# which is too coarse for "publish at 18:30". This pings the worker route every
+# 10 minutes; the route claims due jobs from the persistent queue, so a missed
+# or duplicated tick is harmless.
+#
+# Requires repository secrets APP_URL (https://your-app.example) and
+# CRON_SECRET (same value as the deployment's CRON_SECRET). Without them the
+# job exits cleanly without doing anything.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the worker
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL / CRON_SECRET not configured; skipping."
+            exit 0
+          fi
+          curl -fsS --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/social/run"
