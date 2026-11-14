@@ -1,5 +1,4 @@
-import { getSession } from "@/lib/session";
-import { resolveRole } from "@/lib/members";
+import { checkIntegrationOwner } from "@/lib/integrations/route-auth";
 import { getProvider } from "@/lib/integrations/registry";
 import {
   callbackUrl,
@@ -19,7 +18,7 @@ export const dynamic = "force-dynamic";
  * The provider redirects the browser here with ?code&state. Security rests on
  * three checks, not on the request's origin (it legitimately arrives
  * cross-site from the provider):
- *   1. a live admin session
+ *   1. a live admin session that also satisfies REQUIRE_2FA
  *   2. the `state` row exists, is unexpired, and belongs to THIS owner+provider
  *   3. the row is deleted on read, so a replay finds nothing
  * Then the code is exchanged, tokens are sealed, and the connection is tested.
@@ -39,9 +38,11 @@ export async function GET(
   const provider = getProvider(providerId);
   if (!provider?.exchangeCode) return fail("unknown_provider", providerId);
 
-  const session = await getSession();
-  const role = session ? await resolveRole(session.user.email) : null;
-  if (!session || role !== "admin") return fail("not_signed_in", providerId);
+  // Same gate as /connect: admin role AND the REQUIRE_2FA policy.
+  const owner = await checkIntegrationOwner();
+  if (!owner.ok) {
+    return fail(owner.reason === "two_factor_required" ? "two_factor_required" : "not_signed_in", providerId);
+  }
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -50,7 +51,7 @@ export async function GET(
   if (providerError) return fail(`provider_${providerError}`.slice(0, 40), providerId);
   if (!code || !state) return fail("missing_code", providerId);
 
-  const stored = await consumeOAuthState(state, session.user.id, providerId);
+  const stored = await consumeOAuthState(state, owner.ownerId, providerId);
   if (!stored) return fail("bad_state", providerId);
 
   try {
@@ -74,7 +75,7 @@ export async function GET(
       : stored.scopes;
 
     await saveConnection({
-      ownerId: session.user.id,
+      ownerId: owner.ownerId,
       provider: providerId,
       secret,
       status: accountLabel ? "connected" : "error",
