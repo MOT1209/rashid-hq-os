@@ -8,24 +8,27 @@ the UI says so.
 
 ## Status
 
+"Built" means the code exists and passes automated tests against **mocked** platform APIs.
+**No platform adapter has been run against a live account yet.** Every platform also has external
+approvals only you can obtain (listed in the UI and below).
+
 | Area | Status |
 |---|---|
 | Capability registry (YouTube, Facebook, Instagram, TikTok) | Built. Declares auth, scopes, limits, blockers. |
-| YouTube OAuth (`youtube_publish`, scope `youtube.upload`) | Built on the existing Integrations engine (PKCE, encrypted tokens, 2FA gate). Needs your Google OAuth client. |
-| YouTube publishing adapter | Built, unit-tested against **mocked** HTTP. **Not yet run against a live channel.** |
-| Meta OAuth (`meta_publish`) | Built. Long-lived user token (~60 days) stored encrypted; re-exchanged before expiry. Page tokens are derived at publish time and never stored. Needs `META_APP_ID` / `META_APP_SECRET`. |
-| Facebook Pages adapter (video, photo, text) | Built, tested against **mocked** Graph API. Not run against a live Page. |
-| Instagram adapter (Reels / JPEG image) | Built, mocked-tested: container → wait for `FINISHED` → `media_publish`. A processing timeout is retryable and publishes nothing; a dropped final publish is terminal. Not run against a live account. |
-| TikTok | **Pending, no adapter.** Capabilities declared; publishing refused server-side. Needs TikTok app audit. |
-| Media library (upload, preview, archive, delete) | Built. Direct-to-Supabase-Storage via signed URLs; size/MIME validated; size verified after upload. Not tested against live Storage. |
-| Content drafts + per-platform variants + validation | Built. |
-| Publish now / schedule / cancel / retry / history | Built. Persistent queue in Postgres (migration 0024), verified on real Postgres 16 (claim, duplicate key, stale-lock reclaim, success constraint). |
-| Calendar | **List view of queued jobs only.** No month/week/day grid, no drag-reschedule. |
-| AI content assistant (titles, description, caption, hashtags, platform adaptation, translation, ideas, 7-day plan, summary, thumbnail concepts) | Built. Uses the existing model layer (Groq, `GROQ_API_KEY`). Returns **text suggestions only**; shown in a labelled "AI suggestion" box, applied by the owner into the editor, and drafts that took AI text carry an "AI-assisted" badge. Tested with a mocked model; not run against the live provider. |
-| Six specialised agents (Strategist, Writer, Adapter, Publishing Assistant, Analytics, Media Organizer) | **Not built.** The assistant covers the writing/adaptation/planning tasks as one tool; there are no autonomous agents and no agent publish permissions. |
-| Analytics snapshots | **Not built.** No metrics are shown, none are fabricated. |
-| Automation rules, agent publish permissions | **Not built.** |
-| E2E (browser) tests | **Not built.** Unit + DB-level checks only. |
+| YouTube: OAuth (`youtube_publish`) + resumable upload adapter | Built. Needs your Google OAuth client; unaudited API projects are forced private. |
+| Facebook Pages: OAuth (`meta_publish`) + video/photo/text adapter | Built. Page tokens derived at publish time, never stored. Needs Meta app + review. |
+| Instagram: Reels / JPEG via container → status poll → publish | Built. Needs Meta app review and a Business/Creator account linked to a Page. |
+| TikTok: Login Kit OAuth (`tiktok_publish`) + chunked Direct Post adapter | Built. Enforces the creator's own privacy options; **unaudited apps can only post private**. |
+| Media library (signed-URL upload, preview, tags, archive, delete) | Built. Not tested against live Storage. |
+| Content drafts, per-platform variants, validation | Built. |
+| Publish now / schedule / cancel / retry / reschedule / history | Built. Persistent Postgres queue; claim, duplicate-key, stale-lock reclaim and success constraint verified on real Postgres 16. |
+| Calendar (month / week / day / list) in the owner's timezone, drafts list, reschedule | Built (math unit-tested; UI not browser-tested). |
+| AI assistant (10 tasks, suggestions only) | Built. Mocked-model tested. |
+| Six agents (Strategist, Writer, Platform Adaptation, Publishing Assistant, Analytics, Media Organizer) with 8 granular permissions | Built. Real owner-scoped tools; schedule/publish/delete/manage_accounts are never grantable and have no tools. |
+| Analytics snapshots (YouTube stats; Facebook reactions/comments/shares; Instagram likes/comments) | Built. Unsupported metrics are listed, never zero-filled; no TikTok analytics (needs `video.list`); no cross-platform comparison. |
+| Automation | Only what the worker does: publishing queue and cadence-limited analytics collection. A general workflow/rules engine is **not built**. |
+| Browser end-to-end tests | **Not built** (see `docs/TESTING.md`). |
+| Engagement rate | Computed only when a platform returned real `views`. |
 
 ## AI assistant guardrails
 
@@ -51,10 +54,11 @@ the UI says so.
 
 ## Setup
 
-1. Apply migrations: `npm run migrate:apply` (adds migration `0024_social_studio.sql` and the private `social-media` bucket).
+1. Apply migrations: `npm run migrate:apply` (0024 social tables + private `social-media` bucket, 0025 AI usage kind, 0026 analytics snapshots, 0027 agent settings).
 2. Meta (Facebook/Instagram): create a Meta app, add redirect URI `https://<host>/api/integrations/meta_publish/callback`, set `META_APP_ID` / `META_APP_SECRET`. Until Meta app review approves `pages_manage_posts` and `instagram_content_publish`, only app admins/testers can publish. Then Integrations → connect **Meta**, and Social Studio → Accounts → **Detect channel** on the Facebook or Instagram card.
+2a. TikTok: create a developer app (Login Kit + Content Posting API), add redirect URI `https://<host>/api/integrations/tiktok_publish/callback`, set `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`. Public posting needs TikTok's audit; until then only private posts from approved test users.
 2b. AI assistant: set `GROQ_API_KEY` (already used by the console) and optionally `SOCIAL_AI_DAILY_RUNS`.
-2c. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `INTEGRATIONS_SECRET`,
+2c. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `INTEGRATIONS_SECRET`,
    `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, optional `OWNER_TIMEZONE` (e.g. `Asia/Riyadh`).
 3. Google Cloud: enable **YouTube Data API v3**; add redirect URI `https://<host>/api/integrations/youtube_publish/callback`.
 4. In the app: Integrations → connect **YouTube Publishing**; Social Studio → Accounts → **Detect channel**.
@@ -80,6 +84,21 @@ so the browser can upload/preview via signed URLs.
 - [ ] Instagram: publish a JPEG, then a short MP4 (appears as a Reel); History shows the permalink.
 - [ ] Instagram with a PNG or two attachments is rejected by validation before queueing.
 - [ ] Revoke the app in Facebook settings; next job fails as an auth error and is not retried.
+
+## Manual verification checklist — TikTok
+
+- [ ] Connect TikTok; Accounts → detect shows your display name.
+- [ ] Upload a short MP4 (< 10 MB first, then > 20 MB to exercise chunking).
+- [ ] Publish with privacy **Private**; History shows *Published* once TikTok reports `PUBLISH_COMPLETE`.
+- [ ] Choosing a privacy level your account does not offer fails with a clear message before anything is posted.
+- [ ] A video longer than your account's limit is rejected.
+
+## Manual verification checklist — agents, calendar, analytics
+
+- [ ] Agents tab: run the Content Writer; a draft appears marked AI-assisted; nothing is queued.
+- [ ] Untick *Edit drafts* for the Writer, save, run again: it can no longer update drafts.
+- [ ] Calendar: schedule two posts; switch Month/Week/Day/List; reschedule one; times display in `OWNER_TIMEZONE`.
+- [ ] Analytics → Refresh after a real post: numbers match the platform's own UI; unavailable metrics are listed, not shown as 0.
 
 ## Manual verification checklist — YouTube
 

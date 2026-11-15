@@ -157,3 +157,18 @@ pg_restore --clean --if-exists --no-owner --single-transaction \
 - Add new tables with `enable row level security` and
   `revoke all … from anon, authenticated`, like every other table here.
 - Update `src/types/supabase.ts` in the same commit.
+
+## Social Studio tables (migrations 0024–0027)
+
+| Table | Purpose |
+|---|---|
+| `social_accounts` | which channel/page a connection publishes to (no tokens) |
+| `social_media_assets` | media metadata; bytes live in the private `social-media` bucket |
+| `social_content`, `social_content_media`, `social_content_variants` | drafts, attachments, per-platform overrides |
+| `social_publish_jobs`, `social_publish_attempts` | persistent queue; unique `idempotency_key`; success needs `external_id` |
+| `social_analytics_snapshots` | real metrics + `unsupported` list per retrieval |
+| `social_agent_settings` | per-agent enable/permissions (clamped by the app) |
+| `agent_runs.kind` | extended with `social_assist` (0025) |
+
+Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
+Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.
