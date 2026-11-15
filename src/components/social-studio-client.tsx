@@ -15,6 +15,7 @@ import {
   deleteAssetAction,
   mediaPreviewUrlAction,
   requestUploadAction,
+  refreshAnalyticsAction,
   retryJobAction,
   saveContentAction,
   syncMetaAccountsAction,
@@ -468,6 +469,79 @@ export function JobsPanel({ t, jobs, scheduleOnly, locale }: { t: SocialT; jobs:
               {j.last_error && <p className="text-xs text-err">{j.last_error}</p>}
             </li>
           ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+/* ------------------------------- Analytics ------------------------------- */
+
+export type AnalyticsJobView = {
+  id: string; platform: string; external_id: string; external_url: string | null;
+  snapshots: { id: string; retrieved_at: string; metrics: Record<string, number>; unsupported: string[]; error: string | null }[];
+};
+
+export function AnalyticsPanel({ t, items, locale }: { t: SocialT; items: AnalyticsJobView[]; locale: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const num = (n: number) => n.toLocaleString(locale);
+  const when = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+
+  return (
+    <Panel
+      title={t.tabAnalytics}
+      action={
+        <button type="button" disabled={pending} className="rounded-xl border border-border px-3 py-2 text-xs"
+          onClick={() => start(async () => { const r = await refreshAnalyticsAction(); setMsg(r.ok ? null : r.error); router.refresh(); })}>
+          {pending ? t.working : t.anRefresh}
+        </button>
+      }
+    >
+      <p className="mb-3 text-xs text-muted">{t.anNote}</p>
+      {msg && <FormError>{msg}</FormError>}
+      {items.length === 0 ? <EmptyState>{t.anNone}</EmptyState> : (
+        <ul className="divide-y divide-border">
+          {items.map((it) => {
+            const latest = it.snapshots.find((s) => !s.error);
+            const failed = it.snapshots[0]?.error;
+            const m = latest?.metrics ?? {};
+            const rate = m.views ? ((m.likes ?? 0) + (m.comments ?? 0) + (m.shares ?? 0)) / m.views : null;
+            return (
+              <li key={it.id} className="space-y-2 py-3 text-sm">
+                <p className="font-medium">
+                  {it.platform}{" "}
+                  {it.external_url && <a className="text-xs text-accent underline" href={it.external_url} target="_blank" rel="noopener noreferrer">{it.external_id}</a>}
+                </p>
+                {!latest ? <p className="text-xs text-muted">{t.anNoSnapshot}</p> : (
+                  <>
+                    <dl className="flex flex-wrap gap-4 text-xs">
+                      {Object.entries(m).map(([k, v]) => (
+                        <div key={k}><dt className="text-muted">{k}</dt><dd className="text-base font-semibold">{num(v)}</dd></div>
+                      ))}
+                      {rate !== null && <div><dt className="text-muted">{t.anEngagement}</dt><dd className="text-base font-semibold">{(rate * 100).toFixed(2)}%</dd></div>}
+                    </dl>
+                    <p className="text-xs text-muted">{t.anRetrieved}: {when(latest.retrieved_at)}</p>
+                    {latest.unsupported.length > 0 && <p className="text-xs text-muted">{t.anUnsupported}: {latest.unsupported.join("، ")}</p>}
+                    {it.snapshots.filter((s) => !s.error).length > 1 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted">{t.anTrend}</summary>
+                        <table className="mt-1 w-full text-start">
+                          <tbody>
+                            {it.snapshots.filter((s) => !s.error).map((s) => (
+                              <tr key={s.id}><td className="py-0.5 pe-3 text-muted">{when(s.retrieved_at)}</td><td>{Object.entries(s.metrics).map(([k, v]) => `${k} ${num(v)}`).join(" · ")}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    )}
+                  </>
+                )}
+                {failed && <p className="text-xs text-err">{t.anError}: {failed}</p>}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Panel>

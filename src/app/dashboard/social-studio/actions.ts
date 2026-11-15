@@ -14,6 +14,7 @@ import { db, getAsset, getContentBundle, upsertAccount, type AccountRow } from "
 import { hasErrors, parseHashtags, validateVariant } from "@/lib/social/validation";
 import { logActivity } from "@/lib/activity";
 import { runAssist } from "@/lib/social/ai";
+import { collectDue } from "@/lib/social/analytics";
 import { isAiTask } from "@/lib/social/ai-prompts";
 
 const PATH = "/dashboard/social-studio";
@@ -170,6 +171,20 @@ export async function mediaPreviewUrlAction(assetId: string): Promise<Result<{ u
   if (!asset) return fail("Not found.");
   const { data } = await db().storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 600);
   return data ? { ok: true, url: data.signedUrl } : fail("Could not sign URL.");
+}
+
+/* ---------- analytics ---------- */
+
+/** Owner-triggered refresh: real API calls, bounded to 5 posts per click. */
+export async function refreshAnalyticsAction(): Promise<Result<{ collected: number; failed: number }>> {
+  const session = await requireAdmin();
+  try {
+    const r = await collectDue({ ownerId: session.user.id, limit: 5, force: true });
+    revalidatePath(PATH);
+    return { ok: true, ...r };
+  } catch {
+    return fail("Could not collect analytics.");
+  }
 }
 
 /* ---------- AI assistant (suggestions only) ---------- */

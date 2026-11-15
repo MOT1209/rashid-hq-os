@@ -3,18 +3,20 @@ import { getLocale } from "@/lib/locale-server";
 import { requireSession } from "@/lib/session";
 import { socialT } from "@/lib/social/i18n";
 import { PLATFORMS } from "@/lib/social/providers";
+import { listSnapshots } from "@/lib/social/analytics";
 import { getContentBundle, listAccounts, listAssets, listContent, listJobs } from "@/lib/social/store";
 import {
   AccountsPanel,
   ContentPanel,
   JobsPanel,
   MediaPanel,
+  AnalyticsPanel,
   type ContentView,
 } from "@/components/social-studio-client";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["accounts", "media", "content", "schedule", "history"] as const;
+const TABS = ["accounts", "media", "content", "schedule", "history", "analytics"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -33,7 +35,7 @@ export default async function SocialStudioPage({
   const owner = session.user.id;
   const timezone = process.env.OWNER_TIMEZONE || "UTC";
   const labels: Record<Tab, string> = {
-    accounts: t.tabAccounts, media: t.tabMedia, content: t.tabContent, schedule: t.tabCalendar, history: t.tabHistory,
+    accounts: t.tabAccounts, media: t.tabMedia, content: t.tabContent, schedule: t.tabCalendar, history: t.tabHistory, analytics: t.tabAnalytics,
   };
   const platforms = Object.values(PLATFORMS);
 
@@ -41,6 +43,7 @@ export default async function SocialStudioPage({
     | { tab: "accounts"; accounts: Awaited<ReturnType<typeof listAccounts>> }
     | { tab: "media"; assets: Awaited<ReturnType<typeof listAssets>> }
     | { tab: "content"; assets: Awaited<ReturnType<typeof listAssets>>; accounts: Awaited<ReturnType<typeof listAccounts>>; views: ContentView[] }
+    | { tab: "analytics"; items: Awaited<ReturnType<typeof listSnapshots>> }
     | { tab: "schedule" | "history"; jobs: Awaited<ReturnType<typeof listJobs>> };
 
   async function load(): Promise<Data> {
@@ -63,6 +66,7 @@ export default async function SocialStudioPage({
       );
       return { tab, assets, accounts, views };
     }
+    if (tab === "analytics") return { tab, items: await listSnapshots(owner) };
     return { tab, jobs: await listJobs(owner, { limit: 100 }) };
   }
 
@@ -80,6 +84,7 @@ export default async function SocialStudioPage({
   else if (data?.tab === "media") body = <MediaPanel t={t} assets={data.assets} />;
   else if (data?.tab === "content")
     body = <ContentPanel t={t} platforms={platforms} assets={data.assets} contents={data.views} accounts={data.accounts} timezone={timezone} />;
+  else if (data?.tab === "analytics") body = <AnalyticsPanel t={t} items={data.items} locale={locale} />;
   else if (data) body = <JobsPanel t={t} jobs={data.jobs} scheduleOnly={data.tab === "schedule"} locale={locale} />;
 
   return (
