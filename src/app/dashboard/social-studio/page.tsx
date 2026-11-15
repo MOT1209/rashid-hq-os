@@ -4,6 +4,8 @@ import { requireSession } from "@/lib/session";
 import { socialT } from "@/lib/social/i18n";
 import { PLATFORMS } from "@/lib/social/providers";
 import { listSnapshots } from "@/lib/social/analytics";
+import { AGENT_KEYS, effectivePermissions } from "@/lib/social/agents-core";
+import { getAgentSettings } from "@/lib/social/agents";
 import { getContentBundle, listAccounts, listAssets, listContent, listJobs } from "@/lib/social/store";
 import {
   AccountsPanel,
@@ -12,12 +14,14 @@ import {
   MediaPanel,
   AnalyticsPanel,
   CalendarPanel,
+  AgentsPanel,
+  type AgentView,
   type ContentView,
 } from "@/components/social-studio-client";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["accounts", "media", "content", "schedule", "history", "analytics"] as const;
+const TABS = ["accounts", "media", "content", "schedule", "history", "analytics", "agents"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -36,7 +40,7 @@ export default async function SocialStudioPage({
   const owner = session.user.id;
   const timezone = process.env.OWNER_TIMEZONE || "UTC";
   const labels: Record<Tab, string> = {
-    accounts: t.tabAccounts, media: t.tabMedia, content: t.tabContent, schedule: t.tabCalendar, history: t.tabHistory, analytics: t.tabAnalytics,
+    accounts: t.tabAccounts, media: t.tabMedia, content: t.tabContent, schedule: t.tabCalendar, history: t.tabHistory, analytics: t.tabAnalytics, agents: t.tabAgents,
   };
   const platforms = Object.values(PLATFORMS);
 
@@ -44,6 +48,7 @@ export default async function SocialStudioPage({
     | { tab: "accounts"; accounts: Awaited<ReturnType<typeof listAccounts>> }
     | { tab: "media"; assets: Awaited<ReturnType<typeof listAssets>> }
     | { tab: "content"; assets: Awaited<ReturnType<typeof listAssets>>; accounts: Awaited<ReturnType<typeof listAccounts>>; views: ContentView[] }
+    | { tab: "agents"; agents: AgentView[] }
     | { tab: "analytics"; items: Awaited<ReturnType<typeof listSnapshots>> }
     | { tab: "schedule"; jobs: Awaited<ReturnType<typeof listJobs>>; drafts: { id: string; title: string }[] }
     | { tab: "history"; jobs: Awaited<ReturnType<typeof listJobs>> };
@@ -74,6 +79,15 @@ export default async function SocialStudioPage({
       const [jobs, contents] = await Promise.all([listJobs(owner, { limit: 200 }), listContent(owner)]);
       return { tab, jobs, drafts: contents.filter((c) => c.status === "draft").map((c) => ({ id: c.id, title: c.title })) };
     }
+    if (tab === "agents") {
+      const agents = await Promise.all(
+        AGENT_KEYS.map(async (key): Promise<AgentView> => {
+          const s = await getAgentSettings(owner, key);
+          return { key, max: effectivePermissions(key, null), permissions: s.permissions, enabled: s.enabled };
+        }),
+      );
+      return { tab, agents };
+    }
     if (tab === "analytics") return { tab, items: await listSnapshots(owner) };
     return { tab, jobs: await listJobs(owner, { limit: 100 }) };
   }
@@ -93,6 +107,7 @@ export default async function SocialStudioPage({
   else if (data?.tab === "content")
     body = <ContentPanel t={t} platforms={platforms} assets={data.assets} contents={data.views} accounts={data.accounts} timezone={timezone} />;
   else if (data?.tab === "schedule") body = <CalendarPanel t={t} jobs={data.jobs} drafts={data.drafts} timezone={timezone} locale={locale} />;
+  else if (data?.tab === "agents") body = <AgentsPanel t={t} agents={data.agents} />;
   else if (data?.tab === "analytics") body = <AnalyticsPanel t={t} items={data.items} locale={locale} />;
   else if (data) body = <JobsPanel t={t} jobs={data.jobs} locale={locale} />;
 

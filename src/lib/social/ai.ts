@@ -31,7 +31,7 @@ async function runsToday(): Promise<number> {
   const { count, error } = await getServiceSupabase()
     .from("agent_runs")
     .select("id", { count: "exact", head: true })
-    .eq("agent_name", AGENT_NAME)
+    .like("agent_name", `${AGENT_NAME}%`)
     .gte("created_at", since);
   if (error) throw error;
   return count ?? 0;

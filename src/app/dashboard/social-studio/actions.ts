@@ -11,10 +11,13 @@ import { idempotencyKey, manualRetryAllowed, parseSchedule } from "@/lib/social/
 import { PLATFORMS, canPublish, isPlatform, type MediaKind } from "@/lib/social/providers";
 import { runDueJobs } from "@/lib/social/engine";
 import { db, getAsset, getContentBundle, upsertAccount, type AccountRow } from "@/lib/social/store";
-import { hasErrors, parseHashtags, validateVariant } from "@/lib/social/validation";
+import { hasErrors, parseHashtags } from "@/lib/social/validation";
 import { logActivity } from "@/lib/activity";
 import { runAssist } from "@/lib/social/ai";
 import { collectDue } from "@/lib/social/analytics";
+import { validateContent } from "@/lib/social/validate-content";
+import { runSocialAgent, saveAgentSettings } from "@/lib/social/agents";
+import { isAgentKey } from "@/lib/social/agents-core";
 import { isAiTask } from "@/lib/social/ai-prompts";
 
 const PATH = "/dashboard/social-studio";
@@ -192,6 +195,30 @@ export async function mediaPreviewUrlAction(assetId: string): Promise<Result<{ u
   return data ? { ok: true, url: data.signedUrl } : fail("Could not sign URL.");
 }
 
+/* ---------- agents ---------- */
+
+/** Runs one agent. Its tools can only read, draft and tag — never schedule, publish or delete. */
+export async function runAgentAction(agent: string, instruction: string) {
+  const session = await requireAdmin();
+  if (!isAgentKey(agent)) return fail("Unknown agent.");
+  const r = await runSocialAgent(agent, String(instruction ?? ""), session.user.id);
+  revalidatePath(PATH);
+  return r.ok ? { ok: true as const, text: r.text, actions: r.actions, tokens: r.tokens } : fail(r.error);
+}
+
+/** Owner narrows (never widens beyond the agent's maximum) what an agent may do. */
+export async function saveAgentSettingsAction(agent: string, enabled: boolean, permissions: string[]): Promise<Result> {
+  const session = await requireAdmin();
+  if (!isAgentKey(agent)) return fail("Unknown agent.");
+  try {
+    await saveAgentSettings(session.user.id, agent, enabled, permissions);
+    revalidatePath(PATH);
+    return { ok: true };
+  } catch {
+    return fail("Could not save the agent settings.");
+  }
+}
+
 /* ---------- analytics ---------- */
 
 /** Owner-triggered refresh: real API calls, bounded to 5 posts per click. */
@@ -312,21 +339,8 @@ export async function saveContentAction(input: {
 
 export async function validateContentAction(contentId: string) {
   const session = await requireAdmin();
-  const bundle = await getContentBundle(session.user.id, contentId);
-  if (!bundle) return fail("Not found.");
-  const ids = bundle.media.map((m) => m.asset_id);
-  const { data: assets } = ids.length ? await db().from("social_media_assets").select("*").eq("owner_id", session.user.id).in("id", ids) : { data: [] };
-  const facts = (assets ?? []).map((a: { kind: MediaKind; mime_type: string; size_bytes: number; duration_seconds: number | null }) => ({
-    kind: a.kind, mimeType: a.mime_type, sizeBytes: Number(a.size_bytes), durationSeconds: a.duration_seconds,
-  }));
-  const report = bundle.variants.map((v) => ({
-    platform: v.platform,
-    issues: validateVariant(
-      { platform: v.platform, title: v.title ?? bundle.content.title, caption: v.caption ?? bundle.content.caption, hashtags: v.hashtags ?? bundle.content.hashtags },
-      facts,
-    ),
-  }));
-  return { ok: true as const, report };
+  const report = await validateContent(session.user.id, contentId);
+  return report ? { ok: true as const, report } : fail("Not found.");
 }
 
 /* ---------- publishing ---------- */

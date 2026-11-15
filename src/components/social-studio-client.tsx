@@ -17,6 +17,8 @@ import {
   mediaPreviewUrlAction,
   requestUploadAction,
   refreshAnalyticsAction,
+  runAgentAction,
+  saveAgentSettingsAction,
   rescheduleJobAction,
   retryJobAction,
   saveContentAction,
@@ -665,6 +667,79 @@ export function CalendarPanel({
       <Panel title={t.calDrafts}>
         {drafts.length === 0 ? <EmptyState>{t.noContent}</EmptyState> : <ul className="flex flex-wrap gap-2 text-xs">{drafts.map((d) => <li key={d.id} className="rounded-lg border border-border px-2 py-1">{d.title || "—"}</li>)}</ul>}
       </Panel>
+    </div>
+  );
+}
+
+/* --------------------------------- Agents --------------------------------- */
+
+export type AgentView = { key: string; max: string[]; permissions: string[]; enabled: boolean };
+
+function AgentCard({ t, a }: { t: SocialT; a: AgentView }) {
+  const router = useRouter();
+  const [perms, setPerms] = useState<string[]>(a.permissions);
+  const [enabled, setEnabled] = useState(a.enabled);
+  const [instruction, setInstruction] = useState("");
+  const [out, setOut] = useState<{ text: string; actions: { tool: string; args: unknown }[] } | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pending, start] = useTransition();
+
+  return (
+    <Panel title={t.agNames[a.key]}>
+      <p className="mb-3 text-xs text-muted">{t.agDescs[a.key]}</p>
+      <fieldset className="mb-3">
+        <legend className="mb-1 text-xs text-muted">{t.agPermissions}</legend>
+        <div className="flex flex-wrap gap-2">
+          {a.max.map((p) => (
+            <label key={p} className="flex items-center gap-2 rounded-lg border border-border px-2 py-1 text-xs">
+              <input type="checkbox" checked={perms.includes(p)} onChange={() => setPerms((l) => (l.includes(p) ? l.filter((x) => x !== p) : [...l, p]))} />
+              {t.permNames[p]}
+            </label>
+          ))}
+          <label className="flex items-center gap-2 rounded-lg border border-border px-2 py-1 text-xs">
+            <input type="checkbox" checked={enabled} onChange={() => setEnabled((v) => !v)} />
+            {t.agEnabled}
+          </label>
+        </div>
+        <button type="button" disabled={pending} className="mt-2 rounded-lg border border-border px-2 py-1 text-xs"
+          onClick={() => start(async () => { const r = await saveAgentSettingsAction(a.key, enabled, perms); setMsg(r.ok ? { kind: "ok", text: t.saved } : { kind: "err", text: r.error }); router.refresh(); })}>
+          {t.agSave}
+        </button>
+      </fieldset>
+      <Field id={`ag-${a.key}`} label={t.agInstruction}>
+        <textarea id={`ag-${a.key}`} rows={2} className={fieldClass} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
+      </Field>
+      <button type="button" disabled={pending || !enabled} className="mt-2 rounded-xl bg-accent px-3 py-2 text-xs font-medium text-white"
+        onClick={() => start(async () => {
+          setMsg(null);
+          const r = await runAgentAction(a.key, instruction);
+          if (!r.ok) return setMsg({ kind: "err", text: r.error });
+          setOut({ text: r.text, actions: r.actions });
+          router.refresh();
+        })}>
+        {pending ? t.working : t.agRun}
+      </button>
+      {msg && (msg.kind === "err" ? <FormError>{msg.text}</FormError> : <p role="status" className="mt-2 text-xs text-ok">{msg.text}</p>)}
+      {out && (
+        <div className="mt-3 space-y-2 rounded-lg border border-accent/40 bg-accent-soft p-3">
+          <p className="text-[11px] font-medium text-accent">{t.agOutput}</p>
+          <pre className="whitespace-pre-wrap text-sm" dir="auto">{out.text}</pre>
+          {out.actions.length > 0 && (
+            <div className="text-xs"><p className="font-medium">{t.agActions}</p>
+              <ul className="list-disc ps-5 text-muted">{out.actions.map((x, i) => <li key={i}>{x.tool}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function AgentsPanel({ t, agents }: { t: SocialT; agents: AgentView[] }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted">{t.agOwnerOnly}</p>
+      <div className="grid gap-4 lg:grid-cols-2">{agents.map((a) => <AgentCard key={a.key} t={t} a={a} />)}</div>
     </div>
   );
 }
