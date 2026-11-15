@@ -272,14 +272,28 @@ export type Database = {
           created_at: string;
           created_by: string | null;
           description: string | null;
+          enabled: boolean;
           id: string;
+          input_schema: Json | null;
+          metadata: Json;
           name: string;
+          output_schema: Json | null;
           prompt: string;
+          tags: string[];
+          updated_at: string;
+          version: number;
         };
         Insert: {
           created_at?: string;
           created_by?: string | null;
           description?: string | null;
+          enabled?: boolean;
+          input_schema?: Json | null;
+          metadata?: Json;
+          output_schema?: Json | null;
+          tags?: string[];
+          updated_at?: string;
+          version?: number;
           id?: string;
           name: string;
           prompt: string;
@@ -288,6 +302,13 @@ export type Database = {
           created_at?: string;
           created_by?: string | null;
           description?: string | null;
+          enabled?: boolean;
+          input_schema?: Json | null;
+          metadata?: Json;
+          output_schema?: Json | null;
+          tags?: string[];
+          updated_at?: string;
+          version?: number;
           id?: string;
           name?: string;
           prompt?: string;
@@ -356,15 +377,29 @@ export type Database = {
         Row: {
           created_at: string;
           description: string | null;
+          enabled: boolean;
           endpoint: string | null;
           id: string;
           input_schema: Json | null;
+          last_latency_ms: number | null;
+          last_test_error: string | null;
+          last_test_ok: boolean | null;
+          last_tested_at: string | null;
+          permission: string;
           project_id: string;
+          requires_approval: boolean;
           tool_name: string;
         };
         Insert: {
           created_at?: string;
           description?: string | null;
+          enabled?: boolean;
+          last_latency_ms?: number | null;
+          last_test_error?: string | null;
+          last_test_ok?: boolean | null;
+          last_tested_at?: string | null;
+          permission?: string;
+          requires_approval?: boolean;
           endpoint?: string | null;
           id?: string;
           input_schema?: Json | null;
@@ -374,6 +409,13 @@ export type Database = {
         Update: {
           created_at?: string;
           description?: string | null;
+          enabled?: boolean;
+          last_latency_ms?: number | null;
+          last_test_error?: string | null;
+          last_test_ok?: boolean | null;
+          last_tested_at?: string | null;
+          permission?: string;
+          requires_approval?: boolean;
           endpoint?: string | null;
           id?: string;
           input_schema?: Json | null;
@@ -581,6 +623,7 @@ export type Database = {
           created_at: string;
           id: string;
           mcp_endpoint: string | null;
+          mcp_protocol: string;
           name: string;
           owner_id: string | null;
           repository_url: string | null;
@@ -595,6 +638,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           mcp_endpoint?: string | null;
+          mcp_protocol?: string;
           name: string;
           owner_id?: string | null;
           repository_url?: string | null;
@@ -609,6 +653,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           mcp_endpoint?: string | null;
+          mcp_protocol?: string;
           name?: string;
           owner_id?: string | null;
           repository_url?: string | null;

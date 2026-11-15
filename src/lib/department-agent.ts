@@ -43,7 +43,7 @@ const DELEGATE_TOOL = "delegate_to_department";
  */
 export type RunMode = "interactive" | "autonomous";
 
-const AUTONOMOUS_TOOLS = new Set([
+export const AUTONOMOUS_TOOLS = new Set([
   "list_projects",
   "get_project",
   "list_categories",

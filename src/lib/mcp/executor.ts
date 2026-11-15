@@ -137,6 +137,13 @@ export async function runTool(
       });
     }
     await finish("failed", { error: message });
+    // Automation event. Unattended runs (cron, automations) never emit it, so an
+    // automation reacting to tool failures cannot trigger itself in a loop.
+    if (ctx.actorType !== "standing_task_routine") {
+      void import("@/lib/automation/store")
+        .then((m) => m.emitEvent("tool_call_failed", { tool: tool.name, project_id: projectId, error: message.slice(0, 300) }, `${tool.name}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`))
+        .catch(() => undefined);
+    }
     return { status: "failed", error: message, unexpected, projectId };
   }
 }

@@ -9,6 +9,7 @@ Target: Vercel + Supabase (existing). No new paid infrastructure is required.
 4. **Platform apps** (Google, Meta, TikTok): register the exact redirect URIs; complete reviews/audits (`docs/SOCIAL_STUDIO.md`).
 5. **Scheduler:** set GitHub secrets `APP_URL` and `CRON_SECRET`. `.github/workflows/social-worker.yml` calls `/api/social/run` every 10 min.
    (Vercel Hobby crons are daily-only; on Pro you can add `{ "path": "/api/social/run", "schedule": "*/10 * * * *" }` to `vercel.json`.)
+   The same workflow also calls `/api/automation/run` (queues due schedules and processes queued automation runs).
 6. **Verify:** `npm run typecheck && npm run lint && npm test && npm run build`; then the manual checklists in `docs/SOCIAL_STUDIO.md`.
 7. Large uploads go browser → Supabase directly; publishing streams from Storage, bounded by the worker's `maxDuration` (300 s).
 

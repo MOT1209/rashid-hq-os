@@ -26,7 +26,7 @@ approvals only you can obtain (listed in the UI and below).
 | AI assistant (10 tasks, suggestions only) | Built. Mocked-model tested. |
 | Six agents (Strategist, Writer, Platform Adaptation, Publishing Assistant, Analytics, Media Organizer) with 8 granular permissions | Built. Real owner-scoped tools; schedule/publish/delete/manage_accounts are never grantable and have no tools. |
 | Analytics snapshots (YouTube stats; Facebook reactions/comments/shares; Instagram likes/comments) | Built. Unsupported metrics are listed, never zero-filled; no TikTok analytics (needs `video.list`); no cross-platform comparison. |
-| Automation | Only what the worker does: publishing queue and cadence-limited analytics collection. A general workflow/rules engine is **not built**. |
+| Automation | The publishing queue and analytics collection are built in. Social events (`social_job_failed` / `social_job_succeeded`) can trigger general workflows — see `docs/AUTOMATION.md`. |
 | Browser end-to-end tests | **Not built** (see `docs/TESTING.md`). |
 | Engagement rate | Computed only when a platform returned real `views`. |
 

@@ -3,6 +3,7 @@ import "server-only";
 import { captureError } from "@/lib/errors";
 import type { ToolContext, ToolDefinition } from "@/lib/mcp/tools";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { decideProjectTool, type ProjectToolPolicyRow } from "@/lib/mcp/tool-policy";
 import type { PolicyDecision, PolicyRow } from "@/types/database";
 
 export type PolicyRule = {
@@ -127,7 +128,28 @@ export async function evaluatePolicyAsync(
   ctx: ToolContext,
   args: unknown,
 ): Promise<{ decision: PolicyDecision; ruleId: string | null }> {
-  void args;
+  // Per-tool project policy (migration 0028) is checked first and fails SAFE:
+  // if the lookup cannot be completed the call queues for approval rather than
+  // running ungoverned.
+  if (tool.name === "call_project_tool") {
+    const a = (args ?? {}) as { project_id?: unknown; tool_name?: unknown };
+    if (typeof a.project_id === "string" && typeof a.tool_name === "string") {
+      try {
+        const { data, error } = await getServiceSupabase()
+          .from("project_tools")
+          .select("enabled, permission, requires_approval")
+          .eq("project_id", a.project_id)
+          .eq("tool_name", a.tool_name)
+          .maybeSingle();
+        if (error) throw error;
+        const restricted = decideProjectTool((data as ProjectToolPolicyRow | null) ?? null, ctx.actorType);
+        if (restricted) return restricted;
+      } catch (error) {
+        captureError("policy:project-tool-lookup", error);
+        return { decision: "require_approval", ruleId: "project-tool-lookup-failed" };
+      }
+    }
+  }
   try {
     for (const row of await listEnabledPolicies()) {
       if (matchDbPolicy(row, tool, ctx)) return { decision: row.decision, ruleId: row.id };

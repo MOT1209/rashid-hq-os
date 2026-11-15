@@ -39,6 +39,22 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Automations
+
+`/dashboard/automations`: scheduled (cron + timezone), event-driven and manual workflows of tool / department-agent / email steps with
+conditions, persistent retries, pause/resume, run history and failure emails — running unattended under the same guard rails as the daily
+standing task. See [`docs/AUTOMATION.md`](docs/AUTOMATION.md).
+
+## Skills Manager
+
+`/dashboard/skills`: versioned prompt templates with schemas, tags, enable/disable, JSON import/export (imports land disabled) and a
+usage log. See [`docs/SKILLS.md`](docs/SKILLS.md).
+
+## MCP management
+
+`/dashboard/mcp`: per-tool enable/permission/approval policy (dangerous tools always need approval), health, 7-day history,
+and standard-MCP discovery with encrypted credentials. See [`docs/MCP_MANAGEMENT.md`](docs/MCP_MANAGEMENT.md).
+
 ## KING Social Studio
 
 Prepare once, publish to YouTube, Facebook, Instagram and TikTok through their official APIs, with your

@@ -4,6 +4,8 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { loadMcpToken } from "@/lib/mcp/credentials";
+import { withMcpSession } from "@/lib/mcp/client";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
 import { checkProjectBudget } from "@/lib/budgets";
 import { dbError } from "@/lib/errors";
@@ -448,7 +450,9 @@ const listSkills = defineTool({
   async execute() {
     const { data, error } = await getServiceSupabase()
       .from("agent_skills")
-      .select("id, name, description, prompt, created_at")
+      .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
+      // Disabled skills are invisible to agents (migration 0030).
+      .eq("enabled", true)
       .order("created_at", { ascending: false });
     if (error) throw dbError("list_skills", error);
     return { skills: data ?? [] } as Json;
@@ -463,8 +467,9 @@ const getSkill = defineTool({
   async execute(args) {
     const { data, error } = await getServiceSupabase()
       .from("agent_skills")
-      .select("id, name, description, prompt, created_at")
+      .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
       .eq("id", args.skill_id)
+      .eq("enabled", true)
       .maybeSingle();
     if (error) throw dbError("get_skill", error);
     if (!data) throw new Error("Skill not found.");
@@ -561,7 +566,7 @@ const callProjectTool = defineTool({
     const { data: project } = await supabase
       .from("projects")
       .select(
-        "mcp_endpoint, name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at",
+        "mcp_endpoint, mcp_protocol, name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at",
       )
       .eq("id", args.project_id)
       .maybeSingle();
@@ -611,6 +616,16 @@ const callProjectTool = defineTool({
       throw new Error(
         `Input payload (${inputPayload.length} bytes) exceeds the ${MAX_INPUT_PAYLOAD}-byte limit.`,
       );
+    }
+
+    // Standard MCP servers (migration 0029) are called with tools/call over
+    // Streamable HTTP; the optional bearer token is decrypted only here.
+    if (project?.mcp_protocol === "mcp") {
+      const token = await loadMcpToken(args.project_id);
+      const result = await withMcpSession(endpoint, token, (s) => s.callTool(args.tool_name, args.input ?? {}), {
+        target: { url: safeUrl, dispatcher },
+      });
+      return { endpoint: safeUrl.toString(), status: 200, response: result } as Json;
     }
 
     const requestBody = JSON.stringify({

@@ -232,6 +232,17 @@ function realDeps(): Deps {
         status,
         payload: { jobId: job.id, ...detail } as never,
       }).catch(() => undefined);
+      // Automation events (best effort). A failure that will be retried is not an event yet.
+      try {
+        const { emitEvent } = await import("@/lib/automation/store");
+        if (status === "success") {
+          await emitEvent("social_job_succeeded", { platform: job.platform, job_id: job.id, external_id: String(detail.externalId ?? "") }, `${job.id}:ok`);
+        } else if (!detail.willRetry) {
+          await emitEvent("social_job_failed", { platform: job.platform, job_id: job.id, error: String(detail.message ?? detail.kind ?? "").slice(0, 300) }, `${job.id}:${job.attempts}`);
+        }
+      } catch {
+        // never affects publishing
+      }
     },
   };
 }
