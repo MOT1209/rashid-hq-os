@@ -39,6 +39,10 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Performance & dependencies
+
+Measured query plans at 400k log rows, the N+1 fix, retention and the dependency audit status: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+
 ## CEO dashboard
 
 `/dashboard` adds a real-data command overview: needs-attention list, system health, agents, running work, approvals, MCP, integrations, schedule, social and failures. See [`docs/DASHBOARD.md`](docs/DASHBOARD.md).

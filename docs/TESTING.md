@@ -31,6 +31,9 @@ evidence that a live integration works.
 | Agent management actions (self-test forces read-only, built-ins protected) | `agents-actions.test.ts` |
 | Dashboard rules: config health, warnings, budget states | `overview-core.test.ts` |
 | Dashboard data: per-card isolation, real figures, no secret values | `overview-fetch.test.ts` |
+| Batched content relations (constant query count, owner scoping) | `social-relations.test.ts` |
+| Retention cron route | `maintenance-prune.test.ts` |
+| Schema-lag fallbacks | `schema-compat.test.ts`, `schema-compat-tools.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

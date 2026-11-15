@@ -195,5 +195,11 @@ cascades with its project. RLS on, anon/authenticated revoked.
 
 `departments` gained `enabled`, `allowed_tools` (null = all), `read_only`, `is_custom`; `agent_projects` (department ↔ project, cascade both ways). RLS on, anon/authenticated revoked.
 
+## Retention (migration 0034)
+
+`prune_automation_runs(interval)` and `prune_social_data(interval)` run from the daily `/api/maintenance/prune` cron (env `AUTOMATION_RETENTION` default 90 days,
+`SOCIAL_RETENTION` default 180 days). Finished automation runs, analytics snapshots and failed/cancelled social jobs are deleted after the window; succeeded
+jobs and queued/running runs never are. Activity logs keep their own `LOG_RETENTION` (90 days).
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.
