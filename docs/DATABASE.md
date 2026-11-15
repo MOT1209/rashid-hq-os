@@ -170,5 +170,10 @@ pg_restore --clean --if-exists --no-owner --single-transaction \
 | `social_agent_settings` | per-agent enable/permissions (clamped by the app) |
 | `agent_runs.kind` | extended with `social_assist` (0025) |
 
+## MCP tables/columns (migrations 0028–0029)
+
+`project_tools` gained `enabled`, `permission` (read/write/dangerous), `requires_approval`, `last_tested_at`, `last_test_ok`,
+`last_test_error`, `last_latency_ms`; `projects.mcp_protocol` (hq/mcp); `mcp_server_credentials` holds sealed bearer tokens (RLS on, no browser access).
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.

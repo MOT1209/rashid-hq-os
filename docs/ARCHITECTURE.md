@@ -49,7 +49,11 @@ Key decisions:
 
 See `docs/DATABASE.md` (procedure) and the "Social Studio tables" section there. Migrations 0024–0027.
 
+## MCP management
+
+Per-tool policy for project tools lives in `project_tools` (migration 0028) and is enforced by the policy engine for
+`call_project_tool`; standard-MCP servers (migration 0029) use `src/lib/mcp/client.ts`. See `docs/MCP_MANAGEMENT.md`.
+
 ## Not built
 
-A general automation/workflow engine, Skills Manager import/export/versioning, per-project agents and MCP
-tooling UI, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
+A general automation/workflow engine, Skills Manager import/export/versioning, per-project agents, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.

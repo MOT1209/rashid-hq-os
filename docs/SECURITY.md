@@ -14,6 +14,12 @@ penetration test. Earlier audits: `SECURITY-AUDIT-REPORT.md`, `docs/audits/`.
 
 Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev tooling; 7 moderate). Re-run `npm audit` before deploy.
 
+## MCP controls (new)
+
+- Per-tool policy: disabled tools are denied (also at approval time); dangerous tools always need owner approval and never run unattended; policy lookup failure queues for approval.
+- The tool "Test" button no longer bypasses approval: it is limited to enabled read-class tools (previously it could execute any registered tool with empty input).
+- MCP bearer tokens are sealed at rest and never sent to the browser; outbound MCP calls use the SSRF guard with a pinned address and refuse redirects.
+
 ## Social Studio controls
 
 - **Authentication/authorization:** pages require a session; every mutation is a server action calling `requireAdmin()` (role + 2FA). Hidden buttons are presentation only.

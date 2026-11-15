@@ -14,6 +14,9 @@ evidence that a live integration works.
 | Calendar math | `social-calendar.test.ts` |
 | AI assistant | `social-ai.test.ts` |
 | Agent permissions and tools | `social-agents-core.test.ts`, `social-agents.test.ts` |
+| Per-tool MCP policy (pure + engine integration, fail-safe) | `project-tool-policy.test.ts` |
+| MCP protocol client (JSON/SSE, session, pagination, errors) | `mcp-client.test.ts` |
+| MCP call statistics | `mcp-stats.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

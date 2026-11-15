@@ -9,6 +9,7 @@ import { canRevokeToken, issueAgentToken, revokeAgentToken } from "@/lib/agent-t
 import { approveToolCall, rejectToolCall } from "@/lib/approvals";
 import { listPolicies, setPolicyEnabled } from "@/lib/policy";
 import { findTool } from "@/lib/mcp/tools";
+import { testAllowed } from "@/lib/mcp/tool-policy";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
 import { assertSafeEndpoint, UnsafeEndpointError } from "@/lib/net/safe-endpoint";
@@ -844,6 +845,18 @@ export async function testProjectToolAction(form: FormData) {
   const tool = findTool("call_project_tool");
   if (!tool) return { error: "Tool unavailable." };
 
+  // A test calls the tool with EMPTY input and bypasses the approval gate, so
+  // for anything that could change data it would be an unapproved real call.
+  const { data: row } = await getServiceSupabase()
+    .from("project_tools")
+    .select("id, enabled, permission")
+    .eq("project_id", projectId)
+    .eq("tool_name", toolName)
+    .maybeSingle();
+  if (!row) return { error: "Tool not found." };
+  const allowed = testAllowed(row);
+  if (!allowed.ok) return { error: allowed.reason };
+
   const { finish } = await startActivity({
     projectId,
     agentName: OWNER_ACTOR,
@@ -851,18 +864,28 @@ export async function testProjectToolAction(form: FormData) {
     payload: { tool_name: toolName, test: true },
   });
 
+  const startedAt = Date.now();
+  const record = (ok: boolean, err: string | null) =>
+    getServiceSupabase()
+      .from("project_tools")
+      .update({ last_tested_at: new Date().toISOString(), last_test_ok: ok, last_test_error: err?.slice(0, 300) ?? null, last_latency_ms: Date.now() - startedAt })
+      .eq("id", row.id);
   try {
     const result = await tool.execute(
       { project_id: projectId, tool_name: toolName, input: {} } as never,
       { agentName: OWNER_ACTOR, scopes: ["read", "write"], ownerId: session.user.id, actorType: "person" },
     );
     await finish("success", result);
+    await record(true, null);
     revalidatePath("/dashboard/projects");
+    revalidatePath("/dashboard/mcp");
     return { ok: true, result: JSON.stringify(result).slice(0, 2000) };
   } catch (error) {
     const message = error instanceof Error ? error.message : "The call failed.";
     await finish("failed", { error: message });
+    await record(false, message);
     revalidatePath("/dashboard/projects");
+    revalidatePath("/dashboard/mcp");
     return { error: message };
   }
 }

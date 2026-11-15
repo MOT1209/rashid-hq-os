@@ -602,6 +602,7 @@ export type Database = {
           created_at: string;
           id: string;
           mcp_endpoint: string | null;
+          mcp_protocol: string;
           name: string;
           owner_id: string | null;
           repository_url: string | null;
@@ -616,6 +617,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           mcp_endpoint?: string | null;
+          mcp_protocol?: string;
           name: string;
           owner_id?: string | null;
           repository_url?: string | null;
@@ -630,6 +632,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           mcp_endpoint?: string | null;
+          mcp_protocol?: string;
           name?: string;
           owner_id?: string | null;
           repository_url?: string | null;
