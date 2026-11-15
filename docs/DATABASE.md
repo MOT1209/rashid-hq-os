@@ -175,5 +175,10 @@ pg_restore --clean --if-exists --no-owner --single-transaction \
 `project_tools` gained `enabled`, `permission` (read/write/dangerous), `requires_approval`, `last_tested_at`, `last_test_ok`,
 `last_test_error`, `last_latency_ms`; `projects.mcp_protocol` (hq/mcp); `mcp_server_credentials` holds sealed bearer tokens (RLS on, no browser access).
 
+## Skills (migration 0030)
+
+`agent_skills` gained `enabled`, `version`, `tags`, `input_schema`, `output_schema`, `metadata`, `updated_at`; `agent_skill_versions` stores
+a snapshot of each previous version (cascade-deleted with the skill).
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.

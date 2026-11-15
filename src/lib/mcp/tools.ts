@@ -450,7 +450,9 @@ const listSkills = defineTool({
   async execute() {
     const { data, error } = await getServiceSupabase()
       .from("agent_skills")
-      .select("id, name, description, prompt, created_at")
+      .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
+      // Disabled skills are invisible to agents (migration 0030).
+      .eq("enabled", true)
       .order("created_at", { ascending: false });
     if (error) throw dbError("list_skills", error);
     return { skills: data ?? [] } as Json;
@@ -465,8 +467,9 @@ const getSkill = defineTool({
   async execute(args) {
     const { data, error } = await getServiceSupabase()
       .from("agent_skills")
-      .select("id, name, description, prompt, created_at")
+      .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
       .eq("id", args.skill_id)
+      .eq("enabled", true)
       .maybeSingle();
     if (error) throw dbError("get_skill", error);
     if (!data) throw new Error("Skill not found.");

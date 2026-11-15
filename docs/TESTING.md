@@ -17,6 +17,8 @@ evidence that a live integration works.
 | Per-tool MCP policy (pure + engine integration, fail-safe) | `project-tool-policy.test.ts` |
 | MCP protocol client (JSON/SSE, session, pagination, errors) | `mcp-client.test.ts` |
 | MCP call statistics | `mcp-stats.test.ts` |
+| Skills rules: validation, schemas, placeholders, render, import/export | `skills-core.test.ts` |
+| Skill versioning, optimistic lock, restore | `skills-store.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

@@ -11,6 +11,7 @@ import { Send, Sparkles } from "lucide-react";
 import { useLocale } from "@/components/providers";
 import { parseCommandHistory, pushCommandHistory } from "@/lib/client-storage";
 import type { AgentSkill } from "@/lib/agents";
+import { recordSkillUseAction } from "@/app/dashboard/skills/actions";
 
 const HISTORY_KEY = "command-history";
 const MAX_HISTORY = 20;
@@ -112,7 +113,11 @@ export function CeoConsole({ skills = [] }: { skills?: AgentSkill[] }) {
             value=""
             onChange={(event) => {
               const skill = skills.find((s) => s.id === event.target.value);
-              if (skill) fill(skill.prompt);
+              if (skill) {
+                fill(skill.prompt);
+                // Usage is recorded for the skill's log; a failure must never block the console.
+                void recordSkillUseAction(skill.id).catch(() => undefined);
+              }
               event.target.value = "";
             }}
             className="rounded-lg border border-border bg-panel-2 px-2 py-1 text-xs text-muted outline-none focus:border-accent"

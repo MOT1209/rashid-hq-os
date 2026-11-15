@@ -20,6 +20,12 @@ Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev 
 - The tool "Test" button no longer bypasses approval: it is limited to enabled read-class tools (previously it could execute any registered tool with empty input).
 - MCP bearer tokens are sealed at rest and never sent to the browser; outbound MCP calls use the SSRF guard with a pinned address and refuse redirects.
 
+## Skills controls (new)
+
+- Imported skills are untrusted prompts: they are inserted **disabled**, validated (size caps, schema shape) and cannot be seen by the console or agents until the owner enables them.
+- Disabled skills are filtered out of the MCP read tools server-side.
+- Search input is stripped of PostgREST filter metacharacters before use.
+
 ## Social Studio controls
 
 - **Authentication/authorization:** pages require a session; every mutation is a server action calling `requireAdmin()` (role + 2FA). Hidden buttons are presentation only.

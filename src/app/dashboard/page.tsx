@@ -63,7 +63,7 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      <CeoConsole skills={skills} />
+      <CeoConsole skills={skills.filter((s) => s.enabled !== false)} />
 
       <Suspense fallback={<StatCardsSkeleton />}>
         <Stats t={t} />

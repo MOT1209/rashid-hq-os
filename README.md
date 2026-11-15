@@ -39,6 +39,11 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Skills Manager
+
+`/dashboard/skills`: versioned prompt templates with schemas, tags, enable/disable, JSON import/export (imports land disabled) and a
+usage log. See [`docs/SKILLS.md`](docs/SKILLS.md).
+
 ## MCP management
 
 `/dashboard/mcp`: per-tool enable/permission/approval policy (dangerous tools always need approval), health, 7-day history,

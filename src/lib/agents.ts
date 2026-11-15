@@ -64,6 +64,10 @@ export type AgentSkill = {
   prompt: string;
   created_by: string | null;
   created_at: string;
+  /** Migration 0030; absent on rows from before it (treated as enabled). */
+  enabled?: boolean;
+  version?: number;
+  tags?: string[];
 };
 
 export function departmentName(department: Department, locale: Locale) {
