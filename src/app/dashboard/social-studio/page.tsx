@@ -11,6 +11,7 @@ import {
   JobsPanel,
   MediaPanel,
   AnalyticsPanel,
+  CalendarPanel,
   type ContentView,
 } from "@/components/social-studio-client";
 
@@ -44,7 +45,8 @@ export default async function SocialStudioPage({
     | { tab: "media"; assets: Awaited<ReturnType<typeof listAssets>> }
     | { tab: "content"; assets: Awaited<ReturnType<typeof listAssets>>; accounts: Awaited<ReturnType<typeof listAccounts>>; views: ContentView[] }
     | { tab: "analytics"; items: Awaited<ReturnType<typeof listSnapshots>> }
-    | { tab: "schedule" | "history"; jobs: Awaited<ReturnType<typeof listJobs>> };
+    | { tab: "schedule"; jobs: Awaited<ReturnType<typeof listJobs>>; drafts: { id: string; title: string }[] }
+    | { tab: "history"; jobs: Awaited<ReturnType<typeof listJobs>> };
 
   async function load(): Promise<Data> {
     if (tab === "accounts") return { tab, accounts: await listAccounts(owner) };
@@ -66,6 +68,10 @@ export default async function SocialStudioPage({
       );
       return { tab, assets, accounts, views };
     }
+    if (tab === "schedule") {
+      const [jobs, contents] = await Promise.all([listJobs(owner, { limit: 200 }), listContent(owner)]);
+      return { tab, jobs, drafts: contents.filter((c) => c.status === "draft").map((c) => ({ id: c.id, title: c.title })) };
+    }
     if (tab === "analytics") return { tab, items: await listSnapshots(owner) };
     return { tab, jobs: await listJobs(owner, { limit: 100 }) };
   }
@@ -84,8 +90,9 @@ export default async function SocialStudioPage({
   else if (data?.tab === "media") body = <MediaPanel t={t} assets={data.assets} />;
   else if (data?.tab === "content")
     body = <ContentPanel t={t} platforms={platforms} assets={data.assets} contents={data.views} accounts={data.accounts} timezone={timezone} />;
+  else if (data?.tab === "schedule") body = <CalendarPanel t={t} jobs={data.jobs} drafts={data.drafts} timezone={timezone} locale={locale} />;
   else if (data?.tab === "analytics") body = <AnalyticsPanel t={t} items={data.items} locale={locale} />;
-  else if (data) body = <JobsPanel t={t} jobs={data.jobs} scheduleOnly={data.tab === "schedule"} locale={locale} />;
+  else if (data) body = <JobsPanel t={t} jobs={data.jobs} locale={locale} />;
 
   return (
     <div className="space-y-6">

@@ -97,7 +97,8 @@ export async function collectDue(opts: { limit?: number; ownerId?: string; force
       ...row,
     });
     if (insErr) captureError("social-analytics:insert", insErr);
-    out.ok ? (done += 1) : (failed += 1);
+    if (out.ok) done += 1;
+    else failed += 1;
   }
   return { collected: done, failed };
 }

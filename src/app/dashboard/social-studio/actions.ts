@@ -397,6 +397,23 @@ export async function cancelJobAction(jobId: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Moves a QUEUED job to a new time (owner's timezone). Running/finished jobs cannot be moved. */
+export async function rescheduleJobAction(jobId: string, scheduledAt: string, timezone: string): Promise<Result> {
+  const session = await requireAdmin();
+  const parsed = parseSchedule(scheduledAt, timezone || "UTC", new Date());
+  if (!parsed.ok) return fail(parsed.error);
+  const { data } = await db()
+    .from("social_publish_jobs")
+    .update({ run_at: parsed.at.toISOString(), timezone: timezone || "UTC", updated_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("owner_id", session.user.id)
+    .eq("status", "queued")
+    .select("id");
+  if (!data?.length) return fail("Only queued jobs can be rescheduled.");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
 export async function retryJobAction(jobId: string): Promise<Result> {
   const session = await requireAdmin();
   const supabase = db();

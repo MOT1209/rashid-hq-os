@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyState, Field, FormError, Panel, fieldClass } from "@/components/ui";
 import type { SocialT } from "@/lib/social/i18n";
+import { addDays, addMonths, groupByDay, localDateKey, monthGrid, toLocalInput, weekDays } from "@/lib/social/calendar";
 import { AI_TASKS, APPLY_TARGETS, type AiTask } from "@/lib/social/ai-prompts";
 import type { PlatformCapabilities } from "@/lib/social/providers";
 import {
@@ -16,6 +17,7 @@ import {
   mediaPreviewUrlAction,
   requestUploadAction,
   refreshAnalyticsAction,
+  rescheduleJobAction,
   retryJobAction,
   saveContentAction,
   syncMetaAccountsAction,
@@ -545,5 +547,113 @@ export function AnalyticsPanel({ t, items, locale }: { t: SocialT; items: Analyt
         </ul>
       )}
     </Panel>
+  );
+}
+
+/* -------------------------------- Calendar -------------------------------- */
+
+type CalView = "month" | "week" | "day" | "list";
+const JOB_COLOR: Record<string, string> = {
+  queued: "bg-accent-soft text-accent",
+  running: "bg-panel-2 text-text",
+  succeeded: "bg-ok/15 text-ok",
+  failed: "bg-err/15 text-err",
+  cancelled: "bg-panel-2 text-muted line-through",
+};
+
+export function CalendarPanel({
+  t, jobs, drafts, timezone, locale,
+}: { t: SocialT; jobs: JobView[]; drafts: { id: string; title: string }[]; timezone: string; locale: string }) {
+  const router = useRouter();
+  const today = localDateKey(new Date(), timezone);
+  const [view, setView] = useState<CalView>("month");
+  const [cursor, setCursor] = useState(today);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [when, setWhen] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const weekStart = locale === "ar" ? 6 : 0;
+  const byDay = groupByDay(jobs, timezone);
+  const fmtDay = (k: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, { timeZone: "UTC", ...opts }).format(new Date(`${k}T00:00:00Z`));
+  const fmtTime = (iso: string) => new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone: timezone }).format(new Date(iso));
+
+  const step = (dir: 1 | -1) => setCursor((c) => (view === "month" ? addMonths(c, dir) : view === "week" ? addDays(c, 7 * dir) : addDays(c, dir)));
+  const title = view === "month" ? fmtDay(cursor, { month: "long", year: "numeric" }) : view === "week" ? `${fmtDay(weekDays(cursor, weekStart)[0], { day: "numeric", month: "short" })} – ${fmtDay(weekDays(cursor, weekStart)[6], { day: "numeric", month: "short", year: "numeric" })}` : fmtDay(cursor, { dateStyle: "full" });
+
+  function chip(j: JobView) {
+    return (
+      <li key={j.id} className={`rounded-md px-1.5 py-0.5 text-[11px] ${JOB_COLOR[j.status] ?? ""}`}>
+        <button type="button" className="w-full text-start" onClick={() => { setEditing(j.id); setWhen(toLocalInput(j.run_at, timezone)); }}>
+          {fmtTime(j.run_at)} · {j.platform}
+        </button>
+      </li>
+    );
+  }
+  const cell = (k: string, big = false) => (
+    <div key={k} className={`min-h-16 rounded-lg border border-border p-1 ${k === today ? "ring-1 ring-accent" : ""} ${big ? "min-h-32" : ""}`}>
+      <p className="text-[11px] text-muted">{fmtDay(k, { day: "numeric" })}</p>
+      <ul className="mt-1 space-y-1">{(byDay.get(k) ?? []).map(chip)}</ul>
+    </div>
+  );
+  const editingJob = jobs.find((j) => j.id === editing);
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title={title}
+        action={
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {(["month", "week", "day", "list"] as CalView[]).map((v) => (
+              <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={`rounded-lg px-2 py-1 ${view === v ? "bg-accent-soft text-accent" : "border border-border"}`}>
+                {{ month: t.calMonth, week: t.calWeek, day: t.calDay, list: t.calList }[v]}
+              </button>
+            ))}
+            {view !== "list" && (
+              <>
+                <button type="button" aria-label="previous" className="rounded-lg border border-border px-2 py-1" onClick={() => step(-1)}>‹</button>
+                <button type="button" className="rounded-lg border border-border px-2 py-1" onClick={() => setCursor(today)}>{t.calToday}</button>
+                <button type="button" aria-label="next" className="rounded-lg border border-border px-2 py-1" onClick={() => step(1)}>›</button>
+              </>
+            )}
+          </div>
+        }
+      >
+        {error && <FormError>{error}</FormError>}
+        {view === "month" && (
+          <div className="space-y-1">
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted">
+              {weekDays(cursor, weekStart).map((d) => <span key={d}>{fmtDay(d, { weekday: "short" })}</span>)}
+            </div>
+            {monthGrid(cursor, weekStart).map((w) => <div key={w[0]} className="grid grid-cols-7 gap-1">{w.map((k) => cell(k))}</div>)}
+          </div>
+        )}
+        {view === "week" && <div className="grid gap-1 sm:grid-cols-7">{weekDays(cursor, weekStart).map((k) => cell(k, true))}</div>}
+        {view === "day" && (
+          <ul className="space-y-1">
+            {(byDay.get(cursor) ?? []).length === 0 ? <EmptyState>{t.noScheduled}</EmptyState> : (byDay.get(cursor) ?? []).map(chip)}
+          </ul>
+        )}
+        {view === "list" && (jobs.length === 0 ? <EmptyState>{t.noScheduled}</EmptyState> : (
+          <ul className="space-y-1">
+            {jobs.map((j) => <li key={j.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="text-xs text-muted">{fmtDay(localDateKey(j.run_at, timezone), { dateStyle: "medium" })}</span>{chip(j)}</li>)}
+          </ul>
+        ))}
+      </Panel>
+
+      {editingJob && (
+        <Panel title={`${editingJob.platform} · ${t.calReschedule}`}>
+          {editingJob.status !== "queued" ? <p className="text-xs text-muted">{editingJob.status}{editingJob.last_error ? ` — ${editingJob.last_error}` : ""}</p> : (
+            <div className="flex flex-wrap items-end gap-2">
+              <Field id="cal-when" label={`${t.scheduledAt} (${timezone})`}><input id="cal-when" type="datetime-local" className={fieldClass} value={when} onChange={(e) => setWhen(e.target.value)} /></Field>
+              <button type="button" className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-white" onClick={async () => { const r = await rescheduleJobAction(editingJob.id, when, timezone); if (!r.ok) setError(r.error); else { setError(null); setEditing(null); } router.refresh(); }}>{t.calSave}</button>
+              <button type="button" className="rounded-xl border border-border px-3 py-2 text-xs" onClick={async () => { const r = await cancelJobAction(editingJob.id); if (!r.ok) setError(r.error); setEditing(null); router.refresh(); }}>{t.cancel}</button>
+            </div>
+          )}
+        </Panel>
+      )}
+
+      <Panel title={t.calDrafts}>
+        {drafts.length === 0 ? <EmptyState>{t.noContent}</EmptyState> : <ul className="flex flex-wrap gap-2 text-xs">{drafts.map((d) => <li key={d.id} className="rounded-lg border border-border px-2 py-1">{d.title || "—"}</li>)}</ul>}
+      </Panel>
+    </div>
   );
 }
