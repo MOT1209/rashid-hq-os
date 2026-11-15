@@ -46,7 +46,7 @@ export type RunInsights = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Every kind gets a row even at zero, so a silent cron reads as 0 rather than absent. */
-const KINDS: RunKind[] = ["console", "delegation", "standing_task"];
+const KINDS: RunKind[] = ["console", "delegation", "standing_task", "social_assist"];
 
 function tokensOf(row: RunRow): number {
   return (row.tokens_in ?? 0) + (row.tokens_out ?? 0);

@@ -39,6 +39,15 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## KING Social Studio
+
+Prepare once, publish to YouTube, Facebook, Instagram and TikTok through their official APIs, with your
+explicit approval, a persistent schedule queue, analytics, an AI assistant and permission-gated agents —
+at `/dashboard/social-studio`. Start with [`docs/SOCIAL_STUDIO.md`](docs/SOCIAL_STUDIO.md) (status, setup, manual
+checklists). Also: [architecture](docs/ARCHITECTURE.md) · [security](docs/SECURITY.md) ·
+[environment](docs/ENVIRONMENT.md) · [deployment](docs/DEPLOYMENT.md) · [testing](docs/TESTING.md) ·
+[database](docs/DATABASE.md) · [integrations](INTEGRATIONS.md).
+
 ## Department agents
 
 Each department in `departments` is a runnable agent, not a label. It carries

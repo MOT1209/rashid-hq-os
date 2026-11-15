@@ -2,6 +2,8 @@ import "server-only";
 
 import { googleProvider } from "@/lib/integrations/providers/google";
 import { githubProvider } from "@/lib/integrations/providers/github";
+import { metaProvider } from "@/lib/integrations/providers/meta";
+import { tiktokProvider } from "@/lib/integrations/providers/tiktok";
 import {
   anthropicProvider,
   clarityProvider,
@@ -82,6 +84,20 @@ const PROVIDERS: IntegrationProvider[] = [
     ],
     "https://developers.google.com/youtube/v3",
   ),
+  // Social Studio publishing. A SEPARATE registry entry from "youtube"
+  // (read-only) so granting analytics never silently grants upload rights.
+  google(
+      "youtube_publish",
+      "YouTube Publishing",
+      "رفع الفيديوهات ونشرها على قناتك بعد موافقتك الصريحة (KING Social Studio).",
+      "Upload and publish videos to your channel after your explicit approval (KING Social Studio).",
+      "Youtube",
+      [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+      ],
+      "https://developers.google.com/youtube/v3/docs/videos/insert",
+  ),
   google(
     "gmail",
     "Gmail",
@@ -121,6 +137,10 @@ const PROVIDERS: IntegrationProvider[] = [
 
   // ── Developer ────────────────────────────────────────────────────────────
   githubProvider,
+
+  // ── Social publishing ────────────────────────────────────────────────────
+  metaProvider,
+  tiktokProvider,
 
   // ── AI (API key) ─────────────────────────────────────────────────────────
   openaiProvider,

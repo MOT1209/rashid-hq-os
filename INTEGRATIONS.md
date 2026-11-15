@@ -131,3 +131,15 @@ verifier get `404` — unsigned events are never stored.
 - Rate limits: `/api/integrations` 30/min, `/api/webhooks` 120/min (`src/proxy.ts`).
 - Nothing secret is logged: `logIntegration` payloads carry scopes, labels and
   status only.
+
+## Social publishing providers
+
+| Registry id | Platform(s) | Env | Redirect URI |
+|---|---|---|---|
+| `youtube_publish` | YouTube (upload + read) | `GOOGLE_CLIENT_ID/SECRET` | `/api/integrations/youtube_publish/callback` |
+| `meta_publish` | Facebook Pages, Instagram | `META_APP_ID/SECRET` | `/api/integrations/meta_publish/callback` |
+| `tiktok_publish` | TikTok | `TIKTOK_CLIENT_KEY/SECRET` | `/api/integrations/tiktok_publish/callback` |
+
+Scopes and external approvals per platform are in `docs/SOCIAL_STUDIO.md`. Meta has no refresh tokens: the long-lived
+user token is re-exchanged before expiry (it is stored as both `access_token` and `refresh_token`). The OAuth callback now enforces the
+same admin + `REQUIRE_2FA` gate as `/connect`.
