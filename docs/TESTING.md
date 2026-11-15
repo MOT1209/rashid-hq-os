@@ -34,6 +34,7 @@ evidence that a live integration works.
 | Batched content relations (constant query count, owner scoping) | `social-relations.test.ts` |
 | Retention cron route | `maintenance-prune.test.ts` |
 | Schema-lag fallbacks | `schema-compat.test.ts`, `schema-compat-tools.test.ts` |
+| Security guards: server-action/route auth, rate-limit coverage, secrets in URLs, unsafe APIs | `security-guards.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

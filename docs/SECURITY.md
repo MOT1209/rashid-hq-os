@@ -3,6 +3,29 @@
 Single-owner system. Findings below are from reading the code and running `npm audit`; they are not a
 penetration test. Earlier audits: `SECURITY-AUDIT-REPORT.md`, `docs/audits/`.
 
+## Systematic entry-point review (latest)
+
+A **code review of every entry point**, not a penetration test (no live exploitation, no fuzzing, no infrastructure testing).
+
+| Check | Result |
+|---|---|
+| All 70+ server actions | every mutating action calls `requireAdmin()`; the only unguarded are the locale/theme cookie setters; `recordSkillUseAction` uses `requireSession()` (usage-log write) |
+| All 20 API routes | each has an authentication/verification step (cron secret, session, integration-owner gate, agent token, signed webhook, project-tool signature, or the auth handler) |
+| Rate limiting | **Gap found and fixed:** `/api/social` and `/api/automation` (worker routes) had no rate-limit rule while the older cron routes did; each unauthenticated hit costs a session lookup. Added `10/min` rules |
+| Secrets in URLs | **Found and fixed:** Meta token revocation sent the access token in the query string (same class as an earlier fix in the adapters) → `Authorization` header |
+| Injection / unsafe APIs | no `eval`, `new Function`, `dangerouslySetInnerHTML` or `child_process`; the two string-built PostgREST filters take server-generated values or a sanitised search term |
+| Logging | no token/secret values reach `console.*`; log lines carry ids and subjects only |
+| Committed secrets | scan of tracked files for common key formats: none; `.env.example` holds placeholders only |
+| Owner scoping | every Social/Automation/Task/MCP action re-checks ownership of the object it touches (verified by reading each action) |
+
+**Permanent guards** (`tests/security-guards.test.ts`, verified to fail when a violation is planted): every server action must call `requireAdmin`/`requireSession` (or be allowlisted);
+every API route must contain an authentication step; every cron-authenticated route must sit under a rate-limit rule in `src/proxy.ts`; no URL may embed
+`access_token`/`api_key`/`client_secret`/`refresh_token`; no `eval`/`dangerouslySetInnerHTML`/`child_process`.
+
+**Known residual risks (not fixed):** the manual owner path of the cron routes (`authorizeCron`) checks the owner email but not the 2FA policy — it only triggers work that was already approved
+(publishing queue items, saved automations, retention); viewer-role members can read all dashboard data by design; storage uploads trust the client-declared MIME type (owner-only, size-verified);
+`brace-expansion` (dev tool) advisory remains. A real penetration test of the deployed system is still recommended.
+
 ## Fixed in this work
 
 | Issue | Fix |
