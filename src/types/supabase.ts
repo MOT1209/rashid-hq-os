@@ -356,15 +356,29 @@ export type Database = {
         Row: {
           created_at: string;
           description: string | null;
+          enabled: boolean;
           endpoint: string | null;
           id: string;
           input_schema: Json | null;
+          last_latency_ms: number | null;
+          last_test_error: string | null;
+          last_test_ok: boolean | null;
+          last_tested_at: string | null;
+          permission: string;
           project_id: string;
+          requires_approval: boolean;
           tool_name: string;
         };
         Insert: {
           created_at?: string;
           description?: string | null;
+          enabled?: boolean;
+          last_latency_ms?: number | null;
+          last_test_error?: string | null;
+          last_test_ok?: boolean | null;
+          last_tested_at?: string | null;
+          permission?: string;
+          requires_approval?: boolean;
           endpoint?: string | null;
           id?: string;
           input_schema?: Json | null;
@@ -374,6 +388,13 @@ export type Database = {
         Update: {
           created_at?: string;
           description?: string | null;
+          enabled?: boolean;
+          last_latency_ms?: number | null;
+          last_test_error?: string | null;
+          last_test_ok?: boolean | null;
+          last_tested_at?: string | null;
+          permission?: string;
+          requires_approval?: boolean;
           endpoint?: string | null;
           id?: string;
           input_schema?: Json | null;
