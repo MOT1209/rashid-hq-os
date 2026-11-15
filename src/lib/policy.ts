@@ -3,8 +3,11 @@ import "server-only";
 import { captureError } from "@/lib/errors";
 import type { ToolContext, ToolDefinition } from "@/lib/mcp/tools";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { isMissingColumn } from "@/lib/schema-compat";
 import { decideProjectTool, type ProjectToolPolicyRow } from "@/lib/mcp/tool-policy";
 import type { PolicyDecision, PolicyRow } from "@/types/database";
+
+class MissingPolicyColumns extends Error {}
 
 export type PolicyRule = {
   id: string;
@@ -141,12 +144,17 @@ export async function evaluatePolicyAsync(
           .eq("project_id", a.project_id)
           .eq("tool_name", a.tool_name)
           .maybeSingle();
+        // Migration 0028 not applied yet: there is no per-tool policy to enforce, which is exactly
+        // how call_project_tool behaved before it existed. Any OTHER error still fails safe below.
+        if (error && isMissingColumn(error)) throw new MissingPolicyColumns();
         if (error) throw error;
         const restricted = decideProjectTool((data as ProjectToolPolicyRow | null) ?? null, ctx.actorType);
         if (restricted) return restricted;
       } catch (error) {
-        captureError("policy:project-tool-lookup", error);
-        return { decision: "require_approval", ruleId: "project-tool-lookup-failed" };
+        if (!(error instanceof MissingPolicyColumns)) {
+          captureError("policy:project-tool-lookup", error);
+          return { decision: "require_approval", ruleId: "project-tool-lookup-failed" };
+        }
       }
     }
   }

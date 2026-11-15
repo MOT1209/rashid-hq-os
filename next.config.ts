@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { assertRateLimitBackendAtBuild } from "./src/lib/env/rate-limit";
 import { assertAuthSecretAtBuild } from "./src/lib/env/auth-secret";
 

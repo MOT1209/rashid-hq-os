@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { isMissingColumn } from "@/lib/schema-compat";
 import { loadMcpToken } from "@/lib/mcp/credentials";
 import { withMcpSession } from "@/lib/mcp/client";
 import { assertSafeEndpoint, pinnedDispatcher } from "@/lib/net/safe-endpoint";
@@ -448,14 +449,18 @@ const listSkills = defineTool({
   requiredScope: "read" as const,
   schema: z.object({}),
   async execute() {
-    const { data, error } = await getServiceSupabase()
+    const supabase = getServiceSupabase();
+    // Disabled skills are invisible to agents (migration 0030); before it is applied, list them all.
+    let res = await supabase
       .from("agent_skills")
       .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
-      // Disabled skills are invisible to agents (migration 0030).
       .eq("enabled", true)
       .order("created_at", { ascending: false });
-    if (error) throw dbError("list_skills", error);
-    return { skills: data ?? [] } as Json;
+    if (res.error && isMissingColumn(res.error)) {
+      res = (await supabase.from("agent_skills").select("id, name, description, prompt, created_at").order("created_at", { ascending: false })) as unknown as typeof res;
+    }
+    if (res.error) throw dbError("list_skills", res.error);
+    return { skills: res.data ?? [] } as Json;
   },
 });
 
@@ -465,15 +470,19 @@ const getSkill = defineTool({
   requiredScope: "read" as const,
   schema: z.object({ skill_id: z.string().uuid() }),
   async execute(args) {
-    const { data, error } = await getServiceSupabase()
+    const supabase = getServiceSupabase();
+    let res = await supabase
       .from("agent_skills")
       .select("id, name, description, prompt, created_at, version, tags, input_schema, output_schema")
       .eq("id", args.skill_id)
       .eq("enabled", true)
       .maybeSingle();
-    if (error) throw dbError("get_skill", error);
-    if (!data) throw new Error("Skill not found.");
-    return { skill: data } as Json;
+    if (res.error && isMissingColumn(res.error)) {
+      res = (await supabase.from("agent_skills").select("id, name, description, prompt, created_at").eq("id", args.skill_id).maybeSingle()) as unknown as typeof res;
+    }
+    if (res.error) throw dbError("get_skill", res.error);
+    if (!res.data) throw new Error("Skill not found.");
+    return { skill: res.data } as Json;
   },
 });
 
@@ -563,13 +572,18 @@ const callProjectTool = defineTool({
       .eq("tool_name", args.tool_name)
       .maybeSingle();
 
-    const { data: project } = await supabase
-      .from("projects")
-      .select(
-        "mcp_endpoint, mcp_protocol, name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at",
-      )
-      .eq("id", args.project_id)
-      .maybeSingle();
+    // mcp_protocol arrived with migration 0029; without it the budget columns would be lost too,
+    // silently disabling budget enforcement, so retry with the legacy column set.
+    const projectCols = (withProtocol: boolean) =>
+      `mcp_endpoint, ${withProtocol ? "mcp_protocol, " : ""}name, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at`;
+    const loadProject = (withProtocol: boolean) =>
+      supabase.from("projects").select(projectCols(withProtocol)).eq("id", args.project_id).maybeSingle();
+    let projectRes = await loadProject(true);
+    if (projectRes.error && isMissingColumn(projectRes.error)) projectRes = await loadProject(false);
+    const project = projectRes.data as unknown as {
+      mcp_endpoint: string | null; mcp_protocol?: string; name: string; monthly_token_budget: number | null;
+      budget_alerted_at: string | null; budget_exhausted_alerted_at: string | null;
+    } | null;
 
     const endpoint = tool?.endpoint ?? project?.mcp_endpoint;
     if (!endpoint) {
