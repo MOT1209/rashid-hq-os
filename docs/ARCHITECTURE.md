@@ -52,4 +52,4 @@ See `docs/DATABASE.md` (procedure) and the "Social Studio tables" section there.
 ## Not built
 
 A general automation/workflow engine, Skills Manager import/export/versioning, per-project agents and MCP
-tooling UI, a project task board, and browser E2E tests. These sections of the original brief remain open.
+tooling UI, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.

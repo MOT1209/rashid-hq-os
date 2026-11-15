@@ -17,7 +17,8 @@
     "migrate:apply": "node --env-file=.env.local scripts/migrate.mjs apply",
     "migrate:from-scratch": "node --env-file-if-exists=.env.local scripts/migrate.mjs apply --from-scratch",
     "seed:owner": "node scripts/seed-owner.mjs",
-    "db:backup": "node --env-file=.env.local scripts/pre-migrate-backup.mjs"
+    "db:backup": "node --env-file=.env.local scripts/pre-migrate-backup.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs"
   },
   "dependencies": {
     "@ai-sdk/groq": "^4.0.31",
