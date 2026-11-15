@@ -186,5 +186,10 @@ a snapshot of each previous version (cascade-deleted with the skill).
 unique `idempotency_key`), function `claim_automation_runs(limit, worker)` (SKIP LOCKED, stale lock reclaim after 15 min). RLS on, anon/authenticated revoked.
 Runs cascade-delete with their automation; there is no automatic pruning of old runs yet.
 
+## Projects (migration 0032)
+
+`projects` gained `priority`, `description`, `documentation`, `archived_at`; `project_tasks` (status todo/in_progress/blocked/done, priority, due_date, assignee, position)
+cascades with its project. RLS on, anon/authenticated revoked.
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.

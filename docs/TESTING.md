@@ -24,6 +24,8 @@ evidence that a live integration works.
 | Run engine: resume, retries, conditions, pause, failure paths | `automation-engine.test.ts` |
 | Schedule tick, idempotency, rate limit, events | `automation-store.test.ts` |
 | Unattended step executors (allowlist, approval, retry safety, email) | `automation-runtime.test.ts` |
+| Task rules: validation, board order, progress, overdue | `tasks-core.test.ts` |
+| Task storage: append, completion stamps, reorder, counts | `tasks-store.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

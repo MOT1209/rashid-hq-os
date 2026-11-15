@@ -619,13 +619,17 @@ export type Database = {
       };
       projects: {
         Row: {
+          archived_at: string | null;
           category: string | null;
           created_at: string;
+          description: string;
+          documentation: string;
           id: string;
           mcp_endpoint: string | null;
           mcp_protocol: string;
           name: string;
           owner_id: string | null;
+          priority: string;
           repository_url: string | null;
           status: string;
           url: string | null;
@@ -634,13 +638,17 @@ export type Database = {
           budget_exhausted_alerted_at: string | null;
         };
         Insert: {
+          archived_at?: string | null;
           category?: string | null;
           created_at?: string;
+          description?: string;
+          documentation?: string;
           id?: string;
           mcp_endpoint?: string | null;
           mcp_protocol?: string;
           name: string;
           owner_id?: string | null;
+          priority?: string;
           repository_url?: string | null;
           status?: string;
           url?: string | null;
@@ -649,13 +657,17 @@ export type Database = {
           budget_exhausted_alerted_at?: string | null;
         };
         Update: {
+          archived_at?: string | null;
           category?: string | null;
           created_at?: string;
+          description?: string;
+          documentation?: string;
           id?: string;
           mcp_endpoint?: string | null;
           mcp_protocol?: string;
           name?: string;
           owner_id?: string | null;
+          priority?: string;
           repository_url?: string | null;
           status?: string;
           url?: string | null;

@@ -39,6 +39,10 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Project management
+
+Projects get a task board, progress, priority, documentation and archive/restore at `/dashboard/projects/<id>`. See [`docs/PROJECTS.md`](docs/PROJECTS.md).
+
 ## Automations
 
 `/dashboard/automations`: scheduled (cron + timezone), event-driven and manual workflows of tool / department-agent / email steps with

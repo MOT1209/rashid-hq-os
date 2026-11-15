@@ -20,6 +20,11 @@ Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev 
 - The tool "Test" button no longer bypasses approval: it is limited to enabled read-class tools (previously it could execute any registered tool with empty input).
 - MCP bearer tokens are sealed at rest and never sent to the browser; outbound MCP calls use the SSRF guard with a pinned address and refuse redirects.
 
+## Project board controls (new)
+
+- Every task action re-checks the project/task belongs to the signed-in owner and runs behind `requireAdmin`; task and project ids are validated before use; the detail page 404s on a malformed id.
+- Archive is non-destructive; only delete cascades (unchanged, still behind the existing confirmation).
+
 ## Automation controls (new)
 
 - Unattended by design: same policy actor as the cron (`standing_task_routine`) — writes other than a project's own tools are denied, dangerous tools never run, approvals are never awaited; tool steps limited to an allowlist and validated against the tool's schema before running.

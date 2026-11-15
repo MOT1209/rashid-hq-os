@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { Pencil } from "lucide-react";
 import { updateProjectAction } from "@/app/actions";
@@ -21,6 +22,7 @@ export function ProjectRow({
   categories,
   canEdit = true,
   healthCheck,
+  taskProgress,
 }: {
   project: Project;
   categories: ProjectCategory[];
@@ -32,6 +34,8 @@ export function ProjectRow({
    * the department page, which knows about `Scheduled Health Check` logs.
    */
   healthCheck?: { ok: boolean; at: string } | null;
+  /** Task counts for the projects list; omitted where the board is not shown. */
+  taskProgress?: { total: number; done: number; overdue: number };
 }) {
   const { t, locale } = useLocale();
   const id = useId();
@@ -164,7 +168,20 @@ export function ProjectRow({
   return (
     <tr>
       <td className="py-3">
-        <div className="font-medium">{project.name}</div>
+        <div className="font-medium">
+          <Link href={`/dashboard/projects/${project.id}`} className="hover:text-accent hover:underline">{project.name}</Link>
+          {project.archived_at && <span className="ms-2 rounded-full bg-panel-2 px-2 py-0.5 text-[10px] text-muted">{t.archivedBadge}</span>}
+          {project.priority && project.priority !== "normal" && (
+            <span className={`ms-2 text-[10px] ${project.priority === "urgent" ? "text-err" : project.priority === "high" ? "text-warn" : "text-muted"}`}>{({ low: t.priorityLow, normal: t.priorityNormal, high: t.priorityHigh, urgent: t.priorityUrgent } as Record<string, string>)[project.priority] ?? project.priority}</span>
+          )}
+        </div>
+        {taskProgress && taskProgress.total > 0 && (
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-muted">
+            <span className="h-1.5 w-16 overflow-hidden rounded-full bg-panel-2"><span className="block h-full bg-accent" style={{ width: `${Math.round((taskProgress.done / taskProgress.total) * 100)}%` }} /></span>
+            {taskProgress.done}/{taskProgress.total}
+            {taskProgress.overdue > 0 && <span className="text-err">· {taskProgress.overdue} {t.overdueShort}</span>}
+          </div>
+        )}
         {project.url && (
           <a
             href={project.url}
