@@ -15,6 +15,7 @@ import {
   requestUploadAction,
   retryJobAction,
   saveContentAction,
+  syncMetaAccountsAction,
   syncYouTubeAccountAction,
   validateContentAction,
 } from "@/app/dashboard/social-studio/actions";
@@ -89,12 +90,12 @@ export function AccountsPanel({
                   <button type="button" onClick={() => connect(p.integrationId)} className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-white">
                     {t.connect}
                   </button>
-                  {p.id === "youtube" && (
+                  {(p.id === "youtube" || p.integrationId === "meta_publish") && (
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => start(async () => {
-                        const r = await syncYouTubeAccountAction();
+                        const r = p.id === "youtube" ? await syncYouTubeAccountAction() : await syncMetaAccountsAction();
                         setMsg(r.ok ? null : r.error);
                         router.refresh();
                       })}
@@ -222,6 +223,7 @@ export function ContentPanel({
   const [note, setNote] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [issues, setIssues] = useState<{ platform: string; issues: { message: string; severity: string }[] }[] | null>(null);
   const [when, setWhen] = useState("");
+  const [acct, setAcct] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
   const ready = assets.filter((a) => a.status === "ready");
   const set = <K extends keyof ContentView>(k: K, v: ContentView[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -250,7 +252,7 @@ export function ContentPanel({
 
   async function publish(id: string, platform: string, scheduled: boolean) {
     if (!window.confirm(t.confirmPublishText)) return;
-    const account = accounts.find((a) => a.platform === platform);
+    const account = accounts.find((a) => a.id === acct[platform]) ?? accounts.find((a) => a.platform === platform);
     if (!account) return setNote({ kind: "err", text: t.noAccounts });
     const r = await confirmPublishAction({ contentId: id, platform, accountId: account.id, scheduledAt: scheduled ? when : undefined, timezone });
     setNote(r.ok ? { kind: "ok", text: r.duplicate ? t.duplicate : t.queued } : { kind: "err", text: r.error });
@@ -334,7 +336,13 @@ export function ContentPanel({
               <input id="sc-when" type="datetime-local" className={fieldClass} value={when} onChange={(e) => setWhen(e.target.value)} />
             </Field>
             {form.platforms.filter((p) => platforms.find((x) => x.id === p)?.readiness === "implemented").map((p) => (
-              <div key={p} className="flex flex-wrap gap-2">
+              <div key={p} className="flex flex-wrap items-center gap-2">
+                {accounts.filter((a) => a.platform === p).length > 1 && (
+                  <select aria-label={`${p}`} className={`${fieldClass} !w-auto`} value={acct[p] ?? ""} onChange={(e) => setAcct((m) => ({ ...m, [p]: e.target.value }))}>
+                    <option value="">—</option>
+                    {accounts.filter((a) => a.platform === p).map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
+                  </select>
+                )}
                 <button type="button" disabled={pending || !form.title} className="rounded-xl bg-ok px-3 py-2 text-xs font-medium text-white"
                   onClick={() => save((id) => publish(id, p, false))}>{t.publishNow} · {p}</button>
                 <button type="button" disabled={pending || !form.title || !when} className="rounded-xl border border-border px-3 py-2 text-xs"

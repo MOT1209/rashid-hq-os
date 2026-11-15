@@ -43,6 +43,10 @@ export type PlatformCapabilities = {
   };
   /** Rules about WHAT may be published, enforced by validation. */
   requires: { title?: boolean; media: boolean; videoOnly?: boolean };
+  /** Restricts accepted image MIME types (Instagram: JPEG only). */
+  imageMimes?: string[];
+  /** Maximum attachments per post. */
+  maxMedia: number;
   accountRequirements: string;
   /** Exact external blockers between the code and a live publish. */
   blockers: string[];
@@ -66,6 +70,7 @@ export const PLATFORMS: Record<SocialPlatform, PlatformCapabilities> = {
     requiredScopes: ["https://www.googleapis.com/auth/youtube.upload"],
     limits: { titleMax: 100, captionMax: 5000, hashtagsMax: 15, videoMaxBytes: 256 * GB },
     requires: { title: true, media: true, videoOnly: true },
+    maxMedia: 1,
     accountRequirements: "A YouTube channel on the connected Google account.",
     blockers: [
       "Create a Google Cloud OAuth client and enable the YouTube Data API v3 (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).",
@@ -77,41 +82,45 @@ export const PLATFORMS: Record<SocialPlatform, PlatformCapabilities> = {
   facebook: {
     id: "facebook",
     name: "Facebook Pages",
-    integrationId: "facebook",
-    readiness: "pending",
-    auth: "Meta OAuth 2.0 (Page access tokens)",
+    integrationId: "meta_publish",
+    readiness: "implemented",
+    auth: "Meta OAuth 2.0 (long-lived user token; Page tokens derived at publish time)",
     mediaTypes: ["video", "image"],
     upload: "public_url",
-    nativeScheduling: true, // scheduled_publish_time (10 min – 30 days ahead)
+    nativeScheduling: true, // scheduled_publish_time exists, but we schedule with our own queue
     analytics: ["views", "reach", "likes", "comments", "shares"],
-    requiredScopes: ["pages_manage_posts", "pages_read_engagement", "pages_show_list"],
-    limits: { captionMax: 63206 },
+    requiredScopes: ["pages_show_list", "pages_manage_posts", "pages_read_engagement"],
+    limits: { captionMax: 63206, videoMaxBytes: 10 * GB, imageMaxBytes: 4 * MB * 2.5 },
     requires: { media: false },
+    maxMedia: 1,
     accountRequirements: "A Facebook Page the owner administers.",
     blockers: [
-      "No Meta adapter is implemented yet.",
-      "Meta app review + business verification are required for pages_manage_posts outside development mode.",
+      "Create a Meta app (META_APP_ID / META_APP_SECRET) and add the redirect URI for meta_publish.",
+      "pages_manage_posts only works for app admins/testers until Meta app review (and business verification) approves it.",
+      "Media is fetched by Meta from a signed storage URL, so the storage origin must be reachable from the internet.",
     ],
     docsUrl: "https://developers.facebook.com/docs/pages-api/posts",
   },
   instagram: {
     id: "instagram",
     name: "Instagram",
-    integrationId: "instagram",
-    readiness: "pending",
-    auth: "Meta OAuth 2.0 (Instagram Business/Creator via Facebook Page)",
+    integrationId: "meta_publish",
+    readiness: "implemented",
+    auth: "Meta OAuth 2.0 (Instagram Business/Creator via a linked Facebook Page)",
     mediaTypes: ["video", "image"],
     upload: "public_url",
     nativeScheduling: false,
     analytics: ["views", "reach", "likes", "comments", "shares"],
     requiredScopes: ["instagram_basic", "instagram_content_publish", "pages_show_list"],
-    limits: { captionMax: 2200, hashtagsMax: 30, videoMaxSeconds: 900 },
+    limits: { captionMax: 2200, hashtagsMax: 30, videoMaxSeconds: 900, imageMaxBytes: 8 * MB },
     requires: { media: true },
-    accountRequirements: "Instagram Business or Creator account linked to a Facebook Page.",
+    imageMimes: ["image/jpeg"],
+    maxMedia: 1,
+    accountRequirements: "Instagram Business or Creator account linked to a Facebook Page you administer.",
     blockers: [
-      "No Meta adapter is implemented yet.",
-      "Media must be fetchable from a public HTTPS URL during publishing.",
-      "Meta app review is required for instagram_content_publish.",
+      "Same Meta app as Facebook; instagram_content_publish needs Meta app review outside development mode.",
+      "Videos publish as Reels. Single image or video only (no carousels). Images must be JPEG.",
+      "Instagram allows about 100 API-published posts per 24 hours.",
     ],
     docsUrl: "https://developers.facebook.com/docs/instagram-platform/content-publishing",
   },
@@ -128,6 +137,7 @@ export const PLATFORMS: Record<SocialPlatform, PlatformCapabilities> = {
     requiredScopes: ["video.publish", "video.upload", "user.info.basic"],
     limits: { titleMax: 2200, captionMax: 2200, videoMaxBytes: 4 * GB, videoMaxSeconds: 600 },
     requires: { media: true, videoOnly: true },
+    maxMedia: 1,
     accountRequirements: "A TikTok account; posting must use the creator's chosen privacy options.",
     blockers: [
       "No TikTok adapter is implemented yet.",

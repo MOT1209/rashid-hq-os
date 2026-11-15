@@ -13,7 +13,10 @@ the UI says so.
 | Capability registry (YouTube, Facebook, Instagram, TikTok) | Built. Declares auth, scopes, limits, blockers. |
 | YouTube OAuth (`youtube_publish`, scope `youtube.upload`) | Built on the existing Integrations engine (PKCE, encrypted tokens, 2FA gate). Needs your Google OAuth client. |
 | YouTube publishing adapter | Built, unit-tested against **mocked** HTTP. **Not yet run against a live channel.** |
-| Facebook Pages / Instagram / TikTok | **Pending, no adapter.** Capabilities are declared; publishing is refused server-side. Blockers listed in the UI. |
+| Meta OAuth (`meta_publish`) | Built. Long-lived user token (~60 days) stored encrypted; re-exchanged before expiry. Page tokens are derived at publish time and never stored. Needs `META_APP_ID` / `META_APP_SECRET`. |
+| Facebook Pages adapter (video, photo, text) | Built, tested against **mocked** Graph API. Not run against a live Page. |
+| Instagram adapter (Reels / JPEG image) | Built, mocked-tested: container → wait for `FINISHED` → `media_publish`. A processing timeout is retryable and publishes nothing; a dropped final publish is terminal. Not run against a live account. |
+| TikTok | **Pending, no adapter.** Capabilities declared; publishing refused server-side. Needs TikTok app audit. |
 | Media library (upload, preview, archive, delete) | Built. Direct-to-Supabase-Storage via signed URLs; size/MIME validated; size verified after upload. Not tested against live Storage. |
 | Content drafts + per-platform variants + validation | Built. |
 | Publish now / schedule / cancel / retry / history | Built. Persistent queue in Postgres (migration 0024), verified on real Postgres 16 (claim, duplicate key, stale-lock reclaim, success constraint). |
@@ -40,7 +43,8 @@ the UI says so.
 ## Setup
 
 1. Apply migrations: `npm run migrate:apply` (adds migration `0024_social_studio.sql` and the private `social-media` bucket).
-2. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `INTEGRATIONS_SECRET`,
+2. Meta (Facebook/Instagram): create a Meta app, add redirect URI `https://<host>/api/integrations/meta_publish/callback`, set `META_APP_ID` / `META_APP_SECRET`. Until Meta app review approves `pages_manage_posts` and `instagram_content_publish`, only app admins/testers can publish. Then Integrations → connect **Meta**, and Social Studio → Accounts → **Detect channel** on the Facebook or Instagram card.
+2b. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `INTEGRATIONS_SECRET`,
    `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, optional `OWNER_TIMEZONE` (e.g. `Asia/Riyadh`).
 3. Google Cloud: enable **YouTube Data API v3**; add redirect URI `https://<host>/api/integrations/youtube_publish/callback`.
 4. In the app: Integrations → connect **YouTube Publishing**; Social Studio → Accounts → **Detect channel**.
@@ -57,6 +61,15 @@ so the browser can upload/preview via signed URLs.
 - **TikTok:** Content Posting API audit required for non-private direct posts. Free.
 - **Supabase Storage:** large videos count against your plan's storage/egress. Vercel function time applies to uploads (publishing streams from storage to YouTube; very large files may exceed the function limit — `maxDuration` is 300s).
 
+## Manual verification checklist — Meta
+
+- [ ] Connect Meta; Accounts → detect lists your Pages and any linked Instagram business account.
+- [ ] Facebook: publish a text-only post; History shows a post id and the link opens it.
+- [ ] Facebook: publish an image and a short video; both appear on the Page.
+- [ ] Instagram: publish a JPEG, then a short MP4 (appears as a Reel); History shows the permalink.
+- [ ] Instagram with a PNG or two attachments is rejected by validation before queueing.
+- [ ] Revoke the app in Facebook settings; next job fails as an auth error and is not retried.
+
 ## Manual verification checklist — YouTube
 
 - [ ] Connect YouTube Publishing; consent screen lists *upload* and *read* scopes only.
@@ -72,4 +85,5 @@ so the browser can upload/preview via signed URLs.
 
 `tests/social-core.test.ts` (state machine, backoff, timezone, validation, registry honesty),
 `tests/social-engine.test.ts` (engine branches and YouTube adapter against mocked fetch),
+`tests/social-meta.test.ts` (Facebook/Instagram adapters and error classification, mocked fetch),
 `tests/integrations-callback-2fa.test.ts` (OAuth callback security). Mocks are never presented as live integrations.

@@ -23,6 +23,8 @@ export type AccountRow = {
   external_id: string;
   display_name: string;
   status: "active" | "disabled";
+  /** Non-secret facts only (e.g. the linked Facebook page_id for Instagram). */
+  metadata: Record<string, unknown>;
 };
 
 export type AssetRow = {
@@ -101,14 +103,16 @@ export async function listAccounts(ownerId: string): Promise<AccountRow[]> {
 
 export async function upsertAccount(
   ownerId: string,
-  a: Pick<AccountRow, "platform" | "connection_provider" | "external_id" | "display_name">,
+  a: Pick<AccountRow, "platform" | "connection_provider" | "external_id" | "display_name"> & {
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<AccountRow> {
   return check(
     "Saving the social account",
     await db()
       .from("social_accounts")
       .upsert(
-        { owner_id: ownerId, ...a, status: "active", updated_at: new Date().toISOString() },
+        { owner_id: ownerId, metadata: {}, ...a, status: "active", updated_at: new Date().toISOString() },
         { onConflict: "owner_id,platform,external_id" },
       )
       .select("*")

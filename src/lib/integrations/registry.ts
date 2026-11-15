@@ -2,6 +2,7 @@ import "server-only";
 
 import { googleProvider } from "@/lib/integrations/providers/google";
 import { githubProvider } from "@/lib/integrations/providers/github";
+import { metaProvider } from "@/lib/integrations/providers/meta";
 import {
   anthropicProvider,
   clarityProvider,
@@ -135,6 +136,9 @@ const PROVIDERS: IntegrationProvider[] = [
 
   // ── Developer ────────────────────────────────────────────────────────────
   githubProvider,
+
+  // ── Social publishing ────────────────────────────────────────────────────
+  metaProvider,
 
   // ── AI (API key) ─────────────────────────────────────────────────────────
   openaiProvider,

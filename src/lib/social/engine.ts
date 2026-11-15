@@ -6,6 +6,7 @@ import { getFreshAccessToken, markConnectionError } from "@/lib/integrations/con
 import { nextAfterFailure, type FailureKind } from "@/lib/social/jobs";
 import { canPublish } from "@/lib/social/providers";
 import { publishToYouTube, type PublishResult } from "@/lib/social/adapters/youtube";
+import { publishToFacebook, publishToInstagram } from "@/lib/social/adapters/meta";
 import { db, type AccountRow, type AssetRow, type ContentRow, type JobRow, type VariantRow } from "@/lib/social/store";
 import { hasErrors, validateVariant } from "@/lib/social/validation";
 
@@ -137,22 +138,41 @@ function realDeps(): Deps {
         await markConnectionError(job.owner_id, ctx.account.connection_provider, "Authorization failed during publishing.", "error");
         return { ok: false, kind: "auth", message: `Account authorization failed: ${e instanceof Error ? e.message : "error"}` };
       }
-      const privacyOpt = ctx.variant.options?.privacy;
-      const privacy = privacyOpt === "public" || privacyOpt === "unlisted" ? privacyOpt : "private";
-      return publishToYouTube({
-        accessToken: token,
-        title: ctx.variant.title ?? ctx.content.title,
-        description: ctx.variant.caption ?? (ctx.content.description || ctx.content.caption),
-        tags: ctx.variant.hashtags ?? ctx.content.hashtags,
-        privacy,
-        mimeType: asset.mime_type,
-        sizeBytes: Number(asset.size_bytes),
-        openMedia: async () => {
-          const { data, error } = await supabase.storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 3600);
-          if (error || !data) throw new Error("could not sign media URL");
-          return fetch(data.signedUrl);
-        },
-      });
+      const title = ctx.variant.title ?? ctx.content.title;
+      const caption = ctx.variant.caption ?? (ctx.content.caption || ctx.content.description);
+      const tags = ctx.variant.hashtags ?? ctx.content.hashtags;
+      if (job.platform === "youtube") {
+        const privacyOpt = ctx.variant.options?.privacy;
+        const privacy = privacyOpt === "public" || privacyOpt === "unlisted" ? privacyOpt : "private";
+        return publishToYouTube({
+          accessToken: token,
+          title,
+          description: caption,
+          tags,
+          privacy,
+          mimeType: asset.mime_type,
+          sizeBytes: Number(asset.size_bytes),
+          openMedia: async () => {
+            const { data, error } = await supabase.storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 3600);
+            if (error || !data) throw new Error("could not sign media URL");
+            return fetch(data.signedUrl);
+          },
+        });
+      }
+      // Meta fetches media itself from a short-lived signed URL.
+      let media: { kind: "video" | "image"; url: string } | null = null;
+      if (asset) {
+        const { data, error } = await supabase.storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 3600);
+        if (error || !data) return { ok: false, kind: "retryable", message: "Could not sign the media URL." };
+        media = { kind: asset.kind, url: data.signedUrl };
+      }
+      const text = [caption, ...(tags.length ? [tags.map((t) => `#${t}`).join(" ")] : [])].filter(Boolean).join("\n\n");
+      const input = { userToken: token, externalId: ctx.account.external_id, caption: text, title, media };
+      if (job.platform === "facebook") return publishToFacebook(input);
+      if (job.platform === "instagram") {
+        return publishToInstagram({ ...input, pageId: String((ctx.account.metadata as Record<string, unknown>)?.page_id ?? "") });
+      }
+      return { ok: false, kind: "terminal", message: `${job.platform} publishing is not implemented.` };
     },
     async startAttempt(job) {
       await supabase.from("social_publish_attempts").upsert(

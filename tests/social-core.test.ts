@@ -91,12 +91,10 @@ describe("parseSchedule", () => {
 });
 
 describe("provider registry honesty", () => {
-  it("only YouTube is publishable; the rest are declared pending with blockers", () => {
-    expect(canPublish("youtube")).toBe(true);
-    for (const p of ["facebook", "instagram", "tiktok"] as const) {
-      expect(canPublish(p)).toBe(false);
-      expect(PLATFORMS[p].blockers.length).toBeGreaterThan(0);
-    }
+  it("YouTube/Facebook/Instagram are implemented; TikTok is pending; all list blockers", () => {
+    for (const p of ["youtube", "facebook", "instagram"] as const) expect(canPublish(p)).toBe(true);
+    expect(canPublish("tiktok")).toBe(false);
+    for (const p of Object.values(PLATFORMS)) expect(p.blockers.length).toBeGreaterThan(0);
   });
 });
 
@@ -119,6 +117,17 @@ describe("validateVariant", () => {
     const codes = issues.map((i) => i.code);
     expect(codes).toContain("too_long");
     expect(codes).toContain("bad_mime");
+  });
+  it("applies Instagram rules: media required, JPEG-only images, one attachment", () => {
+    expect(validateVariant({ platform: "instagram", caption: "x" }, []).some((i) => i.code === "required")).toBe(true);
+    const png = { kind: "image" as const, mimeType: "image/png", sizeBytes: 1 };
+    expect(validateVariant({ platform: "instagram" }, [png]).some((i) => i.code === "bad_mime")).toBe(true);
+    const jpg = { kind: "image" as const, mimeType: "image/jpeg", sizeBytes: 1 };
+    expect(hasErrors(validateVariant({ platform: "instagram", caption: "x" }, [jpg]))).toBe(false);
+    expect(validateVariant({ platform: "instagram" }, [jpg, jpg]).some((i) => i.code === "too_many")).toBe(true);
+  });
+  it("allows a text-only Facebook post", () => {
+    expect(hasErrors(validateVariant({ platform: "facebook", caption: "hello" }, []))).toBe(false);
   });
   it("refuses pending platforms", () => {
     expect(validateVariant({ platform: "tiktok", caption: "x" }, [video]).some((i) => i.code === "not_ready")).toBe(true);

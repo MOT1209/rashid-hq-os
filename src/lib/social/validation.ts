@@ -51,8 +51,8 @@ export function validateVariant(variant: VariantInput, media: MediaFacts[]): Iss
   }
 
   if (cap.requires.media && media.length === 0) err("media", "required", "Attach media.");
-  if (variant.platform === "youtube" && media.length > 1) {
-    err("media", "too_many", "YouTube takes exactly one video per post.");
+  if (media.length > cap.maxMedia) {
+    err("media", "too_many", `${cap.name} takes at most ${cap.maxMedia} attachment(s) per post.`);
   }
 
   for (const m of media) {
@@ -60,7 +60,12 @@ export function validateVariant(variant: VariantInput, media: MediaFacts[]): Iss
       err("media", "unsupported_type", `${cap.name} does not accept ${m.kind} posts.`);
       continue;
     }
-    const okMime = m.kind === "video" ? VIDEO_MIME.has(m.mimeType) : IMAGE_MIME.has(m.mimeType);
+    const okMime =
+      m.kind === "video"
+        ? VIDEO_MIME.has(m.mimeType)
+        : cap.imageMimes
+          ? cap.imageMimes.includes(m.mimeType)
+          : IMAGE_MIME.has(m.mimeType);
     if (!okMime) err("media", "bad_mime", `Unsupported file type ${m.mimeType}.`);
     if (m.kind === "video" && cap.limits.videoMaxBytes && m.sizeBytes > cap.limits.videoMaxBytes) {
       err("media", "too_large", "Video exceeds the platform size limit.");

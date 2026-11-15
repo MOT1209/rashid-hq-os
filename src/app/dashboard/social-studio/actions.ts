@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { getFreshAccessToken } from "@/lib/integrations/connections";
 import { integrationFetchJson } from "@/lib/integrations/http";
+import { GRAPH_VERSION } from "@/lib/integrations/providers/meta";
 import { idempotencyKey, manualRetryAllowed, parseSchedule } from "@/lib/social/jobs";
 import { PLATFORMS, canPublish, isPlatform, type MediaKind } from "@/lib/social/providers";
 import { runDueJobs } from "@/lib/social/engine";
@@ -40,6 +41,41 @@ export async function syncYouTubeAccountAction(): Promise<Result<{ name: string 
     return { ok: true, name: ch.snippet?.title ?? ch.id };
   } catch {
     return fail("Could not read the YouTube channel. Connect “YouTube Publishing” in Integrations first.");
+  }
+}
+
+/**
+ * Lists the Pages the owner administers (and their linked Instagram business
+ * accounts) straight from Meta and records them. Page tokens are NOT stored.
+ */
+export async function syncMetaAccountsAction(): Promise<Result<{ pages: number; instagram: number }>> {
+  const session = await requireAdmin();
+  try {
+    const token = await getFreshAccessToken(session.user.id, "meta_publish");
+    const res = await integrationFetchJson<{ data?: { id: string; name: string; instagram_business_account?: { id: string; username?: string } }[] }>(
+      `https://graph.facebook.com/${GRAPH_VERSION}/me/accounts?fields=id,name,instagram_business_account{id,username}&limit=100`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    const pages = res.data ?? [];
+    if (pages.length === 0) return fail("No Facebook Pages found for this login. You must administer a Page and grant access to it.");
+    let ig = 0;
+    for (const p of pages) {
+      await upsertAccount(session.user.id, { platform: "facebook", connection_provider: "meta_publish", external_id: p.id, display_name: p.name, metadata: { page_id: p.id } });
+      if (p.instagram_business_account) {
+        ig += 1;
+        await upsertAccount(session.user.id, {
+          platform: "instagram",
+          connection_provider: "meta_publish",
+          external_id: p.instagram_business_account.id,
+          display_name: p.instagram_business_account.username ? `@${p.instagram_business_account.username}` : p.name,
+          metadata: { page_id: p.id },
+        });
+      }
+    }
+    revalidatePath(PATH);
+    return { ok: true, pages: pages.length, instagram: ig };
+  } catch {
+    return fail("Could not read your Pages. Connect “Meta” in Integrations first.");
   }
 }
 
