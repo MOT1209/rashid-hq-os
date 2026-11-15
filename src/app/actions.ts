@@ -10,6 +10,7 @@ import { approveToolCall, rejectToolCall } from "@/lib/approvals";
 import { listPolicies, setPolicyEnabled } from "@/lib/policy";
 import { findTool } from "@/lib/mcp/tools";
 import { testAllowed } from "@/lib/mcp/tool-policy";
+import { isMissingColumn } from "@/lib/schema-compat";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { isTheme, THEME_COOKIE } from "@/lib/theme";
 import { assertSafeEndpoint, UnsafeEndpointError } from "@/lib/net/safe-endpoint";
@@ -847,12 +848,19 @@ export async function testProjectToolAction(form: FormData) {
 
   // A test calls the tool with EMPTY input and bypasses the approval gate, so
   // for anything that could change data it would be an unapproved real call.
-  const { data: row } = await getServiceSupabase()
+  const lookup = await getServiceSupabase()
     .from("project_tools")
     .select("id, enabled, permission")
     .eq("project_id", projectId)
     .eq("tool_name", toolName)
     .maybeSingle();
+  let row = lookup.data;
+  if (lookup.error && isMissingColumn(lookup.error)) {
+    // Migration 0028 not applied yet: no per-tool class exists, so treat the tool as write-class
+    // (a test would be an unapproved real call) rather than reporting it missing.
+    const legacy = await getServiceSupabase().from("project_tools").select("id").eq("project_id", projectId).eq("tool_name", toolName).maybeSingle();
+    row = legacy.data ? { id: legacy.data.id, enabled: true, permission: "write" } : null;
+  }
   if (!row) return { error: "Tool not found." };
   const allowed = testAllowed(row);
   if (!allowed.ok) return { error: allowed.reason };

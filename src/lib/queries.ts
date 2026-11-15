@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { isMissingColumn } from "@/lib/schema-compat";
 import { dbError } from "@/lib/errors";
 import { summariseRuns, type RunInsights, type RunRow } from "@/lib/insights";
 import { STANDING_TASK_TOOL } from "@/lib/standing-tasks";
@@ -42,17 +43,18 @@ export const fetchSkills = cache(async (): Promise<AgentSkill[]> => {
 });
 
 /** Registry pages need every column; pickers only need id + name. */
-const PROJECT_COLUMNS =
-  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at, priority, archived_at";
+const LEGACY_PROJECT_COLUMNS =
+  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at";
+/** Migration 0032 columns (priority, archive). Falls back to the legacy set if it is not applied yet. */
+const PROJECT_COLUMNS = `${LEGACY_PROJECT_COLUMNS}, priority, archived_at`;
 
 export async function fetchProjects(limit = 200): Promise<Project[]> {
-  const { data, error } = await getServiceSupabase()
-    .from("projects")
-    .select(PROJECT_COLUMNS)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw dbError("Loading projects", error);
-  return (data ?? []) as Project[];
+  const load = (columns: string) =>
+    getServiceSupabase().from("projects").select(columns).order("created_at", { ascending: false }).limit(limit);
+  let res = await load(PROJECT_COLUMNS);
+  if (res.error && isMissingColumn(res.error)) res = await load(LEGACY_PROJECT_COLUMNS);
+  if (res.error) throw dbError("Loading projects", res.error);
+  return ((res.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ priority: "normal", archived_at: null, ...r })) as unknown as Project[];
 }
 
 /**
@@ -171,13 +173,14 @@ export async function fetchStats() {
 
   // `planned` reads the query planner's estimate instead of walking the table.
   // Exact counts on agent_logs are O(rows) in Postgres and these are KPI tiles.
+  const countActive = async () => {
+    // Archived projects no longer count as active (migration 0032); before it is applied, count them all.
+    const res = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active").is("archived_at", null);
+    if (res.error && isMissingColumn(res.error)) return supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active");
+    return res;
+  };
   const [active, today, failed, pending] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active")
-      // Archived projects no longer count as active (migration 0032).
-      .is("archived_at", null),
+    countActive(),
     supabase
       .from("agent_logs")
       .select("id", { count: "planned", head: true })

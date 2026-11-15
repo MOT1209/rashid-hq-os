@@ -38,8 +38,9 @@ export default async function McpPage() {
           id: x.id,
           name: x.tool_name,
           description: x.description,
-          enabled: x.enabled,
-          permission: x.permission,
+          // Rows from before migration 0028 have neither column: they behave as enabled, write-class.
+          enabled: x.enabled !== false,
+          permission: x.permission ?? "write",
           requiresApproval: x.requires_approval,
           lastTestedAt: x.last_tested_at,
           lastTestOk: x.last_test_ok,

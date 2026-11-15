@@ -2,6 +2,12 @@
 
 Target: Vercel + Supabase (existing). No new paid infrastructure is required.
 
+> **Order matters.** Vercel deploys `main` automatically on merge, but migrations are applied by hand. Apply migrations **first** (or immediately after the merge).
+> The reads that the *existing* pages and governance gates depend on fall back to the old column set while a migration is missing
+> (`src/lib/schema-compat.ts`; covered by `tests/schema-compat*.test.ts`): the Projects list and active-project count (0032), project-tool policy and
+> budget enforcement (0028/0029), the skills tools (0030). The **new** pages (board, Agents, Skills versions, MCP policy, Automations, Social Studio) still need their migrations
+> and show an "apply migration" notice or "unavailable" until then.
+
 1. **Backup, then migrate:** `npm run db:backup` then `npm run migrate:apply` (see `docs/DATABASE.md`). Migrations 0024–0027 are
    additive and re-runnable; CI rebuilds the schema from scratch twice (`.github/workflows/migrations.yml`).
 2. **Storage:** migration 0024 creates the private `social-media` bucket (also create it in the Supabase dashboard if your project blocks SQL on `storage.buckets`). Check your plan's file-size limit (the bucket is set to 5 GB; the plan may cap lower).
