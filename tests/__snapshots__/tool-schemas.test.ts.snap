@@ -200,13 +200,9 @@ exports[`tool input JSON Schema is stable > 'list_projects' 1`] = `
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "category": {
-      "anyOf": [
-        {
-          "type": "string",
-        },
-        {
-          "type": "null",
-        },
+      "type": [
+        "string",
+        "null",
       ],
     },
     "status": {
@@ -234,13 +230,9 @@ exports[`tool input JSON Schema is stable > 'list_recent_logs' 1`] = `
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
     "agent_name": {
-      "anyOf": [
-        {
-          "type": "string",
-        },
-        {
-          "type": "null",
-        },
+      "type": [
+        "string",
+        "null",
       ],
     },
     "limit": {

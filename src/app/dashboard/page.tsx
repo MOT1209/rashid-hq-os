@@ -19,6 +19,8 @@ import {
 import { agentLabel, categoryLabel, departmentName } from "@/lib/agents";
 import { isOwnerEmail } from "@/lib/owners";
 import { requireSession } from "@/lib/session";
+import { socialSummary } from "@/lib/social/summary";
+import { socialT } from "@/lib/social/i18n";
 import { getLocale } from "@/lib/locale-server";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectStatus } from "@/types/database";
@@ -79,12 +81,40 @@ export default async function DashboardPage() {
             <DepartmentsPanel t={t} locale={locale} />
           </Suspense>
 
+          <Suspense fallback={<PanelSkeleton rows={3} />}>
+            <SocialPanel ownerId={session.user.id} locale={locale} />
+          </Suspense>
+
           <Suspense fallback={<PanelSkeleton rows={4} />}>
             <ProjectsPanel t={t} locale={locale} />
           </Suspense>
         </div>
       </div>
     </div>
+  );
+}
+
+async function SocialPanel({ ownerId, locale }: { ownerId: string; locale: Locale }) {
+  const st = socialT(locale);
+  // Not inside the page's try/catch: a missing migration must degrade this panel only.
+  const summary = await socialSummary(ownerId).catch(() => null);
+  const fmt = (iso: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+  return (
+    <Panel title={st.dashTitle}>
+      {!summary ? (
+        <p className="text-xs text-muted">{st.dashUnavailable}</p>
+      ) : (
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <div><dt className="text-xs text-muted">{st.dashAccounts}</dt><dd className="text-lg font-semibold">{summary.accounts}</dd></div>
+          <div><dt className="text-xs text-muted">{st.dashQueued}</dt><dd className="text-lg font-semibold">{summary.queued}</dd></div>
+          <div><dt className="text-xs text-muted">{st.dashPublished7d}</dt><dd className="text-lg font-semibold">{summary.succeeded7d}</dd></div>
+          <div><dt className="text-xs text-muted">{st.dashFailed7d}</dt><dd className={`text-lg font-semibold ${summary.failed7d ? "text-err" : ""}`}>{summary.failed7d}</dd></div>
+          <div className="col-span-2"><dt className="text-xs text-muted">{st.dashNext}</dt><dd>{summary.nextRunAt ? fmt(summary.nextRunAt) : st.dashNone}</dd></div>
+          {summary.lastError && <div className="col-span-2 text-xs text-err">{summary.lastError}</div>}
+        </dl>
+      )}
+      <Link href="/dashboard/social-studio" className="mt-3 inline-block text-xs text-accent underline">{st.dashOpen}</Link>
+    </Panel>
   );
 }
 

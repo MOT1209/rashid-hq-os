@@ -98,7 +98,9 @@ export function TwoFactorForm({ initiallyEnabled }: { initiallyEnabled: boolean 
 
             const { data, error: enableError } = await twoFactor.enable({ password });
             setPending(false);
-            if (enableError || !data) {
+            // better-auth >= 1.7 types the result as a union (otp | totp); this
+            // form only drives the authenticator-app (totp) flow.
+            if (enableError || !data || !("totpURI" in data)) {
               setError(enableError?.message ?? t.somethingBroke);
               return;
             }

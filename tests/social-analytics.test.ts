@@ -27,7 +27,8 @@ describe("collectForJob (mocked HTTP)", () => {
       .mockResolvedValueOnce(json({ reactions: { summary: { total_count: 7 } }, comments: { summary: { total_count: 1 } } }));
     const r = await collectForJob({ platform: "facebook", external_id: "P1_9", owner_id: "o" }, { ...acct, external_id: "P1" }, f as never, token);
     expect(r).toMatchObject({ ok: true, data: { metrics: { likes: 7, comments: 1 } } });
-    expect(String(f.mock.calls[1][0])).toContain("access_token=PT");
+    expect((f.mock.calls[1][1] as RequestInit).headers).toMatchObject({ authorization: "Bearer PT" });
+    expect(String(f.mock.calls[1][0])).not.toContain("access_token");
   });
   it("Instagram: uses the linked page id from account metadata", async () => {
     const f = vi.fn()

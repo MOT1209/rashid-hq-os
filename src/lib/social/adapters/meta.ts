@@ -44,6 +44,8 @@ async function graph(f: typeof fetch, url: string, init?: RequestInit) {
   return { res, json, text };
 }
 
+const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
+
 const form = (o: Record<string, string>) =>
   ({ method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(o).toString() }) as RequestInit;
 
@@ -56,9 +58,11 @@ function apiFailure(what: string, res: Response, json: GraphError | null): Publi
 
 /** Derives the Page token (and linked IG user) from the stored user token; nothing is persisted. */
 export async function getPageAccess(userToken: string, pageId: string, f: typeof fetch = fetch) {
+  // Tokens travel in the Authorization header, never in a query string (URLs end up in logs and error text).
   const { res, json } = await graph(
     f,
-    `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${encodeURIComponent(userToken)}`,
+    `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100`,
+    { headers: bearer(userToken) },
   );
   if (!res.ok) return { ok: false as const, failure: apiFailure("Listing Pages", res, json) };
   const pages = (json?.data ?? []) as { id: string; name: string; access_token: string; instagram_business_account?: { id: string; username?: string } }[];
@@ -158,7 +162,7 @@ export async function publishToInstagram(i: MetaPostInput): Promise<PublishResul
   for (;;) {
     let s;
     try {
-      s = await graph(f, `${GRAPH}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`);
+      s = await graph(f, `${GRAPH}/${containerId}?fields=status_code,status`, { headers: bearer(token) });
     } catch (e) {
       return fail("retryable", `Could not check processing status: ${msg(e)}`);
     }
@@ -183,7 +187,7 @@ export async function publishToInstagram(i: MetaPostInput): Promise<PublishResul
 
   let permalink = `https://www.instagram.com/`;
   try {
-    const pl = await graph(f, `${GRAPH}/${mediaId}?fields=permalink&access_token=${encodeURIComponent(token)}`);
+    const pl = await graph(f, `${GRAPH}/${mediaId}?fields=permalink`, { headers: bearer(token) });
     if (typeof pl.json?.permalink === "string") permalink = pl.json.permalink;
   } catch {
     // The post IS published; the link is cosmetic.

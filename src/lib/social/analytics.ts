@@ -38,12 +38,11 @@ export async function collectForJob(
       const pageId = job.platform === "facebook" ? account.external_id : String((account.metadata as Record<string, unknown>)?.page_id ?? "");
       const access = await getPageAccess(token, pageId, f);
       if (!access.ok) return { ok: false, error: access.failure.ok ? "Page unavailable." : access.failure.message };
-      const pt = encodeURIComponent(access.page.access_token);
       const url =
         job.platform === "facebook"
-          ? `${GRAPH}/${job.external_id}?fields=shares,comments.summary(true).limit(0),reactions.summary(true).limit(0)&access_token=${pt}`
-          : `${GRAPH}/${job.external_id}?fields=like_count,comments_count&access_token=${pt}`;
-      const r = await f(url, { signal: AbortSignal.timeout(20_000) });
+          ? `${GRAPH}/${job.external_id}?fields=shares,comments.summary(true).limit(0),reactions.summary(true).limit(0)`
+          : `${GRAPH}/${job.external_id}?fields=like_count,comments_count`;
+      const r = await f(url, { headers: { authorization: `Bearer ${access.page.access_token}` }, signal: AbortSignal.timeout(20_000) });
       if (!r.ok) return { ok: false, error: `${job.platform} returned ${r.status}.` };
       const body = await r.json();
       return { ok: true, data: job.platform === "facebook" ? collectFacebook(body) : collectInstagram(body) };
