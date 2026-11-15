@@ -42,6 +42,10 @@ const RULES: [prefix: string, rule: Rule][] = [
   // columns. Cron traffic is a handful of hits a day; anything more is abuse.
   ["/api/agent", { windowMs: 60_000, max: 10 }],
   ["/api/maintenance", { windowMs: 60_000, max: 10 }],
+  // Background workers (social publishing, automations): authenticated like the cron routes above,
+  // and every unauthenticated hit costs a session lookup. Called every ~10 minutes in practice.
+  ["/api/social", { windowMs: 60_000, max: 10 }],
+  ["/api/automation", { windowMs: 60_000, max: 10 }],
   ["/api/activity/export", { windowMs: 60_000, max: 10 }],
   // The activity reader is an authenticated CEO console client, but every
   // page fetch hits /page and /stream stays open — an over-hot client must

@@ -88,7 +88,8 @@ export const metaProvider: IntegrationProvider = {
   async revoke(secret: SecretBundle) {
     if (!secret.access_token) return;
     try {
-      await integrationFetch(`${GRAPH}/me/permissions?access_token=${encodeURIComponent(secret.access_token)}`, { method: "DELETE" });
+      // Token in the Authorization header, never in the URL (URLs end up in logs and error text).
+      await integrationFetch(`${GRAPH}/me/permissions`, { method: "DELETE", headers: { authorization: `Bearer ${secret.access_token}` } });
     } catch {
       // best effort
     }
