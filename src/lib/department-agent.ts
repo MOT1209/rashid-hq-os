@@ -9,6 +9,8 @@ import { runTool } from "@/lib/mcp/executor";
 import { TOOLS, type ToolContext } from "@/lib/mcp/tools";
 import { languageModel } from "@/lib/model";
 import type { Department } from "@/lib/agents";
+import { isEnabled, projectAllowed, scopeNote, toolAllowed } from "@/lib/agent-config";
+import { getServiceSupabase } from "@/lib/supabase/server";
 
 /**
  * The executor behind a department agent.
@@ -74,9 +76,17 @@ export async function runDepartmentAgent(input: {
   ownerId: string | null | undefined;
   /** Defaults to `interactive` — the full toolset. */
   mode?: RunMode;
+  /** Forces read-only tools whatever the agent's own settings say (used by the self-test). */
+  forceReadOnly?: boolean;
 }): Promise<DepartmentRun> {
-  const { department, task, ownerId, mode = "interactive" } = input;
+  const { department, task, ownerId, mode = "interactive", forceReadOnly = false } = input;
   const agentName = department.agent_name;
+
+  // Governance (migration 0033): a disabled agent does not run at all.
+  if (!isEnabled(department)) {
+    throw new Error(`${agentName} is disabled. Enable it on the Agents page.`);
+  }
+  const assigned = await loadAssignedProjects(department.key);
 
   const context: ToolContext = {
     agentName,
@@ -89,8 +99,10 @@ export async function runDepartmentAgent(input: {
     actorType: mode === "autonomous" ? "standing_task_routine" : "department_agent",
   };
 
+  const governance = { enabled: department.enabled, allowed_tools: department.allowed_tools, read_only: department.read_only || forceReadOnly };
   const available = TOOLS.filter((definition) => {
     if (definition.name === DELEGATE_TOOL) return false;
+    if (!toolAllowed(governance, definition)) return false;
     if (mode === "autonomous") return AUTONOMOUS_TOOLS.has(definition.name);
     return true;
   });
@@ -107,6 +119,9 @@ export async function runDepartmentAgent(input: {
         description: definition.description,
         inputSchema: definition.schema as z.ZodType<Record<string, unknown>>,
         execute: async (args: Record<string, unknown>) => {
+          // Project assignment (migration 0033): refused before anything runs or is logged as a tool call.
+          const scope = projectAllowed(assigned.ids, args);
+          if (!scope.ok) return { error: scope.reason };
           const outcome = await runTool(definition, args, context);
           // Always returned, never thrown: a denied/failed/queued tool call is
           // information the agent can act on, and throwing would abort the
@@ -151,6 +166,7 @@ export async function runDepartmentAgent(input: {
       model: languageModel(department.model),
       system: [
         department.system_prompt,
+        scopeNote(assigned.names, Boolean(governance.read_only)),
         "You were delegated this task by the CEO console. Do the work with the tools available to you, then report back in one short paragraph. Reply in the same language the task was written in.",
       ]
         .filter(Boolean)
@@ -206,5 +222,26 @@ export async function runDepartmentAgent(input: {
     agent: agentName,
     summary: result.text,
     steps: result.steps.length,
+  };
+}
+
+/**
+ * Projects this agent is assigned to (migration 0033). Empty = unrestricted.
+ * A missing table (migration not applied yet) means no restriction, so deploying
+ * the code first never breaks existing agents; any OTHER error fails closed.
+ */
+export async function loadAssignedProjects(departmentKey: string): Promise<{ ids: string[]; names: string[] }> {
+  const { data, error } = await getServiceSupabase()
+    .from("agent_projects" as never)
+    .select("project_id, projects(name)")
+    .eq("department_key", departmentKey);
+  if (error) {
+    if ((error as { code?: string }).code === "42P01" || /does not exist|schema cache/i.test(error.message ?? "")) return { ids: [], names: [] };
+    throw new Error("Could not load this agent's project assignments.");
+  }
+  const rows = (data ?? []) as unknown as { project_id: string; projects: { name: string } | { name: string }[] | null }[];
+  return {
+    ids: rows.map((r) => r.project_id),
+    names: rows.map((r) => (Array.isArray(r.projects) ? r.projects[0]?.name : r.projects?.name)).filter((n): n is string => Boolean(n)),
   };
 }

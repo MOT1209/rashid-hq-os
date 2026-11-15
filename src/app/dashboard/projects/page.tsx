@@ -1,21 +1,29 @@
+import Link from "next/link";
 import { ProjectForm, ProjectToolForm } from "@/components/project-form";
 import { ProjectRow } from "@/components/project-row";
 import { ToolRow } from "@/components/tool-row";
 import { EmptyState, Panel } from "@/components/ui";
 import { getT } from "@/lib/locale-server";
 import { requireSession } from "@/lib/session";
+import { taskCounts } from "@/lib/tasks-store";
 import { fetchCategories, fetchProjects, fetchProjectTools } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
-  const [t, session] = await Promise.all([getT(), requireSession()]);
+export default async function ProjectsPage({ searchParams }: { searchParams?: Promise<{ archived?: string }> }) {
+  const [t, session, params] = await Promise.all([getT(), requireSession(), searchParams]);
   const isAdmin = session.role === "admin";
-  const [projects, tools, categories] = await Promise.all([
+  const showArchived = params?.archived === "1";
+  const [allProjects, tools, categories] = await Promise.all([
     fetchProjects(),
     fetchProjectTools(),
     fetchCategories(),
   ]);
+  // Archived projects are hidden by default; tools/pickers below still see all of them.
+  const projects = showArchived ? allProjects : allProjects.filter((p) => !p.archived_at);
+  const archivedCount = allProjects.length - allProjects.filter((p) => !p.archived_at).length;
+  // Task progress is a nice-to-have: if the tasks table is missing (migration 0032 not applied) the list still renders.
+  const progressByProject = await taskCounts(session.user.id).catch(() => new Map<string, { total: number; done: number; overdue: number }>());
 
   const projectName = new Map(projects.map((p) => [p.id, p.name]));
 
@@ -32,7 +40,14 @@ export default async function ProjectsPage() {
         </Panel>
       )}
 
-      <Panel title={t.projects}>
+      <Panel
+        title={t.projects}
+        action={archivedCount > 0 || showArchived ? (
+          <Link href={showArchived ? "/dashboard/projects" : "/dashboard/projects?archived=1"} className="text-xs text-accent">
+            {showArchived ? t.hideArchived : `${t.showArchived} (${archivedCount})`}
+          </Link>
+        ) : undefined}
+      >
         {projects.length === 0 ? (
           <EmptyState>{t.noProjects}</EmptyState>
         ) : (
@@ -56,6 +71,7 @@ export default async function ProjectsPage() {
                     project={project}
                     categories={categories}
                     canEdit={isAdmin}
+                    taskProgress={progressByProject.get(project.id)}
                   />
                 ))}
               </tbody>

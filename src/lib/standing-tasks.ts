@@ -15,7 +15,8 @@ export const MAX_DEPARTMENTS_PER_RUN = 10;
 
 /** A department is scheduled when it has a non-empty brief and is not paused. */
 export function isScheduled(department: Department): boolean {
-  return department.standing_task_enabled && (department.standing_task ?? "").trim().length > 0;
+  // A disabled agent (migration 0033) does not run its standing task either.
+  return department.enabled !== false && department.standing_task_enabled && (department.standing_task ?? "").trim().length > 0;
 }
 
 export function scheduledDepartments(departments: Department[]): Department[] {

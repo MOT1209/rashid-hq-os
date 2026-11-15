@@ -43,7 +43,7 @@ export const fetchSkills = cache(async (): Promise<AgentSkill[]> => {
 
 /** Registry pages need every column; pickers only need id + name. */
 const PROJECT_COLUMNS =
-  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at";
+  "id, name, category, url, repository_url, mcp_endpoint, status, owner_id, created_at, monthly_token_budget, budget_alerted_at, budget_exhausted_alerted_at, priority, archived_at";
 
 export async function fetchProjects(limit = 200): Promise<Project[]> {
   const { data, error } = await getServiceSupabase()
@@ -175,7 +175,9 @@ export async function fetchStats() {
     supabase
       .from("projects")
       .select("id", { count: "exact", head: true })
-      .eq("status", "active"),
+      .eq("status", "active")
+      // Archived projects no longer count as active (migration 0032).
+      .is("archived_at", null),
     supabase
       .from("agent_logs")
       .select("id", { count: "planned", head: true })

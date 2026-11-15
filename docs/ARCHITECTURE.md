@@ -63,6 +63,19 @@ Per-tool policy for project tools lives in `project_tools` (migration 0028) and 
 `src/lib/automation/{cron,definition,engine,store,runtime}.ts` + `/api/automation/run` + `/dashboard/automations`. Pure logic (cron, validation,
 templating, `processRun`) is separated from I/O so it is unit-tested; the queue is `automation_runs` + `claim_automation_runs()`. See `docs/AUTOMATION.md`.
 
+## Projects
+
+`src/lib/tasks.ts` (pure rules) · `src/lib/tasks-store.ts` · `/dashboard/projects/[id]` (board, docs, tools, activity) · `board-actions.ts`. See `docs/PROJECTS.md`.
+
+## Agents
+
+Agents = departments. `src/lib/agent-config.ts` (pure governance), `src/lib/agent-metrics.ts` (pure metrics), `src/lib/agent-admin.ts`, `department-agent.ts` (enforcement),
+`/dashboard/agents`. See `docs/AGENTS.md`.
+
+## CEO dashboard
+
+`src/lib/overview-core.ts` (pure) · `src/lib/overview.ts` (independent per-card fetchers) · `src/components/overview-panels.tsx`. See `docs/DASHBOARD.md`.
+
 ## Not built
 
-Per-project agents, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
+Authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.

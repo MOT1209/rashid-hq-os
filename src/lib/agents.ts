@@ -41,6 +41,15 @@ export type Department = {
   budget_alerted_at: string | null;
   /** Last 100% alert mail — separate one-a-day throttle (migration 0021). */
   budget_exhausted_alerted_at: string | null;
+  /**
+   * Governance (migration 0033). Optional because rows read before the migration
+   * lack them; absent means today's behaviour (enabled, all tools, read/write).
+   */
+  enabled?: boolean;
+  /** Null/absent = every tool the agent's run mode allows. */
+  allowed_tools?: string[] | null;
+  read_only?: boolean;
+  is_custom?: boolean;
 };
 
 export type ProjectCategory = {
