@@ -20,6 +20,11 @@ Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev 
 - The tool "Test" button no longer bypasses approval: it is limited to enabled read-class tools (previously it could execute any registered tool with empty input).
 - MCP bearer tokens are sealed at rest and never sent to the browser; outbound MCP calls use the SSRF guard with a pinned address and refuse redirects.
 
+## Dashboard controls (new)
+
+- The health card computes only booleans from environment variables; no secret value reaches the page or the client (covered by a test).
+- Every card is read-only and owner-scoped where the table has an owner; a failing card degrades alone.
+
 ## Agent governance controls (new)
 
 - Governance only narrows: disabled agents do not run; read-only strips write tools; an allowlist cannot re-enable a tool the run mode forbids (autonomous runs keep their allowlist); project scope refuses calls naming other projects before anything runs.

@@ -72,6 +72,10 @@ templating, `processRun`) is separated from I/O so it is unit-tested; the queue 
 Agents = departments. `src/lib/agent-config.ts` (pure governance), `src/lib/agent-metrics.ts` (pure metrics), `src/lib/agent-admin.ts`, `department-agent.ts` (enforcement),
 `/dashboard/agents`. See `docs/AGENTS.md`.
 
+## CEO dashboard
+
+`src/lib/overview-core.ts` (pure) · `src/lib/overview.ts` (independent per-card fetchers) · `src/components/overview-panels.tsx`. See `docs/DASHBOARD.md`.
+
 ## Not built
 
 Authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
