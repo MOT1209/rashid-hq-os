@@ -19,6 +19,11 @@ evidence that a live integration works.
 | MCP call statistics | `mcp-stats.test.ts` |
 | Skills rules: validation, schemas, placeholders, render, import/export | `skills-core.test.ts` |
 | Skill versioning, optimistic lock, restore | `skills-store.test.ts` |
+| Cron parsing, next-run, DST/leap/timezone | `automation-cron.test.ts` |
+| Definition validation, templating, conditions, backoff | `automation-definition.test.ts` |
+| Run engine: resume, retries, conditions, pause, failure paths | `automation-engine.test.ts` |
+| Schedule tick, idempotency, rate limit, events | `automation-store.test.ts` |
+| Unattended step executors (allowlist, approval, retry safety, email) | `automation-runtime.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

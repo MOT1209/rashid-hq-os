@@ -180,5 +180,11 @@ pg_restore --clean --if-exists --no-owner --single-transaction \
 `agent_skills` gained `enabled`, `version`, `tags`, `input_schema`, `output_schema`, `metadata`, `updated_at`; `agent_skill_versions` stores
 a snapshot of each previous version (cascade-deleted with the skill).
 
+## Automations (migration 0031)
+
+`automations` (definition, trigger, steps jsonb, retry policy, `enabled` = not paused, `next_run_at`), `automation_runs` (durable per-step progress,
+unique `idempotency_key`), function `claim_automation_runs(limit, worker)` (SKIP LOCKED, stale lock reclaim after 15 min). RLS on, anon/authenticated revoked.
+Runs cascade-delete with their automation; there is no automatic pruning of old runs yet.
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.

@@ -1,6 +1,6 @@
-name: Social publishing worker
+name: Background workers (social publishing + automations)
 
-# Free scheduler for Social Studio jobs. Vercel Hobby only allows daily crons,
+# Free scheduler for Social Studio jobs and the automation engine. Vercel Hobby only allows daily crons,
 # which is too coarse for "publish at 18:30". This pings the worker route every
 # 10 minutes; the route claims due jobs from the persistent queue, so a missed
 # or duplicated tick is harmless.
@@ -28,3 +28,6 @@ jobs:
             exit 0
           fi
           curl -fsS --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/social/run"
+          echo
+          # Automation engine: queue due schedules and process queued runs.
+          curl -fsS --max-time 280 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/automation/run"

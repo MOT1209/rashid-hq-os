@@ -58,6 +58,11 @@ Per-tool policy for project tools lives in `project_tools` (migration 0028) and 
 
 `src/lib/skills.ts` (pure rules) · `src/lib/skills-store.ts` (versioned, optimistically locked storage) · `/dashboard/skills`. See `docs/SKILLS.md`.
 
+## Automations
+
+`src/lib/automation/{cron,definition,engine,store,runtime}.ts` + `/api/automation/run` + `/dashboard/automations`. Pure logic (cron, validation,
+templating, `processRun`) is separated from I/O so it is unit-tested; the queue is `automation_runs` + `claim_automation_runs()`. See `docs/AUTOMATION.md`.
+
 ## Not built
 
-A general automation/workflow engine, per-project agents, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
+Per-project agents, a project task board, and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.

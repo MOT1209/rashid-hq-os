@@ -20,6 +20,13 @@ Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev 
 - The tool "Test" button no longer bypasses approval: it is limited to enabled read-class tools (previously it could execute any registered tool with empty input).
 - MCP bearer tokens are sealed at rest and never sent to the browser; outbound MCP calls use the SSRF guard with a pinned address and refuse redirects.
 
+## Automation controls (new)
+
+- Unattended by design: same policy actor as the cron (`standing_task_routine`) — writes other than a project's own tools are denied, dangerous tools never run, approvals are never awaited; tool steps limited to an allowlist and validated against the tool's schema before running.
+- Created paused; only admins (with the 2FA policy) can create, change, resume or run them; each action is audited.
+- Template substitution is text-only (no re-interpretation, prototype keys blocked); stored step output is size-bounded; per-automation hourly run cap; events from unattended runs are not emitted (no self-triggering loops).
+- Writes and agent runs are never auto-retried (no duplicated side effects).
+
 ## Skills controls (new)
 
 - Imported skills are untrusted prompts: they are inserted **disabled**, validated (size caps, schema shape) and cannot be seen by the console or agents until the owner enables them.
