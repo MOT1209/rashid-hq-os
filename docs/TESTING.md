@@ -26,6 +26,9 @@ evidence that a live integration works.
 | Unattended step executors (allowlist, approval, retry safety, email) | `automation-runtime.test.ts` |
 | Task rules: validation, board order, progress, overdue | `tasks-core.test.ts` |
 | Task storage: append, completion stamps, reorder, counts | `tasks-store.test.ts` |
+| Agent governance rules, validation, performance metrics | `agent-config.test.ts` |
+| Agent runtime: disabled, read-only, allowlist, project scope, forced read-only | `department-agent.test.ts` (extended) |
+| Agent management actions (self-test forces read-only, built-ins protected) | `agents-actions.test.ts` |
 | Existing suites (MCP, policy, approvals, budgets, …) | unchanged, still passing |
 
 Database behaviour (claim/SKIP LOCKED, duplicate key, stale-lock reclaim, success constraint, constraint on `agent_runs.kind`)

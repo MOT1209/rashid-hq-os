@@ -39,6 +39,10 @@ written to Supabase and streams to the dashboard live.
 The port is set in the `dev` and `start` scripts. `localhost:7070` is trusted
 automatically in development, so changing the port means changing both.
 
+## Agent management
+
+`/dashboard/agents`: create agents, enable/disable, tool allowlist, read-only mode, project scope, real-model self-test, and performance/token/error monitoring from the run ledger. See [`docs/AGENTS.md`](docs/AGENTS.md).
+
 ## Project management
 
 Projects get a task board, progress, priority, documentation and archive/restore at `/dashboard/projects/<id>`. See [`docs/PROJECTS.md`](docs/PROJECTS.md).

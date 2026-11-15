@@ -29,6 +29,15 @@ function dept(overrides: Partial<Department> = {}): Department {
   };
 }
 
+describe("disabled agents (migration 0033)", () => {
+  it("a disabled agent is never scheduled, even with a brief and the standing task on", () => {
+    expect(isScheduled(dept({ enabled: false }))).toBe(false);
+    expect(isScheduled(dept({ enabled: true }))).toBe(true);
+    expect(isScheduled(dept())).toBe(true); // rows from before the migration have no flag
+    expect(scheduledDepartments([dept({ enabled: false }), dept({ key: "store" })]).map((d) => d.key)).toEqual(["store"]);
+  });
+});
+
 describe("isScheduled", () => {
   it("is true for an enabled department with a brief", () => {
     expect(isScheduled(dept())).toBe(true);

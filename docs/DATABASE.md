@@ -191,5 +191,9 @@ Runs cascade-delete with their automation; there is no automatic pruning of old 
 `projects` gained `priority`, `description`, `documentation`, `archived_at`; `project_tasks` (status todo/in_progress/blocked/done, priority, due_date, assignee, position)
 cascades with its project. RLS on, anon/authenticated revoked.
 
+## Agents (migration 0033)
+
+`departments` gained `enabled`, `allowed_tools` (null = all), `read_only`, `is_custom`; `agent_projects` (department ↔ project, cascade both ways). RLS on, anon/authenticated revoked.
+
 Function `claim_social_jobs(limit, worker)` claims due jobs atomically. All tables: RLS on, anon/authenticated revoked, owner_id on every row.
 Retention: attempts/snapshots cascade-delete with their job; there is no automatic pruning of old jobs yet.

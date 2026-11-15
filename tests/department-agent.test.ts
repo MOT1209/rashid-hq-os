@@ -37,6 +37,15 @@ vi.mock("@/lib/agent-errors", () => ({
   captureAgentError: (...args: unknown[]) => captureAgentError(...args),
 }));
 
+// Project assignments (migration 0033): the lookup is mocked per test through
+// `assignments`; by default an agent has none (= unrestricted, today's behaviour).
+let assignments: { project_id: string; projects: { name: string } }[] = [];
+vi.mock("@/lib/supabase/server", () => ({
+  getServiceSupabase: () => ({
+    from: () => ({ select: () => ({ eq: async () => ({ data: assignments, error: null }) }) }),
+  }),
+}));
+
 // Budgets are covered in tests/budgets.test.ts; here the gate stays open
 // unless a test says otherwise — and must never touch the network.
 const checkDepartmentBudget = vi.fn(
@@ -117,6 +126,53 @@ beforeEach(() => {
   checkDepartmentBudget.mockClear();
   runToolProjectIds.length = 0;
   runToolIndex = 0;
+  assignments = [];
+});
+
+describe("runDepartmentAgent governance (migration 0033)", () => {
+  it("a disabled agent refuses to run and never calls the model", async () => {
+    await expect(runDepartmentAgent({ department: dept({ enabled: false }), task: "x", ownerId: "o1" })).rejects.toThrow(/disabled/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("read_only agents get only read-scope tools", async () => {
+    await runDepartmentAgent({ department: dept({ read_only: true }), task: "x", ownerId: "o1" });
+    const names = toolNames();
+    expect(names).toContain("list_projects");
+    for (const t of [...REGISTRY_MUTATION, "call_project_tool"]) expect(names).not.toContain(t);
+  });
+
+  it("allowed_tools restricts the toolset (and an empty list means no tools)", async () => {
+    await runDepartmentAgent({ department: dept({ allowed_tools: ["list_projects", "get_project"] }), task: "x", ownerId: "o1" });
+    expect(toolNames()).toEqual(["get_project", "list_projects"]);
+    await runDepartmentAgent({ department: dept({ allowed_tools: [] }), task: "x", ownerId: "o1" });
+    expect(toolNames()).toEqual([]);
+  });
+
+  it("forceReadOnly (the self-test) strips write tools even for a fully-privileged agent", async () => {
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1", forceReadOnly: true });
+    for (const t of [...REGISTRY_MUTATION, "call_project_tool"]) expect(toolNames()).not.toContain(t);
+  });
+
+  it("allowed_tools cannot re-enable a write tool in autonomous mode", async () => {
+    await runDepartmentAgent({ department: dept({ allowed_tools: ["delete_project", "list_projects"] }), task: "x", ownerId: "o1", mode: "autonomous" });
+    expect(toolNames()).toEqual(["list_projects"]);
+  });
+
+  it("an assigned agent is refused for other projects but works on its own", async () => {
+    assignments = [{ project_id: "p-own", projects: { name: "Own" } }];
+    generateText.mockImplementationOnce(async (opts) => {
+      const get = (opts.tools as Record<string, FakeTool>).get_project;
+      const denied = await get.execute({ project_id: "p-other" });
+      const allowed = await get.execute({ project_id: "p-own" });
+      expect(denied).toEqual({ error: "This agent is not assigned to that project." });
+      expect(allowed).toEqual({});
+      return { text: "ok", steps: [1], usage: { inputTokens: 1, outputTokens: 1 } };
+    });
+    await runDepartmentAgent({ department: dept(), task: "x", ownerId: "o1" });
+    const system = (generateText.mock.calls.at(-1)?.[0] as unknown as { system: string }).system;
+    expect(system).toContain("assigned to these projects only: Own");
+  });
 });
 
 describe("runDepartmentAgent tool exposure", () => {

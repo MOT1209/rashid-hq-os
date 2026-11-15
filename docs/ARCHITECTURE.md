@@ -67,6 +67,11 @@ templating, `processRun`) is separated from I/O so it is unit-tested; the queue 
 
 `src/lib/tasks.ts` (pure rules) · `src/lib/tasks-store.ts` · `/dashboard/projects/[id]` (board, docs, tools, activity) · `board-actions.ts`. See `docs/PROJECTS.md`.
 
+## Agents
+
+Agents = departments. `src/lib/agent-config.ts` (pure governance), `src/lib/agent-metrics.ts` (pure metrics), `src/lib/agent-admin.ts`, `department-agent.ts` (enforcement),
+`/dashboard/agents`. See `docs/AGENTS.md`.
+
 ## Not built
 
-Per-project agents and authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
+Authenticated browser E2E flows (only an anonymous smoke test exists). These sections of the original brief remain open.
