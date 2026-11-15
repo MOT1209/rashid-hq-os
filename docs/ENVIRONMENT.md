@@ -19,6 +19,8 @@ Never commit real values. `.env.example` is the source of truth; this is the map
 | `TIKTOK_CLIENT_KEY/SECRET` | TikTok | redirect `/api/integrations/tiktok_publish/callback` |
 | `OWNER_TIMEZONE` | scheduling/calendar | IANA name, default `UTC` |
 | `SOCIAL_AI_DAILY_RUNS` | AI assistant + agents | default 100 per rolling 24h |
+| `AUTOMATION_RETENTION` | prune cron | PostgreSQL interval for finished automation runs, default `90 days` |
+| `SOCIAL_RETENTION` | prune cron | interval for analytics snapshots and failed/cancelled social jobs, default `180 days` |
 | `SENTRY_*`, `RESEND_API_KEY`, `TOKEN_PEPPER`, `OUTBOUND_SIGNING_SECRET` | existing features | see `.env.example` |
 
 GitHub Actions secrets for the worker: `APP_URL`, `CRON_SECRET`.

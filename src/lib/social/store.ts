@@ -213,3 +213,28 @@ export async function listAttempts(ownerId: string, jobId: string) {
     await db().from("social_publish_attempts").select("*").eq("job_id", jobId).order("attempt_no"),
   ) as Record<string, unknown>[];
 }
+
+/**
+ * Variants and attachments for MANY content items in two queries (instead of
+ * three per item). `contentIds` must come from an owner-scoped listing: the
+ * ids are additionally checked against the owner's content here so a foreign id
+ * can never leak rows.
+ */
+export async function getContentRelations(ownerId: string, contentIds: string[]) {
+  const out = new Map<string, { variants: VariantRow[]; media: { asset_id: string; position: number; is_thumbnail: boolean }[] }>();
+  if (contentIds.length === 0) return out;
+  const { data: owned, error } = await db().from("social_content").select("id").eq("owner_id", ownerId).in("id", contentIds);
+  if (error) throw dbError("Loading content", error);
+  const ids = ((owned ?? []) as { id: string }[]).map((r) => r.id);
+  for (const id of ids) out.set(id, { variants: [], media: [] });
+  if (ids.length === 0) return out;
+  const [variants, media] = await Promise.all([
+    db().from("social_content_variants").select("*").in("content_id", ids),
+    db().from("social_content_media").select("content_id, asset_id, position, is_thumbnail").in("content_id", ids).order("position"),
+  ]);
+  for (const v of check("Loading variants", variants) as VariantRow[]) out.get(v.content_id)?.variants.push(v);
+  for (const m of check("Loading content media", media) as { content_id: string; asset_id: string; position: number; is_thumbnail: boolean }[]) {
+    out.get(m.content_id)?.media.push({ asset_id: m.asset_id, position: m.position, is_thumbnail: m.is_thumbnail });
+  }
+  return out;
+}

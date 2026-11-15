@@ -12,7 +12,7 @@ penetration test. Earlier audits: `SECURITY-AUDIT-REPORT.md`, `docs/audits/`.
 | MCP SDK advisory (one HTTP client's messages delivered to another) | `overrides` → `@modelcontextprotocol/server ^2.3` (resolved 2.4.0) |
 | Meta access tokens in GET query strings (leak into logs/errors) | Sent in `Authorization` headers |
 
-Remaining `npm audit --omit=dev`: 9 (2 high: `source-map-js`, `vite`, build/dev tooling; 7 moderate). Re-run `npm audit` before deploy.
+Remaining `npm audit`: 15 (1 high: dev-tool `brace-expansion`; 14 moderate, all build/test-time). `vite`, `source-map-js` and `js-yaml` were closed with overrides. Details and why Sentry 11 was not adopted: `docs/PERFORMANCE.md`. Re-run `npm audit` before deploy.
 
 ## MCP controls (new)
 

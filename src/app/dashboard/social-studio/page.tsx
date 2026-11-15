@@ -6,7 +6,7 @@ import { PLATFORMS } from "@/lib/social/providers";
 import { listSnapshots } from "@/lib/social/analytics";
 import { AGENT_KEYS, effectivePermissions } from "@/lib/social/agents-core";
 import { getAgentSettings } from "@/lib/social/agents";
-import { getContentBundle, listAccounts, listAssets, listContent, listJobs } from "@/lib/social/store";
+import { getContentRelations, listAccounts, listAssets, listContent, listJobs } from "@/lib/social/store";
 import {
   AccountsPanel,
   ContentPanel,
@@ -58,21 +58,21 @@ export default async function SocialStudioPage({
     if (tab === "media") return { tab, assets: await listAssets(owner) };
     if (tab === "content") {
       const [assets, contents, accounts] = await Promise.all([listAssets(owner), listContent(owner), listAccounts(owner)]);
-      const views: ContentView[] = await Promise.all(
-        contents.map(async (c) => {
-          const b = await getContentBundle(owner, c.id);
-          const yt = b?.variants.find((v) => v.platform === "youtube");
-          const tt = b?.variants.find((v) => v.platform === "tiktok");
-          return {
-            id: c.id, title: c.title, description: c.description, caption: c.caption, hashtags: c.hashtags,
-            language: c.language, notes: c.notes, aiGenerated: c.ai_generated,
-            mediaIds: b?.media.map((m) => m.asset_id) ?? [],
-            platforms: b?.variants.map((v) => v.platform) ?? [],
-            privacy: typeof yt?.options?.privacy === "string" ? yt.options.privacy : "private",
-            tiktokPrivacy: typeof tt?.options?.privacy === "string" ? tt.options.privacy : "SELF_ONLY",
-          };
-        }),
-      );
+      // Two batched queries for every draft (this used to be three queries PER draft).
+      const relations = await getContentRelations(owner, contents.map((c) => c.id));
+      const views: ContentView[] = contents.map((c) => {
+        const b = relations.get(c.id);
+        const yt = b?.variants.find((v) => v.platform === "youtube");
+        const tt = b?.variants.find((v) => v.platform === "tiktok");
+        return {
+          id: c.id, title: c.title, description: c.description, caption: c.caption, hashtags: c.hashtags,
+          language: c.language, notes: c.notes, aiGenerated: c.ai_generated,
+          mediaIds: b?.media.map((m) => m.asset_id) ?? [],
+          platforms: b?.variants.map((v) => v.platform) ?? [],
+          privacy: typeof yt?.options?.privacy === "string" ? yt.options.privacy : "private",
+          tiktokPrivacy: typeof tt?.options?.privacy === "string" ? tt.options.privacy : "SELF_ONLY",
+        };
+      });
       return { tab, assets, accounts, views };
     }
     if (tab === "schedule") {
