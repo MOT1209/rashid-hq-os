@@ -82,6 +82,25 @@ export async function syncMetaAccountsAction(): Promise<Result<{ pages: number; 
   }
 }
 
+/** Reads the connected TikTok account from TikTok itself and records it. */
+export async function syncTikTokAccountAction(): Promise<Result<{ name: string }>> {
+  const session = await requireAdmin();
+  try {
+    const token = await getFreshAccessToken(session.user.id, "tiktok_publish");
+    const r = await integrationFetchJson<{ data?: { user?: { open_id?: string; display_name?: string } } }>(
+      "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name",
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    const u = r.data?.user;
+    if (!u?.open_id) return fail("TikTok did not return an account.");
+    await upsertAccount(session.user.id, { platform: "tiktok", connection_provider: "tiktok_publish", external_id: u.open_id, display_name: u.display_name ?? u.open_id });
+    revalidatePath(PATH);
+    return { ok: true, name: u.display_name ?? u.open_id };
+  } catch {
+    return fail("Could not read the TikTok account. Connect “TikTok” in Integrations first.");
+  }
+}
+
 /* ---------- media (direct-to-storage via signed URL) ---------- */
 
 const VIDEO_MIME = ["video/mp4", "video/quicktime", "video/webm", "video/x-matroska"];
@@ -228,6 +247,7 @@ export async function saveContentAction(input: {
   privacy?: string;
   /** The owner applied AI-suggested text into this draft. */
   aiAssisted?: boolean;
+  tiktokPrivacy?: string;
   variantOverrides?: Record<string, { title?: string; caption?: string }>;
 }): Promise<Result<{ id: string }>> {
   const session = await requireAdmin();
@@ -276,7 +296,7 @@ export async function saveContentAction(input: {
         platform,
         title: o?.title?.trim() ? o.title.slice(0, 200) : null,
         caption: o?.caption?.trim() ? o.caption.slice(0, 5000) : null,
-        options: platform === "youtube" ? { privacy } : {},
+        options: platform === "youtube" ? { privacy } : platform === "tiktok" ? { privacy: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"].includes(input.tiktokPrivacy ?? "") ? input.tiktokPrivacy : "SELF_ONLY" } : {},
         updated_at: new Date().toISOString(),
       },
       { onConflict: "content_id,platform" },

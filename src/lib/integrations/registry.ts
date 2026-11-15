@@ -3,6 +3,7 @@ import "server-only";
 import { googleProvider } from "@/lib/integrations/providers/google";
 import { githubProvider } from "@/lib/integrations/providers/github";
 import { metaProvider } from "@/lib/integrations/providers/meta";
+import { tiktokProvider } from "@/lib/integrations/providers/tiktok";
 import {
   anthropicProvider,
   clarityProvider,
@@ -139,6 +140,7 @@ const PROVIDERS: IntegrationProvider[] = [
 
   // ── Social publishing ────────────────────────────────────────────────────
   metaProvider,
+  tiktokProvider,
 
   // ── AI (API key) ─────────────────────────────────────────────────────────
   openaiProvider,

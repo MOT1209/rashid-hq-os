@@ -26,6 +26,9 @@ const IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export function validateVariant(variant: VariantInput, media: MediaFacts[]): Issue[] {
   const cap = PLATFORMS[variant.platform];
+  if (!cap) {
+    return [{ field: "platform", code: "not_ready", message: `Unknown platform "${String(variant.platform)}".`, severity: "error" }];
+  }
   const issues: Issue[] = [];
   const err = (field: string, code: string, message: string) =>
     issues.push({ field, code, message, severity: "error" });

@@ -21,6 +21,7 @@ import {
   retryJobAction,
   saveContentAction,
   syncMetaAccountsAction,
+  syncTikTokAccountAction,
   syncYouTubeAccountAction,
   validateContentAction,
 } from "@/app/dashboard/social-studio/actions";
@@ -30,7 +31,7 @@ export type AccountView = { id: string; platform: string; display_name: string; 
 export type AssetView = { id: string; name: string; kind: string; mime_type: string; size_bytes: number; duration_seconds: number | null; status: string };
 export type ContentView = {
   id: string; title: string; description: string; caption: string; hashtags: string[]; language: string; notes: string;
-  mediaIds: string[]; platforms: string[]; privacy: string; aiGenerated?: boolean;
+  mediaIds: string[]; platforms: string[]; privacy: string; tiktokPrivacy?: string; aiGenerated?: boolean;
 };
 export type JobView = {
   id: string; platform: string; status: string; run_at: string; timezone: string; attempts: number;
@@ -95,12 +96,12 @@ export function AccountsPanel({
                   <button type="button" onClick={() => connect(p.integrationId)} className="rounded-xl bg-accent px-3 py-2 text-xs font-medium text-white">
                     {t.connect}
                   </button>
-                  {(p.id === "youtube" || p.integrationId === "meta_publish") && (
+                  {(p.id === "youtube" || p.integrationId === "meta_publish" || p.id === "tiktok") && (
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => start(async () => {
-                        const r = p.id === "youtube" ? await syncYouTubeAccountAction() : await syncMetaAccountsAction();
+                        const r = p.id === "youtube" ? await syncYouTubeAccountAction() : p.id === "tiktok" ? await syncTikTokAccountAction() : await syncMetaAccountsAction();
                         setMsg(r.ok ? null : r.error);
                         router.refresh();
                       })}
@@ -215,7 +216,7 @@ export function MediaPanel({ t, assets }: { t: SocialT; assets: AssetView[] }) {
 
 /* ------------------------------- Content ------------------------------- */
 
-const EMPTY: ContentView = { id: "", title: "", description: "", caption: "", hashtags: [], language: "ar", notes: "", mediaIds: [], platforms: ["youtube"], privacy: "private" };
+const EMPTY: ContentView = { id: "", title: "", description: "", caption: "", hashtags: [], language: "ar", notes: "", mediaIds: [], platforms: ["youtube"], privacy: "private", tiktokPrivacy: "SELF_ONLY" };
 
 export function ContentPanel({
   t, platforms, assets, contents, accounts, timezone,
@@ -328,6 +329,16 @@ export function ContentPanel({
               </select>
             </Field>
           </div>
+          {form.platforms.includes("tiktok") && (
+            <Field id="sc-tt" label={t.fieldTiktokPrivacy}>
+              <select id="sc-tt" className={fieldClass} value={form.tiktokPrivacy ?? "SELF_ONLY"} onChange={(e) => set("tiktokPrivacy", e.target.value)}>
+                <option value="SELF_ONLY">{t.privPrivate}</option>
+                <option value="FOLLOWER_OF_CREATOR">{t.ttFollowers}</option>
+                <option value="MUTUAL_FOLLOW_FRIENDS">{t.ttFriends}</option>
+                <option value="PUBLIC_TO_EVERYONE">{t.privPublic}</option>
+              </select>
+            </Field>
+          )}
           <fieldset>
             <legend className="mb-1 text-xs text-muted">{t.fieldMedia}</legend>
             <div className="flex flex-wrap gap-2">

@@ -57,12 +57,14 @@ export default async function SocialStudioPage({
         contents.map(async (c) => {
           const b = await getContentBundle(owner, c.id);
           const yt = b?.variants.find((v) => v.platform === "youtube");
+          const tt = b?.variants.find((v) => v.platform === "tiktok");
           return {
             id: c.id, title: c.title, description: c.description, caption: c.caption, hashtags: c.hashtags,
             language: c.language, notes: c.notes, aiGenerated: c.ai_generated,
             mediaIds: b?.media.map((m) => m.asset_id) ?? [],
             platforms: b?.variants.map((v) => v.platform) ?? [],
             privacy: typeof yt?.options?.privacy === "string" ? yt.options.privacy : "private",
+            tiktokPrivacy: typeof tt?.options?.privacy === "string" ? tt.options.privacy : "SELF_ONLY",
           };
         }),
       );

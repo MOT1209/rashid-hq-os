@@ -91,9 +91,9 @@ describe("parseSchedule", () => {
 });
 
 describe("provider registry honesty", () => {
-  it("YouTube/Facebook/Instagram are implemented; TikTok is pending; all list blockers", () => {
-    for (const p of ["youtube", "facebook", "instagram"] as const) expect(canPublish(p)).toBe(true);
-    expect(canPublish("tiktok")).toBe(false);
+  it("all four platforms have adapters; unknown ones are refused; every platform lists its external blockers", () => {
+    for (const p of ["youtube", "facebook", "instagram", "tiktok"] as const) expect(canPublish(p)).toBe(true);
+    expect(canPublish("pinterest" as never)).toBe(false);
     for (const p of Object.values(PLATFORMS)) expect(p.blockers.length).toBeGreaterThan(0);
   });
 });
@@ -129,9 +129,10 @@ describe("validateVariant", () => {
   it("allows a text-only Facebook post", () => {
     expect(hasErrors(validateVariant({ platform: "facebook", caption: "hello" }, []))).toBe(false);
   });
-  it("refuses pending platforms", () => {
-    expect(validateVariant({ platform: "tiktok", caption: "x" }, [video]).some((i) => i.code === "not_ready")).toBe(true);
+  it("refuses platforms without an adapter", () => {
+    expect(validateVariant({ platform: "pinterest" as never, caption: "x" }, [video]).some((i) => i.code === "not_ready")).toBe(true);
   });
+
 });
 
 describe("parseHashtags", () => {

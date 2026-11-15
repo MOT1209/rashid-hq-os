@@ -66,10 +66,10 @@ describe("processJob", () => {
     expect(await processJob(job({ attempts: 5 }), d.deps)).toBe("failed");
   });
 
-  it("refuses pending platforms and never calls an adapter", async () => {
+  it("refuses platforms that are not implemented and never calls an adapter", async () => {
     const publish = vi.fn();
     const d = deps(publish);
-    expect(await processJob(job({ platform: "tiktok" }), d.deps)).toBe("failed");
+    expect(await processJob(job({ platform: "pinterest" }), d.deps)).toBe("failed");
     expect(publish).not.toHaveBeenCalled();
   });
 

@@ -7,6 +7,7 @@ import { nextAfterFailure, type FailureKind } from "@/lib/social/jobs";
 import { canPublish } from "@/lib/social/providers";
 import { publishToYouTube, type PublishResult } from "@/lib/social/adapters/youtube";
 import { publishToFacebook, publishToInstagram } from "@/lib/social/adapters/meta";
+import { publishToTikTok, TIKTOK_PRIVACY } from "@/lib/social/adapters/tiktok";
 import { db, type AccountRow, type AssetRow, type ContentRow, type JobRow, type VariantRow } from "@/lib/social/store";
 import { hasErrors, validateVariant } from "@/lib/social/validation";
 
@@ -156,6 +157,27 @@ function realDeps(): Deps {
             const { data, error } = await supabase.storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 3600);
             if (error || !data) throw new Error("could not sign media URL");
             return fetch(data.signedUrl);
+          },
+        });
+      }
+      if (job.platform === "tiktok") {
+        const { data, error } = await supabase.storage.from(asset.storage_bucket).createSignedUrl(asset.storage_path, 3600);
+        if (error || !data) return { ok: false, kind: "retryable", message: "Could not sign the media URL." };
+        const url = data.signedUrl;
+        const opt = String(ctx.variant.options?.privacy ?? "SELF_ONLY");
+        const privacy = (TIKTOK_PRIVACY as readonly string[]).includes(opt) ? opt : "SELF_ONLY";
+        const text = [caption || title, ...(tags.length ? [tags.map((t) => `#${t}`).join(" ")] : [])].filter(Boolean).join(" ");
+        return publishToTikTok({
+          accessToken: token,
+          title: text,
+          privacy,
+          sizeBytes: Number(asset.size_bytes),
+          mimeType: asset.mime_type,
+          durationSeconds: asset.duration_seconds,
+          readRange: async (start, end) => {
+            const r = await fetch(url, { headers: { range: `bytes=${start}-${end}` } });
+            if (!(r.status === 206 || r.status === 200)) throw new Error(`storage returned ${r.status}`);
+            return new Uint8Array(await r.arrayBuffer());
           },
         });
       }

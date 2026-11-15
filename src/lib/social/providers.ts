@@ -127,22 +127,23 @@ export const PLATFORMS: Record<SocialPlatform, PlatformCapabilities> = {
   tiktok: {
     id: "tiktok",
     name: "TikTok",
-    integrationId: "tiktok",
-    readiness: "pending",
-    auth: "TikTok Login Kit OAuth 2.0 (PKCE)",
+    integrationId: "tiktok_publish",
+    readiness: "implemented",
+    auth: "TikTok Login Kit v2 OAuth 2.0 (24h access token + refresh token)",
     mediaTypes: ["video"],
     upload: "chunked_binary",
     nativeScheduling: false,
-    analytics: ["views", "likes", "comments", "shares"],
-    requiredScopes: ["video.publish", "video.upload", "user.info.basic"],
+    analytics: [],
+    requiredScopes: ["user.info.basic", "video.publish", "video.upload"],
     limits: { titleMax: 2200, captionMax: 2200, videoMaxBytes: 4 * GB, videoMaxSeconds: 600 },
     requires: { media: true, videoOnly: true },
     maxMedia: 1,
-    accountRequirements: "A TikTok account; posting must use the creator's chosen privacy options.",
+    accountRequirements: "A TikTok account. The privacy level must be one the account offers.",
     blockers: [
-      "No TikTok adapter is implemented yet.",
-      "Direct Post requires TikTok's app audit; unaudited clients can only post private (SELF_ONLY) content.",
-      "TikTok requires the user to confirm privacy/interaction settings in the UI before each post.",
+      "Create a TikTok developer app with Login Kit + Content Posting API (TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET) and register the redirect URI.",
+      "Until TikTok audits the app, posts are forced to private (SELF_ONLY) and only approved test users can post.",
+      "TikTok's UX rules expect the creator to review privacy/interaction settings per post; this build defaults to SELF_ONLY and you choose the level explicitly.",
+      "No analytics: reading TikTok metrics needs the video.list scope, which is not requested.",
     ],
     docsUrl: "https://developers.tiktok.com/doc/content-posting-api-get-started",
   },
@@ -155,7 +156,7 @@ export function isPlatform(value: unknown): value is SocialPlatform {
 }
 
 export function canPublish(platform: SocialPlatform): boolean {
-  return PLATFORMS[platform].readiness === "implemented";
+  return PLATFORMS[platform]?.readiness === "implemented";
 }
 
 export const MAX_IMAGE_BYTES_DEFAULT = 20 * MB;
