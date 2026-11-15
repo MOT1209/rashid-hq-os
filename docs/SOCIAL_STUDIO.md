@@ -21,10 +21,19 @@ the UI says so.
 | Content drafts + per-platform variants + validation | Built. |
 | Publish now / schedule / cancel / retry / history | Built. Persistent queue in Postgres (migration 0024), verified on real Postgres 16 (claim, duplicate key, stale-lock reclaim, success constraint). |
 | Calendar | **List view of queued jobs only.** No month/week/day grid, no drag-reschedule. |
-| AI content assistant + the six agents | **Not built.** The UI says so; no AI text is generated or published. |
+| AI content assistant (titles, description, caption, hashtags, platform adaptation, translation, ideas, 7-day plan, summary, thumbnail concepts) | Built. Uses the existing model layer (Groq, `GROQ_API_KEY`). Returns **text suggestions only**; shown in a labelled "AI suggestion" box, applied by the owner into the editor, and drafts that took AI text carry an "AI-assisted" badge. Tested with a mocked model; not run against the live provider. |
+| Six specialised agents (Strategist, Writer, Adapter, Publishing Assistant, Analytics, Media Organizer) | **Not built.** The assistant covers the writing/adaptation/planning tasks as one tool; there are no autonomous agents and no agent publish permissions. |
 | Analytics snapshots | **Not built.** No metrics are shown, none are fabricated. |
 | Automation rules, agent publish permissions | **Not built.** |
 | E2E (browser) tests | **Not built.** Unit + DB-level checks only. |
+
+## AI assistant guardrails
+
+- Output is text only. There is no code path from the assistant to `confirmPublishAction`; publishing still needs the owner's explicit confirmation.
+- Owner text is fenced as data in the prompt (basic prompt-injection resistance, not a guarantee).
+- Input capped at 6,000 characters, output at 800 tokens. Daily cap of 100 runs (`SOCIAL_AI_DAILY_RUNS`).
+- Every run is recorded in `agent_runs` as kind `social_assist` (migration 0025) and appears in Insights as "Content assistant". If the ledger is unreachable the assistant still works (fail-safe, reported to Sentry).
+- Cost: Groq free tier by default; no new paid service.
 
 ## How publishing is kept safe
 
@@ -44,7 +53,8 @@ the UI says so.
 
 1. Apply migrations: `npm run migrate:apply` (adds migration `0024_social_studio.sql` and the private `social-media` bucket).
 2. Meta (Facebook/Instagram): create a Meta app, add redirect URI `https://<host>/api/integrations/meta_publish/callback`, set `META_APP_ID` / `META_APP_SECRET`. Until Meta app review approves `pages_manage_posts` and `instagram_content_publish`, only app admins/testers can publish. Then Integrations → connect **Meta**, and Social Studio → Accounts → **Detect channel** on the Facebook or Instagram card.
-2b. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `INTEGRATIONS_SECRET`,
+2b. AI assistant: set `GROQ_API_KEY` (already used by the console) and optionally `SOCIAL_AI_DAILY_RUNS`.
+2c. Env vars (see `INTEGRATIONS.md` and `.env.example`): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_APP_ID`, `META_APP_SECRET`, `INTEGRATIONS_SECRET`,
    `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, optional `OWNER_TIMEZONE` (e.g. `Asia/Riyadh`).
 3. Google Cloud: enable **YouTube Data API v3**; add redirect URI `https://<host>/api/integrations/youtube_publish/callback`.
 4. In the app: Integrations → connect **YouTube Publishing**; Social Studio → Accounts → **Detect channel**.
@@ -63,6 +73,7 @@ so the browser can upload/preview via signed URLs.
 
 ## Manual verification checklist — Meta
 
+- [ ] AI assistant: generate a caption in Arabic and English, apply it, confirm the draft shows the AI-assisted badge, and that nothing is queued until you confirm.
 - [ ] Connect Meta; Accounts → detect lists your Pages and any linked Instagram business account.
 - [ ] Facebook: publish a text-only post; History shows a post id and the link opens it.
 - [ ] Facebook: publish an image and a short video; both appear on the Page.
@@ -85,5 +96,6 @@ so the browser can upload/preview via signed URLs.
 
 `tests/social-core.test.ts` (state machine, backoff, timezone, validation, registry honesty),
 `tests/social-engine.test.ts` (engine branches and YouTube adapter against mocked fetch),
+`tests/social-ai.test.ts` (prompt fencing/limits, daily cap, usage ledger, fail-safes, mocked model),
 `tests/social-meta.test.ts` (Facebook/Instagram adapters and error classification, mocked fetch),
 `tests/integrations-callback-2fa.test.ts` (OAuth callback security). Mocks are never presented as live integrations.

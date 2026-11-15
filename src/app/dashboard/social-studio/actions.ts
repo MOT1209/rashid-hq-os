@@ -13,6 +13,8 @@ import { runDueJobs } from "@/lib/social/engine";
 import { db, getAsset, getContentBundle, upsertAccount, type AccountRow } from "@/lib/social/store";
 import { hasErrors, parseHashtags, validateVariant } from "@/lib/social/validation";
 import { logActivity } from "@/lib/activity";
+import { runAssist } from "@/lib/social/ai";
+import { isAiTask } from "@/lib/social/ai-prompts";
 
 const PATH = "/dashboard/social-studio";
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -170,6 +172,32 @@ export async function mediaPreviewUrlAction(assetId: string): Promise<Result<{ u
   return data ? { ok: true, url: data.signedUrl } : fail("Could not sign URL.");
 }
 
+/* ---------- AI assistant (suggestions only) ---------- */
+
+/**
+ * Returns a TEXT SUGGESTION. It never writes content, never enqueues or
+ * publishes: the owner must apply it into the editor, edit it, save, and then
+ * confirm publishing separately through confirmPublishAction.
+ */
+export async function assistAction(input: {
+  task: string;
+  text: string;
+  platform?: string;
+  language?: string;
+  targetLanguage?: string;
+}): Promise<Result<{ text: string; hashtags?: string[]; tokens: number | null }>> {
+  await requireAdmin();
+  if (!isAiTask(input.task)) return fail("Unknown AI task.");
+  const r = await runAssist({
+    task: input.task,
+    text: String(input.text ?? ""),
+    platform: input.platform,
+    language: input.language === "en" ? "en" : "ar",
+    targetLanguage: input.targetLanguage,
+  });
+  return r.ok ? { ok: true, text: r.text, hashtags: r.hashtags, tokens: r.tokens } : fail(r.error);
+}
+
 /* ---------- content ---------- */
 
 export async function saveContentAction(input: {
@@ -183,6 +211,8 @@ export async function saveContentAction(input: {
   mediaIds: string[];
   platforms: string[];
   privacy?: string;
+  /** The owner applied AI-suggested text into this draft. */
+  aiAssisted?: boolean;
   variantOverrides?: Record<string, { title?: string; caption?: string }>;
 }): Promise<Result<{ id: string }>> {
   const session = await requireAdmin();
@@ -204,7 +234,7 @@ export async function saveContentAction(input: {
     language: input.language === "en" ? "en" : "ar",
     notes: input.notes.slice(0, 2000),
     updated_at: new Date().toISOString(),
-    ai_generated: false,
+    ai_generated: input.aiAssisted === true,
   };
 
   let id = input.id;

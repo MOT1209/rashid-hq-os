@@ -4,9 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyState, Field, FormError, Panel, fieldClass } from "@/components/ui";
 import type { SocialT } from "@/lib/social/i18n";
+import { AI_TASKS, APPLY_TARGETS, type AiTask } from "@/lib/social/ai-prompts";
 import type { PlatformCapabilities } from "@/lib/social/providers";
 import {
   archiveAssetAction,
+  assistAction,
   cancelJobAction,
   confirmPublishAction,
   confirmUploadAction,
@@ -25,7 +27,7 @@ export type AccountView = { id: string; platform: string; display_name: string; 
 export type AssetView = { id: string; name: string; kind: string; mime_type: string; size_bytes: number; duration_seconds: number | null; status: string };
 export type ContentView = {
   id: string; title: string; description: string; caption: string; hashtags: string[]; language: string; notes: string;
-  mediaIds: string[]; platforms: string[]; privacy: string;
+  mediaIds: string[]; platforms: string[]; privacy: string; aiGenerated?: boolean;
 };
 export type JobView = {
   id: string; platform: string; status: string; run_at: string; timezone: string; attempts: number;
@@ -224,12 +226,19 @@ export function ContentPanel({
   const [issues, setIssues] = useState<{ platform: string; issues: { message: string; severity: string }[] }[] | null>(null);
   const [when, setWhen] = useState("");
   const [acct, setAcct] = useState<Record<string, string>>({});
+  const [aiApplied, setAiApplied] = useState(false);
+  const [aiTask, setAiTask] = useState<AiTask>("caption");
+  const [aiInput, setAiInput] = useState("");
+  const [aiPlatform, setAiPlatform] = useState("");
+  const [aiTarget, setAiTarget] = useState("en");
+  const [aiOut, setAiOut] = useState<{ task: AiTask; text: string } | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   const [pending, start] = useTransition();
   const ready = assets.filter((a) => a.status === "ready");
   const set = <K extends keyof ContentView>(k: K, v: ContentView[K]) => setForm((f) => ({ ...f, [k]: v }));
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-  const payload = () => ({ ...form, id: form.id || undefined, hashtags: hashtags, mediaIds: form.mediaIds, platforms: form.platforms });
+  const payload = () => ({ ...form, id: form.id || undefined, hashtags: hashtags, mediaIds: form.mediaIds, platforms: form.platforms, aiAssisted: aiApplied });
 
   function save(then?: (id: string) => Promise<void>) {
     setNote(null);
@@ -241,6 +250,28 @@ export function ContentPanel({
       if (then) await then(r.id);
       router.refresh();
     });
+  }
+
+  async function generate() {
+    setNote(null);
+    setAiBusy(true);
+    const r = await assistAction({
+      task: aiTask,
+      text: aiInput || form.title || form.caption,
+      platform: aiPlatform || undefined,
+      language: form.language,
+      targetLanguage: aiTarget,
+    });
+    setAiBusy(false);
+    if (!r.ok) return setNote({ kind: "err", text: r.error });
+    setAiOut({ task: aiTask, text: r.text });
+  }
+
+  function applyAi(field: "title" | "description" | "caption" | "hashtags") {
+    if (!aiOut) return;
+    if (field === "hashtags") setHashtags(aiOut.text.replace(/#/g, "").trim());
+    else set(field, aiOut.text);
+    setAiApplied(true);
   }
 
   async function validate(id: string) {
@@ -261,14 +292,14 @@ export function ContentPanel({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-      <Panel title={t.tabContent} action={<button type="button" className="text-xs text-accent" onClick={() => { setForm(EMPTY); setHashtags(""); setIssues(null); setNote(null); }}>{t.newContent}</button>}>
+      <Panel title={t.tabContent} action={<button type="button" className="text-xs text-accent" onClick={() => { setForm(EMPTY); setHashtags(""); setIssues(null); setNote(null); setAiApplied(false); setAiOut(null); }}>{t.newContent}</button>}>
         {contents.length === 0 ? <EmptyState>{t.noContent}</EmptyState> : (
           <ul className="space-y-1">
             {contents.map((c) => (
               <li key={c.id}>
                 <button type="button" className={`w-full rounded-xl px-3 py-2 text-start text-sm hover:bg-panel-2 ${form.id === c.id ? "bg-accent-soft" : ""}`}
-                  onClick={() => { setForm(c); setHashtags(c.hashtags.join(" ")); setIssues(null); setNote(null); }}>
-                  {c.title || "—"}
+                  onClick={() => { setForm(c); setHashtags(c.hashtags.join(" ")); setIssues(null); setNote(null); setAiApplied(Boolean(c.aiGenerated)); setAiOut(null); }}>
+                  {c.title || "—"}{c.aiGenerated && <span className="ms-2 rounded-full bg-panel-2 px-2 py-0.5 text-[10px] text-muted">{t.aiAssisted}</span>}
                 </button>
               </li>
             ))}
@@ -350,7 +381,46 @@ export function ContentPanel({
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted">{t.aiNote}</p>
+          <section aria-label={t.aiTitle} className="space-y-2 rounded-xl border border-dashed border-border p-3">
+            <h3 className="text-xs font-semibold">{t.aiTitle}</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field id="ai-task" label={t.aiTask}>
+                <select id="ai-task" className={fieldClass} value={aiTask} onChange={(e) => setAiTask(e.target.value as AiTask)}>
+                  {AI_TASKS.map((k) => <option key={k} value={k}>{t.aiTasks[k]}</option>)}
+                </select>
+              </Field>
+              <Field id="ai-platform" label={t.aiPlatform}>
+                <select id="ai-platform" className={fieldClass} value={aiPlatform} onChange={(e) => setAiPlatform(e.target.value)}>
+                  <option value="">—</option>
+                  {platforms.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            {aiTask === "translate" && (
+              <Field id="ai-target" label={t.aiTargetLang}>
+                <select id="ai-target" className={fieldClass} value={aiTarget} onChange={(e) => setAiTarget(e.target.value)}>
+                  <option value="en">English</option><option value="ar">العربية</option>
+                </select>
+              </Field>
+            )}
+            <Field id="ai-input" label={t.aiInput}><textarea id="ai-input" rows={2} className={fieldClass} value={aiInput} onChange={(e) => setAiInput(e.target.value)} /></Field>
+            <button type="button" disabled={aiBusy} onClick={generate} className="rounded-xl border border-border px-3 py-2 text-xs">{aiBusy ? t.working : t.aiGenerate}</button>
+            {aiOut && (
+              <div className="space-y-2 rounded-lg border border-accent/40 bg-accent-soft p-3">
+                <p className="text-[11px] font-medium text-accent">{t.aiSuggestion}</p>
+                <pre className="whitespace-pre-wrap text-sm" dir="auto">{aiOut.text}</pre>
+                {APPLY_TARGETS[aiOut.task].length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted">{t.aiApplyTo}:</span>
+                    {APPLY_TARGETS[aiOut.task].map((f) => (
+                      <button key={f} type="button" className="rounded-lg border border-border px-2 py-1" onClick={() => applyAi(f)}>{f === "title" ? t.fieldTitle : f === "description" ? t.fieldDescription : f === "caption" ? t.fieldCaption : t.fieldHashtags}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted">{t.aiDisclaimer}</p>
+          </section>
         </form>
       </Panel>
     </div>

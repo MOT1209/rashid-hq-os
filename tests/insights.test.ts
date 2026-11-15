@@ -59,6 +59,7 @@ describe("summariseRuns buckets", () => {
       "console",
       "delegation",
       "standing_task",
+      "social_assist",
     ]);
     expect(result.byKind.find((b) => b.key === "standing_task")).toMatchObject({
       runs: 0,

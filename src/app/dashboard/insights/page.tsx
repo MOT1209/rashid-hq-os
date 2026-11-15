@@ -52,6 +52,7 @@ export default async function InsightsPage() {
     console: t.runKindConsole,
     delegation: t.runKindDelegation,
     standing_task: t.runKindStandingTask,
+    social_assist: t.runKindSocialAssist,
   };
 
   const number = (value: number) => value.toLocaleString(locale);

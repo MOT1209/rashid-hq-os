@@ -53,7 +53,7 @@ export type PolicyRow = {
 };
 
 /** The three places a generateText/streamText call happens (src/lib/agent-run.ts). */
-export type RunKind = "console" | "delegation" | "standing_task";
+export type RunKind = "console" | "delegation" | "standing_task" | "social_assist";
 export type RunStatus = "success" | "failed";
 export type AgentRun = Omit<Row<"agent_runs">, "kind" | "status"> & {
   kind: RunKind;
