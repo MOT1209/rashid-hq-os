@@ -337,3 +337,4 @@ change nothing when it does not.
 Set `BETTER_AUTH_URL` to the production origin (sessions break otherwise), set
 `OWNER_EMAILS`, and leave `ALLOW_PRIVATE_MCP_ENDPOINTS` unset — it disables the
 SSRF guard and exists only for local development.
+factory test
